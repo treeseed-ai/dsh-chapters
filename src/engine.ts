@@ -488,13 +488,31 @@ export class ChaptersCompactionEngine extends BasicCompactionEngine {
         && typeof cfg.summarizationModel === 'string' && cfg.summarizationModel !== '')
         ? { provider: cfg.summarizationProvider, model: cfg.summarizationModel } : null
       const route = legacy ?? (shared !== null && shared.provider !== '' && shared.model !== '' ? shared : this.lastRoute)
-      if (route === null) return null
-      const text = await this.#auxComplete(instruction, route, 220, signal, session.id)
+      if (route === null) {
+        // Loud, not silent: an empty plot section is a legitimate outcome, but
+        // SILENTLY skipping is how the treeseed run's early child checkpoints
+        // lost their plots without a trace (2026-09-27 audit).
+        this.#diagnostic('dsh-chapters: plot elicitation skipped — no route resolved (lastRoute unset, no aux route)')
+        return null
+      }
+      // 600, not 220: reasoning tokens count against the budget on reasoning
+      // models (measured: the elicit prompt alone used 155 of 220 with a SHORT
+      // excerpt — real 8K-char excerpts invite more thinking and starved the
+      // content to nothing). Malformed replies are now logged with a snippet.
+      const text = await this.#auxComplete(instruction, route, 600, signal, session.id)
       const at = text.indexOf('PLOT:')
-      if (at === -1) return null
+      if (at === -1) {
+        this.#diagnostic(`dsh-chapters: plot elicitation reply carried no PLOT line (${text.length} chars): ${JSON.stringify(text.slice(0, 80))}`)
+        return null
+      }
       const para = text.slice(at + 5).split(/\n\s*\n/)[0]!.trim()
-      return para.length === 0 ? null : para.slice(0, 900)
-    } catch {
+      if (para.length === 0) {
+        this.#diagnostic('dsh-chapters: plot elicitation reply had an empty PLOT line')
+        return null
+      }
+      return para.slice(0, 900)
+    } catch (error) {
+      this.#diagnostic(`dsh-chapters: plot elicitation failed (${String((error as Error)?.message ?? error).slice(0, 120)}) — continuing without a plot`)
       return null
     }
   }
@@ -561,17 +579,25 @@ export class ChaptersCompactionEngine extends BasicCompactionEngine {
     try {
       await this.#finalizeAllOutstanding(session)
     } catch (error) {
-      const message = `dsh-chapters: chapter finalization deferred (session ${session.id}): ${String((error as Error)?.stack ?? error)}`
-      this.ctx.logger?.warn?.(message)
-      // Headless profiles route ctx.logger where the operator cannot see it
-      // (measured r19: every useful warn vanished). Mirror engine failures to
-      // an append file when the operator opts in — diagnostics seam, not a tunable.
-      const sink = process.env.DSH_CHAPTERS_ENGINE_ERRORS
-      if (sink !== undefined) {
-        try {
-          appendFileSync(sink, `[${new Date().toISOString()}] ${message}\n`)
-        } catch { /* diagnostics must never mask the real failure */ }
-      }
+      this.#diagnostic(`dsh-chapters: chapter finalization deferred (session ${session.id}): ${String((error as Error)?.stack ?? error)}`)
+    }
+  }
+
+  /**
+   * The operator-visible warn channel (r19: headless profiles route ctx.logger
+   * where nobody can see it; measured again 2026-09-27: even the in-process
+   * logger surface is unassertable on this node build). Warn + mirror to the
+   * DSH_CHAPTERS_ENGINE_ERRORS append file when opted in — diagnostics seam,
+   * not a tunable. Any degradation that leaves the user wondering "did the
+   * feature run?" belongs here.
+   */
+  #diagnostic(message: string): void {
+    this.ctx.logger?.warn?.(message)
+    const sink = process.env.DSH_CHAPTERS_ENGINE_ERRORS
+    if (sink !== undefined) {
+      try {
+        appendFileSync(sink, `[${new Date().toISOString()}] ${message}\n`)
+      } catch { /* diagnostics must never mask the real failure */ }
     }
   }
 

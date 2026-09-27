@@ -42,6 +42,7 @@ function harness(config: Record<string, unknown> = {}, opts: { plotStream?: bool
   const domainLike = { table, close: async () => {} }
   const logs: Array<['info' | 'warn', string]> = []
   let resolveModelInfoThrows = false
+  let streamText = 'PLOT: mid-refactor, next run tests.'
   // THE REAL cordis root context: the Service base chain touches container
   // internals (provide/mixin/tracker) that a hand-rolled fake cannot satisfy —
   // measured 2026-09-23 (`Cannot read properties of undefined (reading
@@ -81,8 +82,8 @@ function harness(config: Record<string, unknown> = {}, opts: { plotStream?: bool
     },
     stream: async function* (_o: unknown) {
       yield { type: 'block-start', index: 0, blockType: 'text' }
-      yield { type: 'text-delta', index: 0, text: 'PLOT: mid-refactor, next run tests.' }
-      yield { type: 'block-end', index: 0, block: { type: 'text', text: 'PLOT: mid-refactor, next run tests.' } }
+      yield { type: 'text-delta', index: 0, text: streamText }
+      yield { type: 'block-end', index: 0, block: { type: 'text', text: streamText } }
     },
   })
   ctx.provide('sessions', {})
@@ -116,7 +117,7 @@ function harness(config: Record<string, unknown> = {}, opts: { plotStream?: bool
     }
   }
   const settle = () => new Promise((r) => setTimeout(r, 120))
-  return { engine, cwd, store, logs, fire: (session: unknown, event: unknown) => { void ctx.emit('session/event', session, event) }, sessionOf, settle, table, setThrow: (v: boolean) => { resolveModelInfoThrows = v }, dispose: () => { process.stdout.write = ws; process.stderr.write = wes; try { (ctx.fiber as { dispose?: () => unknown } | undefined)?.dispose?.() } catch { /* root teardown is best-effort in tests */ } fs.rmSync(cwd, { recursive: true, force: true }) } }
+  return { engine, cwd, store, logs, setStreamText: (t: string) => { streamText = t }, fire: (session: unknown, event: unknown) => { void ctx.emit('session/event', session, event) }, sessionOf, settle, table, setThrow: (v: boolean) => { resolveModelInfoThrows = v }, dispose: () => { process.stdout.write = ws; process.stderr.write = wes; try { (ctx.fiber as { dispose?: () => unknown } | undefined)?.dispose?.() } catch { /* root teardown is best-effort in tests */ } fs.rmSync(cwd, { recursive: true, force: true }) } }
 }
 
 // ---------------------------------------------------------------- construction
@@ -257,10 +258,10 @@ test('plot carriage: no authored PLOT => one bounded elicit call through the rou
 })
 
 test('plot elicitation: llm without a stream degrades to no plot, never breaks compaction', async () => {
+  const sink = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'elicit-sink-')), 'errors.log')
+  process.env.DSH_CHAPTERS_ENGINE_ERRORS = sink
   const h = harness()
   try {
-    (h.engine as unknown as { ctx: { llm: { stream?: unknown } } }).ctx =
-      (h.engine as unknown as { ctx: Record<string, unknown> }).ctx
     const events = [
       human(0, 'refactor on, nothing authored here'),
       asst(1, 'no plot note was ever written by the agent'),
@@ -272,8 +273,33 @@ test('plot elicitation: llm without a stream degrades to no plot, never breaks c
     const r = await (h.engine as unknown as { summarize: (i: unknown, a: unknown) => Promise<{ summary: { text: string }[] }> })
       .summarize(input, { session })
     assert.ok(r.summary[0]!.text.length > 0, 'compaction still returned a checkpoint')
-    assert.ok(!r.summary[0]!.text.includes('PLOT:'), 'no route => no plot, silently')
-  } finally { h.dispose() }
+    assert.ok(!r.summary[0]!.text.includes('PLOT:'), 'no route => no plot (the outcome stays graceful)')
+    // ...but it must NOT be silent: the treeseed audit (2026-09-27) found early
+    // child checkpoints dropping their plot section with zero operator trace.
+    const written = fs.readFileSync(sink, 'utf8')
+    assert.match(written, /plot elicitation skipped/, 'the no-route reason reaches the operator-visible sink')
+  } finally { h.dispose(); delete process.env.DSH_CHAPTERS_ENGINE_ERRORS }
+})
+
+test('plot elicitation: malformed reply (no PLOT line) is logged, compaction proceeds plotless', async () => {
+  const sink = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'elicit-sink-')), 'errors.log')
+  process.env.DSH_CHAPTERS_ENGINE_ERRORS = sink
+  const h = harness()
+  try {
+    const arm = h.sessionOf('s-elicit-arm', [human(0, 'arm the route'), asst(1, 'armed')], {
+      requestHeader: () => ({ config: { provider: 'local', model: 'elicitmodel' } }),
+    })
+    await h.engine.compactIfNeeded({ session: arm } as never, 'pressure' as never, new AbortController().signal as never)
+    h.setStreamText('I considered the conversation carefully but emitted no marker.')
+    const events = [human(0, 'work without a plot line'), asst(1, 'still no plot line here'), ev(2, 'turn/end', {}), ev(3, 'compaction/start', { compactionId: 'c-el' })]
+    const session = h.sessionOf('s-elicit', events, {
+      requestHeader: () => ({ config: { provider: 'local', model: 'elicitmodel' } }),
+    })
+    const r = await (h.engine as unknown as { summarize: (i: unknown, a: unknown) => Promise<{ summary: { text: string }[] }> })
+      .summarize({ messages: events.slice(0, 2).map((e) => ({ role: 'user', content: e.data.content })) }, { session })
+    assert.ok(!r.summary[0]!.text.includes('PLOT:'), 'a malformed reply never becomes a plot')
+    assert.match(fs.readFileSync(sink, 'utf8'), /carried no PLOT line/, 'the malformed reply reaches the sink with a snippet')
+  } finally { h.dispose(); delete process.env.DSH_CHAPTERS_ENGINE_ERRORS }
 })
 
 // ---------------------------------------------------------------- finalize stack
