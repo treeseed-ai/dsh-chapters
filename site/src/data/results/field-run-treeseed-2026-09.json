@@ -1,0 +1,21 @@
+{
+  "id": "field-run-treeseed-2026-09",
+  "kind": "observational",
+  "label": "Field study — TreeSeed platform analysis (10 sessions, 9 sub-agents)",
+  "date": "2026-09-27",
+  "model": "qwen3.8-flash-next @ 65,536 (llama.cpp, 8GB VRAM)",
+  "notes": "Real multi-agent production session, instrumented post-hoc from durable session logs — not a controlled benchmark. Arms-based benchmarks run separately via the local runner; this is what the system actually faced in the wild.",
+  "metrics": [
+    { "label": "Sessions in the study", "value": "10", "unit": "parent + 9 sub-agents", "source": "~/.dsh/sessions logs" },
+    { "label": "LLM requests served", "value": "402", "source": "usage events" },
+    { "label": "Compactions (all zero inference tokens)", "value": "21", "source": "compaction/summary events" },
+    { "label": "Conversation tokens archived verbatim", "value": "679,707", "source": "shadowedTokenCount sum" },
+    { "label": "Inference tokens spent compacting", "value": "0", "source": "deterministic summarize" },
+    { "label": "Archive retrievals by the agents", "value": "49 / 49 succeeded", "unit": "~497 KB restored", "source": "tool/call↔tool/result join" },
+    { "label": "Chapters written (registry = files on disk)", "value": "30 / 30", "source": "dsh_chapters.json vs .dsh-chapters/" },
+    { "label": "Turn/step events unbalanced, or error events", "value": "0", "source": "all 10 sessions closed clean" },
+    { "label": "Peak steady-state cache hit (quiet windows)", "value": "0.997–1.000", "source": "usage series" },
+    { "label": "Heaviest single session", "value": "95 requests, 6 compactions", "unit": "one task threaded through 6 windows", "source": "child 6d2d93a6" },
+    { "label": "Stock-method equivalence estimate", "value": "≈ 113 min", "unit": "680K prefill tokens @ 100 tok/s + 21× summary generation", "source": "derived, clearly-labeled estimate" }
+  ]
+}

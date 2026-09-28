@@ -1,0 +1,35 @@
+---
+/* Replacement for Starlight's ThemeSelect (configured in astro.config components).
+ * Same visual slot (header), but the selection persists to a 1-year COOKIE
+ * (dsh-theme) in addition to localStorage — the cookie is what the site treats
+ * as authoritative; astro.config head-sync restores from it before paint. */
+---
+<button id="dsh-theme-toggle" type="button" aria-label="Toggle dark mode" title="Toggle dark / light">
+  <svg class="icon-sun" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.6 4.6l1.8 1.8M17.6 17.6l1.8 1.8M19.4 4.6l-1.8 1.8M6.4 17.6l-1.8 1.8"/></svg>
+  <svg class="icon-moon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z"/></svg>
+</button>
+<style is:global>
+  #dsh-theme-toggle {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 2.25rem; height: 2.25rem; border-radius: 0.5rem;
+    border: 1px solid var(--sl-color-gray-5, transparent);
+    background: transparent; color: var(--sl-color-text); cursor: pointer;
+  }
+  #dsh-theme-toggle:hover { border-color: var(--sl-color-gray-3); }
+  #dsh-theme-toggle .icon-moon { display: none; }
+  html[data-theme="dark"] #dsh-theme-toggle .icon-moon { display: block; }
+  html[data-theme="dark"] #dsh-theme-toggle .icon-sun { display: none; }
+</style>
+<script is:inline>
+(function () {
+  document.addEventListener('click', function (ev) {
+    var btn = ev.target.closest ? ev.target.closest('#dsh-theme-toggle') : null;
+    if (!btn) return;
+    var next = document.documentElement.dataset.theme === 'light' ? 'dark' : 'light';
+    document.documentElement.dataset.theme = next;
+    try { localStorage.setItem('starlight-theme', next); } catch (e) {}
+    document.cookie = 'dsh-theme=' + next + '; path=/; max-age=31536000; SameSite=Lax';
+    if (window.StarlightThemeProvider) window.StarlightThemeProvider.updatePickers(next);
+  });
+})();
+</script>

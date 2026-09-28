@@ -1,0 +1,53 @@
+---
+/** Renders committed studies. compact = homepage strip; full = evidence page. */
+import { studies, armLabel, type Study } from '../data/bench';
+interface Props { compact?: boolean }
+const { compact = false } = Astro.props;
+const shown: Study[] = compact ? studies.slice(0, 1) : studies;
+const maxUncached = Math.max(1, ...studies.flatMap((s) => (s.arms ?? []).map((a) => a.tokensUncached)));
+---
+{shown.map((s) => (
+  <section class="dsh-study">
+    <div class="dsh-section-title"><h2>{compact ? 'Measured, not marketed' : s.label}</h2></div>
+    {compact
+      ? <div class="dsh-ten" style="margin-top:.4rem">
+          {s.metrics!.slice(0, 4).map((m) => (
+            <div class="dsh-card" style="padding:.8rem .95rem">
+              <h3 style="margin-top:0">{m.value}{m.unit && <span style="font-weight:400"> {m.unit}</span>}</h3>
+              <p style="margin:0">{m.label}</p>
+            </div>
+          ))}
+        </div>
+      : <>
+        <p style="font-size:.84rem;color:var(--sl-color-gray-3)">
+          {s.date}{s.model ? ` · ${s.model}` : ''}{s.kind === 'observational' ? ' · observational field study, from durable session logs' : ' · controlled local benchmark'}
+        </p>
+        {s.notes && <p style="font-size:.92rem">{s.notes}</p>}
+        {s.metrics && (
+          <table>
+            <thead><tr><th>Metric</th><th>Value</th><th>Source</th></tr></thead>
+            <tbody>{s.metrics.map((m) => (<tr><td>{m.label}</td><td><strong>{m.value}</strong>{m.unit ? <em> {m.unit}</em> : ''}</td><td>{m.source ?? '—'}</td></tr>))}</tbody>
+          </table>
+        )}
+        {s.arms && s.arms.length > 0 && (
+          <div class="dsh-bench-bars">
+            {s.arms.map((a) => (
+              <div class="dsh-bar">
+                <span>{armLabel(a)} @ {(a.horizon / 1000).toFixed(0)}K</span>
+                <span class="track">
+                  <span class={`fill${a.arm === 'chapters' ? '' : ' warn'}`} style={`width:${Math.max(4, Math.round((100 * a.tokensUncached) / maxUncached))}%`}></span>
+                </span>
+                <span class="value">{a.tokensUncached.toLocaleString()} uncached · {a.recallPct}% recall</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </>}
+  </section>
+))}
+{!compact && studies.every((s) => (s.arms ?? []).length === 0) && (
+  <aside class="dsh-card" style="margin-top:1rem">
+    <h3>No arms data committed yet — by design</h3>
+    <p>The controlled comparison (truncation vs LLM summarization vs dsh-chapters) runs on your own hardware, never in CI: <code>npm run bench</code> at the repo root appends a result JSON to this site’s data directory; rebuild to publish. Arms, tasks, and metrics are specced in <code>benchmarks/README.md</code> in the repository.</p>
+  </aside>
+)}

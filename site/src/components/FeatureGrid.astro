@@ -1,0 +1,45 @@
+---
+/** The Ten — the site's spine. Each card: pitch + measured receipt. */
+const ten = [
+  { t: 'Zero-token compaction',
+    p: 'Archiving a conversation costs one inference call: chapters are written from the session log, the index derived deterministically.',
+    e: 'Field study: 680K tokens archived across 21 compactions at 0 inference tokens.' },
+  { t: 'Verbatim memory that gets used',
+    p: '“Every byte remains retrievable” — and retrieval is a first-class action, not a hope.',
+    e: 'Field study: 49/49 agent retrieval calls succeeded, ~497 KB restored, byte-identical.' },
+  { t: 'Nothing is ever destroyed',
+    p: 'Append-only logs; compaction shadows, never rewrites; the parent session survives intact and reversible.',
+    e: 'Fork a branch, abandon it, resume the original — the audit trail is the product.' },
+  { t: 'Continuation by citation, not copy',
+    p: 'New sessions open with one message: a cumulative Table of Contents — then reach for full text on demand.',
+    e: 'Measured ~102 tokens of index vs ~2,476 for the equivalent transcript.' },
+  { t: 'The tool-output firehose, defanged',
+    p: 'Oversized results are stubbed at arrival into a content-addressed store with toc / search / windowed read — and the model decides what stays inline.',
+    e: 'A 373 KB book fetched live: zero blob prefills. Agents drill their own artifacts post-compaction.' },
+  { t: 'Team memory: one pool, two transports',
+    p: '/chapters-link binds the store to a shared pool — plain git or TreeDX — with a derived two-layer index, topics, and machine-stamped provenance.',
+    e: 'Cross-session search returns ranked findings; two-machine sync is an automated acceptance test.' },
+  { t: 'Local-first, infra-free',
+    p: 'Runs on a local GGUF model in 8 GB of VRAM. No embeddings, no vector DB, no server, no telemetry — Markdown files all the way down.',
+    e: 'All field numbers above come from a laptop-class llama.cpp box at a 64K window.' },
+  { t: 'Rules as per-machine governance',
+    p: 'Write-once proposed rules, approved per machine as curation facts, injected verbatim into continuation notices under a refuse-with-numbers budget.',
+    e: 'Steer agent behavior without touching anyone’s system prompt.' },
+  { t: 'Loud honesty, by contract',
+    p: 'Offline degrades to local-only with the failed step named; budgets refuse rather than clip; acceptance runs fail loudly on tape misses — skips are a smell.',
+    e: '464 deterministic tests, ≥85 % coverage gate, GPU-free tape-replay CI, OIDC provenance releases.' },
+  { t: 'Human-scale continuity UX',
+    p: 'A “Fork with chapters” button on every assistant message: archive, continue, switch — in one click. Install is one line.',
+    e: 'dsh plugin add @treeseed/dsh-chapters · restart · go.' },
+];
+---
+<div class="dsh-ten">
+  {ten.map((f, i) => (
+    <div class="dsh-card">
+      <span class="num">{String(i + 1).padStart(2, '0')}</span>
+      <h3>{f.t}</h3>
+      <p>{f.p}</p>
+      <div class="evidence">{f.e}</div>
+    </div>
+  ))}
+</div>

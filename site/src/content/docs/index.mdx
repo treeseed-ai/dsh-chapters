@@ -1,0 +1,31 @@
+---
+title: dsh-chapters
+description: The memory layer for coding agents — zero-token compaction, verbatim archives that get retrieved, and cross-session knowledge pools for DeepSeek Harness.
+template: splash
+editUrl: false
+lastUpdated: false
+---
+import Hero from '../../components/Hero.astro';
+import FeatureGrid from '../../components/FeatureGrid.astro';
+import BenchResults from '../../components/BenchResults.astro';
+import BookGrid from '../../components/BookGrid.astro';
+
+<Hero />
+
+<div class="dsh-section-title"><h2>The ten that matter</h2></div>
+<p class="dsh-home-note">
+  Every claim below carries a measured receipt — from a real 10-session, 9-sub-agent production run
+  on a 64K-context local model, or from the deterministic + tape-replay CI that guards it.
+</p>
+<FeatureGrid />
+
+<BenchResults compact />
+
+<div class="dsh-section-title dsh-mt-lg"><h2>The book</h2></div>
+<p class="dsh-home-note dsh-mb-sm">
+  Six parts, start to finish — from a three-line quickstart to the recursive-context theory that makes
+  arbitrarily long memory practical, the knowledge-pool architecture, a full command/tool/configuration
+  reference, and the evidence.
+</p>
+
+<BookGrid />

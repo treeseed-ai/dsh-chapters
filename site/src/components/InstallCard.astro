@@ -1,0 +1,23 @@
+---
+/** Copy-to-clipboard install card; version resolved at build time. */
+import { getLatest } from '../data/latest';
+const { version, source } = await getLatest();
+---
+<div class="dsh-install">
+  <code id="dsh-install-cmd">dsh plugin add @treeseed/dsh-chapters@{version}</code>
+  <button class="dsh-copy" type="button" data-cmd="#dsh-install-cmd">copy</button>
+  <span class="dsh-ver">
+    latest on npm: <strong>v{version}</strong>{source === 'registry' ? '' : ' (repo fallback — registry unreachable at build time)'}
+    · or omit <code>@version</code> for latest
+  </span>
+</div>
+<script is:inline>
+  document.addEventListener('click', async (ev) => {
+    const btn = ev.target.closest ? ev.target.closest('.dsh-copy') : null;
+    if (!btn) return;
+    const code = document.querySelector(btn.dataset.cmd);
+    if (!code) return;
+    try { await navigator.clipboard.writeText(code.textContent.trim()); btn.textContent = 'copied ✓'; btn.classList.add('done');
+      setTimeout(() => { btn.textContent = 'copy'; btn.classList.remove('done'); }, 1600); } catch (e) {}
+  });
+</script>

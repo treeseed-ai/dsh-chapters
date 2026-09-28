@@ -1,0 +1,40 @@
+---
+title: "19. Benchmarks"
+description: Committed, reproducible comparisons — how they're produced, and the current data.
+lastUpdated: true
+sidebar:
+  badge:
+    text: local
+    variant: caution
+---
+
+This page renders every committed study in `site/src/data/results/` — a mix of **observational field studies** (real production sessions, instrumented from durable logs) and **controlled benchmarks** (the three-arm runner below). No number here is decorative: each cites its source, and the arms benchmark is reproducible on any machine.
+
+import BenchResults from '../../../components/BenchResults.astro';
+
+<BenchResults />
+
+## The three arms
+
+The runner compares the *same* long-conversation task under three memory regimes, at rising pressure horizons:
+
+| Arm | Memory regime | Expect |
+|---|---|---|
+| **Sliding-window truncation** | keep last K tokens | recall collapses once the fact leaves the window |
+| **LLM summarization** | compact by paraphrase | recall partial, cost = full-history prefill each compaction |
+| **dsh-chapters** | verbatim archive + TOC + retrieval | recall exact on retrieval; compaction = 0 model tokens |
+
+Metrics per arm × horizon: **uncached tokens** (the real cost), **recall %** (needle facts restored), wall-to-first-answer, task completion. Results are machine/model-specific by design — that's the point of running it on *your* local model.
+
+## Run them locally (never CI)
+
+Benchmarks need a live model and a quiet machine, so they are **not** part of CI. From the repo root:
+
+```bash
+npm run bench                 # one pass against the local llama server (default :8080)
+npm run bench -- --horizons 32768,65536 --model qwen3.8-flash-next
+```
+
+It appends `site/src/data/results/bench-<utc>.json`; commit it and rebuild the site to publish. Methodology, seeds, and the exact protocol live in `benchmarks/README.md`.
+
+Next: [20. Field study — the TreeSeed run](/evidence/field-study/).

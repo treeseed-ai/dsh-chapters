@@ -1,0 +1,128 @@
+/* dsh-chapters site design system — deep-green/teal brand, amber accent,
+ * tuned for both themes; both modes designed (not inverted). */
+:root {
+  /* brand ramp */
+  --dsh-brand: #12a37a;
+  --dsh-brand-soft: #35c79b;
+  --dsh-ink-teal: #0e7d64;
+  --dsh-amber: #f5a524;
+  /* fonts: system stack; @fontsource swap-in is a later polish item */
+  --sl-font: 'Inter Tight', Inter, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --sl-font-code: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+html[data-theme='dark'] {
+  --sl-color-bg: #0b100f;
+  --sl-color-bg-nav: #0d1413;
+  --sl-color-bg-sidebar: #0d1413;
+  --sl-color-hairline: #1d2b27;
+  --sl-color-gray-1: #e6f1ed; --sl-color-gray-2: #b9ccc5; --sl-color-gray-3: #7f9a91;
+  --sl-color-gray-5: #22332e; --sl-color-gray-6: #131f1c; --sl-color-gray-7: #0e1715;
+  --sl-color-text-accent: var(--dsh-brand-soft);
+  --sl-color-text-ink: #d6e9e2;
+}
+html[data-theme='light'] {
+  --sl-color-bg: #fbfdfc;
+  --sl-color-bg-nav: rgba(251, 253, 252, 0.86);
+  --sl-color-hairline: #dce8e3;
+  --sl-color-text-accent: var(--dsh-ink-teal);
+}
+
+/* ---------- hero / homepage ---------- */
+.dsh-hero {
+  position: relative; overflow: hidden;
+  border-radius: 1.25rem; margin: 0.5rem 0 2rem; padding: 3.2rem 2.2rem 2.6rem;
+  border: 1px solid var(--sl-color-hairline);
+  background:
+    radial-gradient(1200px 420px at 85% -20%, color-mix(in srgb, var(--dsh-brand) 24%, transparent), transparent 60%),
+    radial-gradient(900px 380px at -10% 120%, color-mix(in srgb, var(--dsh-amber) 12%, transparent), transparent 55%),
+    linear-gradient(165deg, var(--sl-color-bg-nav), var(--sl-color-bg));
+}
+html[data-theme='light'] .dsh-hero { background:
+  radial-gradient(1100px 420px at 85% -20%, color-mix(in srgb, var(--dsh-brand) 14%, transparent), transparent 60%),
+  radial-gradient(900px 380px at -10% 120%, color-mix(in srgb, var(--dsh-amber) 10%, #ffffff 60%), transparent 55%),
+  linear-gradient(165deg, #f4faf7, #ffffff); }
+.dsh-hero h1 { font-size: clamp(1.9rem, 4.6vw, 3rem); letter-spacing: -0.02em; margin: 0 0 .6rem; }
+.dsh-hero .dsh-tag { color: var(--sl-color-text-accent); font-weight: 600; letter-spacing: .14em; text-transform: uppercase; font-size: .78rem; }
+.dsh-hero p.lead { font-size: 1.06rem; line-height: 1.6; max-width: 46rem; color: var(--sl-color-gray-2); }
+html[data-theme='light'] .dsh-hero p.lead { color: #40534d; }
+.dsh-chips { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: 1.1rem; }
+.dsh-chip {
+  font-size: .78rem; padding: .28rem .7rem; border-radius: 999px;
+  border: 1px solid var(--sl-color-hairline); color: var(--sl-color-gray-2);
+  background: color-mix(in srgb, var(--dsh-brand) 7%, transparent);
+}
+.dsh-actions { display: flex; flex-wrap: wrap; gap: .8rem; margin-top: 1.6rem; align-items: stretch; }
+.dsh-btn {
+  display: inline-flex; align-items: center; gap: .5em; font-weight: 600; font-size: .95rem;
+  padding: .65rem 1.25rem; border-radius: .7rem; text-decoration: none;
+  background: linear-gradient(140deg, var(--dsh-brand), var(--dsh-ink-teal)); color: #fff;
+  box-shadow: 0 6px 22px color-mix(in srgb, var(--dsh-brand) 35%, transparent);
+}
+.dsh-btn.ghost { background: transparent; color: var(--sl-color-text); border: 1px solid var(--sl-color-hairline); box-shadow: none; }
+.dsh-btn:hover { transform: translateY(-1px); }
+
+/* install card */
+.dsh-install {
+  margin-top: 1.4rem; display: flex; align-items: center; gap: .7rem; flex-wrap: wrap;
+  padding: .75rem 1rem; border-radius: .8rem;
+  border: 1px dashed color-mix(in srgb, var(--dsh-brand) 45%, var(--sl-color-hairline));
+  background: color-mix(in srgb, var(--dsh-brand) 6%, var(--sl-color-bg));
+}
+.dsh-install code { font-family: var(--sl-font-code); font-size: .92rem; color: var(--sl-color-text); }
+.dsh-install .dsh-ver { font-size: .74rem; color: var(--sl-color-gray-3); width: 100%; }
+.dsh-copy {
+  border: 1px solid var(--sl-color-hairline); background: var(--sl-color-bg); color: var(--sl-color-gray-2);
+  border-radius: .5rem; padding: .3rem .6rem; font-size: .78rem; cursor: pointer;
+}
+.dsh-copy.done { color: var(--dsh-brand-soft); border-color: var(--dsh-brand); }
+
+/* feature grid — the Ten */
+.dsh-ten { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1rem; margin: 1.2rem 0 2.2rem; }
+.dsh-card {
+  border: 1px solid var(--sl-color-hairline); border-radius: 1rem; padding: 1.15rem 1.2rem 1.05rem;
+  background: color-mix(in srgb, var(--sl-color-bg-nav) 70%, var(--sl-color-bg));
+  transition: transform .15s ease, border-color .15s ease;
+}
+.dsh-card:hover { transform: translateY(-2px); border-color: color-mix(in srgb, var(--dsh-brand) 50%, var(--sl-color-hairline)); }
+.dsh-card h3 { margin: .35rem 0 .3rem; font-size: 1rem; letter-spacing: -.01em; }
+.dsh-card .num { color: var(--dsh-amber); font-family: var(--sl-font-code); font-size: .8rem; }
+.dsh-card p { margin: .25rem 0; font-size: .9rem; line-height: 1.55; color: var(--sl-color-gray-2); }
+html[data-theme='light'] .dsh-card p { color: #4c5f59; }
+.dsh-card .evidence { font-size: .76rem; color: var(--sl-color-gray-3); border-top: 1px dashed var(--sl-color-hairline); margin-top: .6rem; padding-top: .5rem; }
+
+/* section + book TOC */
+.dsh-section-title { display: flex; align-items: baseline; gap: .7rem; margin: 2rem 0 .8rem; }
+.dsh-section-title h2 { margin: 0; font-size: 1.35rem; letter-spacing: -.015em; }
+.dsh-book { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: .8rem; }
+.dsh-book a {
+  display: block; border: 1px solid var(--sl-color-hairline); border-radius: .8rem;
+  padding: .8rem .95rem; text-decoration: none; color: var(--sl-color-text);
+  background: var(--sl-color-bg);
+}
+.dsh-book a strong { display: block; font-size: .92rem; }
+.dsh-book a span { font-size: .8rem; color: var(--sl-color-gray-3); }
+.dsh-book a:hover { border-color: var(--dsh-brand); }
+
+/* benchmark bits */
+.dsh-bench-bars { display: grid; gap: .55rem; margin: .9rem 0 1.4rem; }
+.dsh-bar { display: grid; grid-template-columns: 10.5rem 1fr 7rem; gap: .7rem; align-items: center; font-size: .86rem; }
+.dsh-bar .track { height: .65rem; border-radius: 999px; background: color-mix(in srgb, var(--sl-color-gray-6) 55%, transparent); overflow: hidden; }
+.dsh-bar .fill { height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--dsh-brand), var(--dsh-brand-soft)); }
+.dsh-bar .fill.warn { background: linear-gradient(90deg, #b7791f, var(--dsh-amber)); }
+.dsh-bar .value { font-family: var(--sl-font-code); font-size: .8rem; color: var(--sl-color-gray-2); }
+
+/* tables: benchmark grids read better with tabular numbers */
+.sl-markdown-content table { font-variant-numeric: tabular-nums; }
+.sl-markdown-content table td, .sl-markdown-content table th { font-size: .92rem; }
+
+/* subtle global polish */
+.sl-markdown-content :is(h1, h2, h3) { letter-spacing: -.015em; }
+html { scroll-behavior: smooth; }
+
+.dsh-home-note { max-width: 52rem; color: var(--sl-color-gray-2); font-size: .98rem; }
+.dsh-mt-lg { margin-top: 2.6rem; }
+.dsh-mb-sm { margin-bottom: .9rem; }
+
+/* homepage full-bleed */
+html:has(.dsh-hero) main { max-width: 100%; }
+html:has(.dsh-hero) .sl-markdown-content { max-width: 78rem; margin-inline: auto; }

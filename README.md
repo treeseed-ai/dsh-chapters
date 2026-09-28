@@ -4,6 +4,8 @@
 project knowledge layer.** Published on npm as [`@treeseed/dsh-chapters`](https://www.npmjs.com/package/@treeseed/dsh-chapters);
 source lives at [treeseed-ai/dsh-chapters](https://github.com/treeseed-ai/dsh-chapters).
 
+> **Documentation & project home:** https://treeseed-ai.github.io/dsh-chapters/
+
 When a long conversation gets expensive, dsh-chapters archives it as **verbatim Markdown chapters** in
 a project store and opens a **new session whose entire content is a Table of Contents** of that
 archive. The model reloads any chapter on demand with the ordinary `read` tool. The original

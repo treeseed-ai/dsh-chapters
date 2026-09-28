@@ -1,0 +1,15 @@
+---
+/** The homepage book TOC — base-aware anchors (MDX raw <a> can't do that). */
+const base = import.meta.env.BASE_URL;
+const parts = [
+  { href: 'start/quickstart/', t: 'I · First Contact', d: 'Quickstart · first continuation · link a pool · FAQ' },
+  { href: 'concepts/why-not-summaries/', t: 'II · Concepts & Theory', d: 'Why not summaries · the four invariants · budget math · recursive context' },
+  { href: 'knowledge/pool/', t: 'III · The Knowledge Layer', d: 'The pool · git vs TreeDX · search · rules · enrichment' },
+  { href: 'reference/commands/', t: 'IV · Reference', d: 'Commands · agent tools · configuration · the TOC notice' },
+  { href: 'evidence/benchmarks/', t: 'V · Evidence & Measurement', d: 'Benchmarks · the field study · llama.cpp cache · alternatives' },
+  { href: 'operations/install/', t: 'VI · Operate & Extend', d: 'Install/upgrade · developing · internals · changelog · security' },
+];
+---
+<div class="dsh-book">
+  {parts.map((p) => <a href={`${base}${p.href}`}><strong>{p.t}</strong><span>{p.d}</span></a>)}
+</div>

@@ -1,0 +1,33 @@
+---
+/** Custom marketing hero — replaces the stock Starlight splash hero.
+ * Links are BASE_URL-aware so the site works under the Pages subpath today
+ * and on a custom domain tomorrow (just change `site` in astro.config). */
+import InstallCard from './InstallCard.astro';
+const base = import.meta.env.BASE_URL;
+---
+<section class="dsh-hero">
+  <div class="dsh-tag">DeepSeek Harness · memory plugin</div>
+  <h1>The memory layer that replaces the summary with the record.</h1>
+  <p class="lead">
+    dsh-chapters archives a long agent conversation as <strong>verbatim chapters</strong> and opens a
+    new session whose entire context is a Table of Contents of that archive. Compaction costs
+    <strong>zero model tokens</strong>, the original session is never rewritten, and every byte stays
+    retrievable — on a local model in 8&nbsp;GB of VRAM, no server, no embeddings, no cloud.
+  </p>
+
+  <div class="dsh-chips">
+    <span class="dsh-chip">Zero-token compaction</span>
+    <span class="dsh-chip">Verbatim archives</span>
+    <span class="dsh-chip">Local-first</span>
+    <span class="dsh-chip">Cross-session knowledge pools</span>
+    <span class="dsh-chip">Provenance-signed releases</span>
+  </div>
+
+  <InstallCard />
+
+  <div class="dsh-actions">
+    <a class="dsh-btn" href={`${base}start/quickstart/`}>Read the quickstart →</a>
+    <a class="dsh-btn ghost" href={`${base}evidence/benchmarks/`}>See the receipts</a>
+    <a class="dsh-btn ghost" href="https://github.com/treeseed-ai/dsh-chapters">GitHub</a>
+  </div>
+</section>
