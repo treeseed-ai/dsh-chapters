@@ -80,7 +80,7 @@ export default defineConfig({
     starlight({
       title: 'dsh-chapters',
       description:
-        'The memory layer for coding agents: zero-token compaction, verbatim archives that get retrieved, and cross-session knowledge pools — for DeepSeek Harness.',
+        'Long memory for local coding agents: verbatim archives, zero-token compaction, and cross-session knowledge pools — no API key, no vector DB, no cloud.',
       head: [{ tag: 'script', content: themeSyncScript }],
       favicon: '/favicon.svg',
       lastUpdated: true,

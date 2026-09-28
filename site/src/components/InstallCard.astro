@@ -4,11 +4,11 @@ import { getLatest } from '../data/latest';
 const { version, source } = await getLatest();
 ---
 <div class="dsh-install">
-  <code id="dsh-install-cmd">dsh plugin add @treeseed/dsh-chapters@{version}</code>
+  <code id="dsh-install-cmd">dsh plugin --profile web add @treeseed/dsh-chapters@{version}</code>
   <button class="dsh-copy" type="button" data-cmd="#dsh-install-cmd">copy</button>
   <span class="dsh-ver">
     latest on npm: <strong>v{version}</strong>{source === 'registry' ? '' : ' (repo fallback — registry unreachable at build time)'}
-    · or omit <code>@version</code> for latest
+    · <code>--profile web</code> is required — swap <code>web</code> for your harness profile
   </span>
 </div>
 <script is:inline>

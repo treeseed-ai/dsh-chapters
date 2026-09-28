@@ -6,21 +6,22 @@ import InstallCard from './InstallCard.astro';
 const base = import.meta.env.BASE_URL;
 ---
 <section class="dsh-hero">
-  <div class="dsh-tag">DeepSeek Harness · memory plugin</div>
-  <h1>The memory layer that replaces the summary with the record.</h1>
+  <div class="dsh-tag">DeepSeek Harness · memory for local AI</div>
+  <h1>Your model ran out of context. Your work didn't have to.</h1>
   <p class="lead">
-    dsh-chapters archives a long agent conversation as <strong>verbatim chapters</strong> and opens a
-    new session whose entire context is a Table of Contents of that archive. Compaction costs
-    <strong>zero model tokens</strong>, the original session is never rewritten, and every byte stays
-    retrievable — on a local model in 8&nbsp;GB of VRAM, no server, no embeddings, no cloud.
+    When the window fills, dsh-chapters archives the conversation as <strong>verbatim chapters</strong> —
+    copied straight from the session log, never re-typed by a model — and opens the next session with a
+    one-paragraph table of contents of everything. <strong>Compaction costs zero inference tokens.</strong>
+    Nothing is rewritten, nothing is paraphrased, and every byte stays retrievable — on one 8&nbsp;GB GPU.
+    No API key, no vector database, no cloud subscription between you and your own memory.
   </p>
 
   <div class="dsh-chips">
-    <span class="dsh-chip">Zero-token compaction</span>
-    <span class="dsh-chip">Verbatim archives</span>
-    <span class="dsh-chip">Local-first</span>
-    <span class="dsh-chip">Cross-session knowledge pools</span>
-    <span class="dsh-chip">Provenance-signed releases</span>
+    <span class="dsh-chip">0 tokens spent compacting</span>
+    <span class="dsh-chip">Verbatim — never paraphrased</span>
+    <span class="dsh-chip">Nothing destroyed, ever</span>
+    <span class="dsh-chip">Runs on your GPU</span>
+    <span class="dsh-chip">Team memory over plain git</span>
   </div>
 
   <InstallCard />

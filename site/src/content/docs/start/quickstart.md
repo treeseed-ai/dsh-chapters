@@ -9,8 +9,11 @@ lastUpdated: true
 **1. Install the plugin** (DeepSeek Harness ≥ 0.1.x, Node ≥ 24):
 
 ```bash
-dsh plugin add @treeseed/dsh-chapters
+dsh plugin --profile web add @treeseed/dsh-chapters
 ```
+
+`--profile <name>` is **required** on every `dsh plugin` command and selects which harness profile the
+plugin is installed into — use `web` for the browser harness, or whatever your profile is called.
 
 Latest release: see the [npm page](https://www.npmjs.com/package/@treeseed/dsh-chapters) — every version ships with a build provenance attestation and a green deterministic + tape-replay CI run behind it.
 
@@ -38,7 +41,7 @@ Before linking a knowledge pool, the honest answer is `local-only` with the reas
 ## Two traps we documented so you don't rediscover them
 
 - **Slash commands need a started conversation.** On the brand-new session *draft* screen, the composer sends text as the first message rather than running a command — send any short opener first (or just ask: *"check our chapters status"*), then commands behave. This is a harness draft-screen behavior, and the plugin's docs are candid about it.
-- **Restart after upgrade.** `dsh plugin update @treeseed/dsh-chapters` swaps files; the running process holds the old bundle until restart.
+- **Restart after upgrade.** `dsh plugin --profile web update @treeseed/dsh-chapters` swaps files; the running process holds the old bundle until restart.
 
 ## What's next
 

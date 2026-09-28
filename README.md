@@ -101,10 +101,13 @@ permissions — never inside the project directory, never committed, never pushe
 Node ≥ 24 and a DSH host you install plugins into. From npm:
 
 ```
-dsh plugin add @treeseed/dsh-chapters
+dsh plugin --profile web add @treeseed/dsh-chapters
 ```
 
-(or pin the version: `@treeseed/dsh-chapters@0.1.1`). Restart your `dsh web` afterwards so the
+(`--profile <name>` is required on every `dsh plugin` command — `web` is the browser-harness profile.)
+
+
+(or pin the version: `@treeseed/dsh-chapters@0.1.3`). Restart your `dsh web` afterwards so the
 bundle, presets and client plane reload. What activating the plugin does:
 
 - **Registers the model tools** (`chapters_segment`, `chapters_continue`, `chapters_fork`,

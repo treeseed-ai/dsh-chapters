@@ -22,7 +22,7 @@ That is llama.cpp KV **capacity**, not dsh-chapters. On a single-slot server, in
 
 ### I updated the plugin but nothing changed
 
-Restart `dsh web` — bundles load at boot (`dsh plugin update … && restart`). Same applies after an upgrade that changes `cordis.patch.yml` defaults.
+Restart `dsh web` — bundles load at boot (`dsh plugin --profile web update … && restart`). Same applies after an upgrade that changes `cordis.patch.yml` defaults.
 
 ### A continuation said "over budget" and refused
 

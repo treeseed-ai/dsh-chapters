@@ -11,10 +11,13 @@ DeepSeek Harness (`@deepseek-ai/dsh`) ≥ 0.1.5-rc.x, Node ≥ 24. The plugin sh
 ## Install / update / verify
 
 ```bash
-dsh plugin add @treeseed/dsh-chapters          # from npm (pin with @<version> for reproducible profiles)
-dsh plugin update @treeseed/dsh-chapters       # bump — then restart dsh web (bundles load at boot)
-dsh plugin list                                # enabled state per profile
+dsh plugin --profile web add @treeseed/dsh-chapters          # from npm (pin with @<version> for reproducible profiles)
+dsh plugin --profile web update @treeseed/dsh-chapters       # bump — then restart dsh web (bundles load at boot)
+dsh plugin --profile web list                                # enabled state for that profile
 ```
+
+`--profile` is required on every plugin command — `web` is the browser harness profile; substitute your
+own profile name.
 
 Restart the harness. Expect on boot: engine-constructed lines in the server log, the six `chapters_*` tools, four `/chapters-*` commands, the fork button on assistant rows.
 
@@ -30,6 +33,6 @@ Semver, tag = version, bare (`0.1.3`). Real incidents, real fixes, recorded hone
 
 ## Uninstall
 
-`dsh plugin remove @treeseed/dsh-chapters` — the archive it wrote is plain Markdown under `.dsh-chapters/` and any pool you linked; removing the plugin never removes your data, by design.
+`dsh plugin --profile web remove @treeseed/dsh-chapters` — the archive it wrote is plain Markdown under `.dsh-chapters/` and any pool you linked; removing the plugin never removes your data, by design.
 
 Next: [24. Developing the plugin](/operations/development/).
