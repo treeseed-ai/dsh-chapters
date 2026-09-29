@@ -1,0 +1,64 @@
+---
+/** The documentation, as the book it is: six parts, every chapter linked with a line of intent. */
+const base = import.meta.env.BASE_URL;
+const parts = [
+  { t: 'Part I · First Contact', d: 'Two minutes to installed, five to your first continuation — then the honest map of every trap we already hit for you.',
+    items: [
+      ['start/quickstart/', '1 · Quickstart', 'install with --profile, restart, first continuation'],
+      ['start/first-continuation/', '2 · Your first continuation', 'what is archived, what the new session sees'],
+      ['start/link-pool/', '3 · Link a knowledge pool', 'one command, every session inherits it'],
+      ['start/faq/', '4 · FAQ & troubleshooting', 'the draft-screen trap, local-only semantics, and friends'],
+    ]},
+  { t: 'Part II · Concepts & Theory', d: 'The ideas the system is built from — including the recursive-language-model result that makes arbitrarily long memory practical on small models.',
+    items: [
+      ['concepts/why-not-summaries/', '5 · Why not summaries?', 'the paraphrase problem and the 55-minute tax'],
+      ['concepts/invariants/', '6 · The four invariants', 'rules that make the guarantees trustworthy'],
+      ['concepts/budget/', '7 · Continuation budget math', 'refuse-with-numbers, never truncate to fit'],
+      ['concepts/recursive-context/', '8 · Recursive context theory', 'arXiv:2512.24601, instantiated without a sandbox'],
+      ['concepts/archive-anatomy/', '9 · Anatomy of the archive', 'store, registry, pool — what lives where'],
+    ]},
+  { t: 'Part III · The Knowledge Layer', d: 'One agent’s long memory becomes a team’s shared corpus: the pool, its two transports, ranking, governance, and the background annotator.',
+    items: [
+      ['knowledge/pool/', '10 · The pool', 'what travels, what is derived, what is rebuildable'],
+      ['knowledge/providers/', '11 · Providers: git vs TreeDX', 'the six-verb seam and a shared failure model'],
+      ['knowledge/search/', '12 · Search', 'two-layer index, topic vocabulary, rule bonus'],
+      ['knowledge/rules/', '13 · Rules & governance', 'write-once, per-machine approval, verbatim notices'],
+      ['knowledge/enrichment/', '14 · Enrichment ladder', 'the one sanctioned mutation, body-hash-guarded'],
+    ]},
+  { t: 'Part IV · Reference', d: 'The surfaces themselves — commands, tools, every configuration key, and the continuation notice annotated line by line.',
+    items: [
+      ['reference/commands/', '15 · Commands', 'exact syntax for /chapters-link, -status, -enrich, -rule'],
+      ['reference/tools/', '16 · Agent tools', 'the six chapters_* tools and when agents reach'],
+      ['reference/configuration/', '17 · Configuration', 'host plane vs realm plane, every key'],
+      ['reference/notice/', '18 · The notice, annotated', 'the whole inherited-context surface, dissected'],
+    ]},
+  { t: 'Part V · Evidence & Measurement', d: 'No decorative numbers: what a production multi-agent run recorded, how to benchmark the three arms yourself, and what the alternatives genuinely do better.',
+    items: [
+      ['evidence/benchmarks/', '19 · Benchmarks', 'three arms, local runner, committed results'],
+      ['evidence/field-study/', '20 · Field study', '10 sessions, 21 compactions, 49/49 retrievals'],
+      ['evidence/llamacpp-cache/', '21 · Cache on llama.cpp', 'single-slot arithmetic and the honest caveats'],
+      ['evidence/comparison/', '22 · The alternatives', 'vs summaries, RAG, graphs, MemGPT, 1M context'],
+    ]},
+  { t: 'Part VI · Operate & Extend', d: 'For the humans running it and the agents building on it — supply chain, development discipline, internals, and the incidents told straight.',
+    items: [
+      ['operations/install/', '23 · Install & provenance', 'profiles, upgrades, signed versions, uninstall'],
+      ['operations/development/', '24 · Developing', 'tape-replay CI, the gate, the loud-not-silent doctrine'],
+      ['operations/internals/', '25 · Internals map', 'where each mechanism lives in the repo'],
+      ['operations/changelog/', '26 · Changelog', '0.1.0 → today, incidents included'],
+      ['operations/security/', '27 · Security & privacy', 'credentials, boundaries, integrity, honest gaps'],
+    ]},
+];
+---
+<div class="dsh-docs">
+  {parts.map((p) => (
+    <section class="dsh-docs-part">
+      <h3>{p.t}</h3>
+      <p class="blurb">{p.d}</p>
+      <div class="dsh-docs-links">
+        {p.items.map(([href, label, note]) => (
+          <a href={`${base}${href}`}><strong>{label}</strong><span>{note}</span></a>
+        ))}
+      </div>
+    </section>
+  ))}
+</div>

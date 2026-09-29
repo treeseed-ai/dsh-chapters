@@ -124,8 +124,8 @@ html { scroll-behavior: smooth; }
 .dsh-mb-sm { margin-bottom: .9rem; }
 
 /* homepage full-bleed */
-html:has(.dsh-hero) main { max-width: 100%; }
-html:has(.dsh-hero) .sl-markdown-content { max-width: 78rem; margin-inline: auto; }
+html:has(.dsh-banner) main { max-width: 100%; }
+html:has(.dsh-banner) .sl-markdown-content { max-width: 70rem; margin-inline: auto; }
 
 /* trust badges */
 .dsh-badges { display: flex; gap: .45rem; flex-wrap: wrap; margin-top: 1.15rem; align-items: center; }
@@ -154,3 +154,47 @@ html:has(.dsh-hero) .sl-markdown-content { max-width: 78rem; margin-inline: auto
 /* feature cards: title is the deep link */
 .dsh-card h3 a { color: inherit; text-decoration: none; border-bottom: 1px dotted color-mix(in srgb, var(--dsh-brand) 55%, transparent); }
 .dsh-card h3 a:hover { color: var(--sl-color-text-accent); border-bottom-color: var(--dsh-brand); }
+
+/* ---------- editorial homepage ---------- */
+.dsh-banner { padding: 2rem 0 1.9rem; border-bottom: 1px solid var(--sl-color-hairline); margin-bottom: 2.2rem; }
+.dsh-banner .dsh-kicker { color: var(--sl-color-text-accent); font-weight: 600; letter-spacing: .12em; text-transform: uppercase; font-size: .76rem; margin-bottom: .8rem; }
+.dsh-banner h1 { font-size: clamp(1.9rem, 4.6vw, 2.9rem); letter-spacing: -.022em; line-height: 1.15; margin: 0 0 .9rem; }
+.dsh-banner .lead { font-size: 1.04rem; line-height: 1.65; max-width: 56rem; color: var(--sl-color-gray-2); }
+html[data-theme='light'] .dsh-banner .lead { color: #40534d; }
+
+.dsh-benefits section.dsh-benefit { display: grid; grid-template-columns: 3.4rem 1fr; gap: .9rem; padding: 1.3rem 0; border-bottom: 1px solid color-mix(in srgb, var(--sl-color-hairline) 65%, transparent); }
+.dsh-benefit .n { font-family: var(--sl-font-code); color: var(--dsh-amber); font-size: .9rem; padding-top: .25rem; }
+.dsh-benefit h3 { margin: 0 0 .35rem; font-size: 1.12rem; letter-spacing: -.012em; }
+.dsh-benefit p { margin: 0 0 .55rem; color: var(--sl-color-gray-2); line-height: 1.65; max-width: 58rem; font-size: .95rem; }
+html[data-theme='light'] .dsh-benefit p { color: #4c5f59; }
+.dsh-benefit .more { display: flex; gap: 1.1rem; flex-wrap: wrap; align-items: baseline; font-size: .84rem; }
+.dsh-benefit .more span { color: var(--sl-color-gray-3); }
+.dsh-benefit .more a { color: var(--sl-color-text-accent); text-decoration: underline; text-decoration-style: dotted; text-underline-offset: 3px; }
+
+/* stats strip: flat rows */
+.dsh-stats { margin: 2.4rem 0 .4rem; }
+.dsh-stats-head { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; margin-bottom: .6rem; }
+.dsh-stats-head h2 { margin: 0; font-size: 1.35rem; letter-spacing: -.015em; }
+.dsh-stats-head a { font-size: .85rem; color: var(--sl-color-text-accent); }
+.dsh-stat { display: flex; justify-content: space-between; gap: 1rem; padding: .55rem .2rem; border-bottom: 1px dashed color-mix(in srgb, var(--sl-color-hairline) 70%, transparent); font-size: .92rem; }
+.dsh-stat .k { color: var(--sl-color-gray-2); }
+.dsh-stat .v { font-family: var(--sl-font-code); font-weight: 600; text-align: right; }
+.dsh-stat .v em { color: var(--sl-color-gray-3); font-style: normal; font-weight: 400; font-size: .8rem; }
+
+/* docs directory */
+.dsh-docs section.dsh-docs-part { padding: 1.15rem 0; border-bottom: 1px solid color-mix(in srgb, var(--sl-color-hairline) 65%, transparent); }
+.dsh-docs-part h3 { margin: 0 0 .25rem; font-size: 1.05rem; }
+.dsh-docs-part .blurb { margin: 0 0 .7rem; color: var(--sl-color-gray-3); font-size: .88rem; max-width: 58rem; }
+.dsh-docs-links { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: .1rem 1.2rem; }
+.dsh-docs-links a { display: flex; flex-direction: column; padding: .38rem .2rem; text-decoration: none; border-bottom: 1px dotted transparent; }
+.dsh-docs-links a:hover { border-bottom-color: var(--dsh-brand); }
+.dsh-docs-links strong { font-size: .9rem; color: var(--sl-color-text); font-weight: 600; }
+.dsh-docs-links span { font-size: .78rem; color: var(--sl-color-gray-3); }
+
+/* install card — flat banner line, no bubble */
+.dsh-banner .dsh-install { border: none; border-left: 3px solid var(--dsh-brand); border-radius: 0; background: color-mix(in srgb, var(--dsh-brand) 7%, transparent); padding: .7rem 1rem; margin: 1.2rem 0 .4rem; }
+
+/* closing CTA */
+.dsh-close { margin-top: 2.4rem; padding-top: 1.4rem; border-top: 1px solid var(--sl-color-hairline); }
+.dsh-close p { margin: .2rem 0; color: var(--sl-color-gray-2); }
+.dsh-close code { font-family: var(--sl-font-code); color: var(--sl-color-text); }

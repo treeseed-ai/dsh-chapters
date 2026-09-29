@@ -1,38 +1,28 @@
 ---
-/** Custom marketing hero — replaces the stock Starlight splash hero.
- * Links are BASE_URL-aware so the site works under the Pages subpath today
- * and on a custom domain tomorrow (just change `site` in astro.config). */
+/** Overview / getting-started banner — flat editorial style, no bubbles.
+ * Category up top, one-sentence promise, what it is, install line, CTA row, live trust cues. */
 import InstallCard from './InstallCard.astro';
 const base = import.meta.env.BASE_URL;
 ---
-<section class="dsh-hero">
-  <div class="dsh-tag">Open-source memory layer for coding agents · a DeepSeek Harness plugin</div>
-  <h1>Your model ran out of context. Your work didn't have to.</h1>
+<section class="dsh-banner">
+  <div class="dsh-kicker">Open-source memory layer for coding agents · a DeepSeek Harness plugin</div>
+  <h1>Your model ran out of context.<br/>Your work didn't have to.</h1>
   <p class="lead">
     When the window fills, dsh-chapters archives the conversation as <strong>verbatim chapters</strong> —
     copied straight from the session log, never re-typed by a model — and opens the next session with a
-    one-paragraph table of contents of everything. <strong>Compaction costs zero inference tokens.</strong>
+    one-paragraph table of contents of everything. Compaction costs <strong>zero inference tokens</strong>.
     Nothing is rewritten, nothing is paraphrased, and every byte stays retrievable — on one 8&nbsp;GB GPU.
     No API key, no vector database, no cloud subscription between you and your own memory.
   </p>
 
-  <div class="dsh-chips">
-    <span class="dsh-chip">0 tokens spent compacting</span>
-    <span class="dsh-chip">Verbatim — never paraphrased</span>
-    <span class="dsh-chip">Nothing destroyed, ever</span>
-    <span class="dsh-chip">Runs on your GPU</span>
-    <span class="dsh-chip">Team memory over plain git</span>
-  </div>
-
   <InstallCard />
 
   <div class="dsh-actions">
-    <a class="dsh-btn" href={`${base}start/quickstart/`}>Read the quickstart →</a>
-    <a class="dsh-btn ghost" href={`${base}evidence/benchmarks/`}>See the receipts</a>
+    <a class="dsh-btn" href={`${base}start/quickstart/`}>Start here — the quickstart →</a>
+    <a class="dsh-btn ghost" href={`${base}evidence/field-study/`}>See the production receipts</a>
     <a class="dsh-btn ghost" href="https://github.com/treeseed-ai/dsh-chapters">GitHub</a>
   </div>
 
-  {/* Live trust cues — real numbers, transparency over flattering crops. */}
   <div class="dsh-badges" aria-label="Project status">
     <img alt="GitHub stars" src="https://img.shields.io/github/stars/treeseed-ai/dsh-chapters?style=flat-square&logo=github&labelColor=1b2523&color=35c79b">
     <img alt="npm version" src="https://img.shields.io/npm/v/@treeseed/dsh-chapters?style=flat-square&logo=npm&labelColor=1b2523&color=35c79b">
