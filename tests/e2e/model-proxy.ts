@@ -126,6 +126,18 @@ const VOLATILE: Array<[RegExp, string]> = [
   // family as (N est tokens) and the omitted-char markers: the line
   // identifies the chapter; the counts are not matching material.
   [/\d+ user \/ \d+ assistant messages?/g, '<MSGCOUNT>'],
+  // CH-ORDINAL collapse (2026-09-29, hosted fanout run): a continuation TOC
+  // cites `chapters/NNN-<slug>.md`; NNN is a DERIVED COUNTER — how many
+  // chapters the session had written when this compaction fired. The fanout
+  // child sits ON the compaction boundary (its six-read cap is tuned to
+  // cross it), so a dev box that tips one more split cites `002-` where a
+  // runner cites `001-`; the whole request missed its stored exchange at
+  // that one byte. Same derived-count family as MSGCOUNT: the slug
+  // (read-var-e2e-paperb…) identifies the chapter, the ordinal is a
+  // machine-borderline count, not matching material. Match-only — the
+  // served response bytes are untouched, and this rule self-repairs tapes
+  // recorded before it (substituteAll runs over stored prefixes at load).
+  [/chapters\/\d+-/g, 'chapters/<CH>-'],
   // and the same for the defused product token (enricher inputs): runs across
   // NEWLINES too — the dump shows spaces only because normalization ate them
   [/(?:⟦injected-context⟧[ \t\n]*){2,}/g, '⟦injected-context⟧ '],
