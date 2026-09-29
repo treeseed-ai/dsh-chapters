@@ -1,0 +1,95 @@
+---
+/** The command catalog as vertical tabs: slash command → tab; body shows
+ * what it does, a usage example, and an example output. */
+const cmds = [
+  {
+    tab: '/chapters-link',
+    desc: 'Bind this workspace to a shared knowledge pool. One link per project — every later session and sub-agent under that path inherits it, and linking publishes what is already archived.',
+    usage: `/chapters-link /home/you/team-kb.git            # local or bare git repo — no credentials
+/chapters-link https://github.com/you/team-kb.git  <tok>  # smart-HTTP pool; token stored 0600 in the DSH home
+/chapters-link treedx+https://kb.example.com/team  <tok>  # TreeDX service backend
+/chapters-link                                            # show the current binding`,
+    out: `Linked: project treeseed-ai/kb · transport git · mirror .dsh-knowledge/
+Published 30 chapter(s), 2 artifact(s) · Sync: pending first push`,
+  },
+  {
+    tab: '/chapters-status',
+    desc: 'The state of the memory system for this workspace: sync mode with the steps behind it, pending counts, vocabulary mode — or an honest local-only with the failed step named.',
+    usage: `/chapters-status`,
+    out: `mode: synced (git · treeseed-ai/kb)
+steps: cloned ✓ → published 2 new file(s), 28 already mirrored ✓ → pushed ✓
+pending: 0 · last sync 2026-09-27 21:14 · vocabulary: shadow (17 candidates, apply off)`,
+  },
+  {
+    tab: '/chapters-enrich',
+    desc: 'Drive the background annotator that adds topics and search summaries to archived chapters. Batches run after pushes and on idle by themselves; the body text of a chapter can never be touched — a hash guard rejects it.',
+    usage: `/chapters-enrich run                          # drain the queue now
+/chapters-enrich model local/qwen3.8-flash-next   # choose the annotator (or: model clear)
+/chapters-enrich report                           # what was annotated, with provenance`,
+    out: `ladder drained: 3 chapter(s) annotated · 12 topic labels · 2 provenance entries appended
+guard: 0 body mutations attempted · 1 legacy fragment stitched into index view`,
+  },
+  {
+    tab: '/chapters-rule',
+    desc: 'Teach agents durable practices. add writes a write-once proposed rule (it binds nothing yet); approve makes it core on THIS machine only; approved rules ride into every continuation notice verbatim.',
+    usage: `/chapters-rule add retrieval "Search the pool for prior findings before designing changes."
+/chapters-rule list --proposed
+/chapters-rule approve retrieval/a17f
+/chapters-rule revoke retrieval/a17f`,
+    out: `proposed retrieval/a17f (category retrieval, write-once) — binds nothing until approved
+approved on this machine (harness "ws-dev") → included in continuation notices under the 1,200-token core budget`,
+  },
+  {
+    tab: '/compact',
+    desc: 'The harness command — listed here because the chapters preset routes it through the plugin: an in-place checkpoint computed from the log (zero inference tokens) that carries your PLOT note forward and archives the hidden span first.',
+    usage: `/compact    # with the 'chapters' preset selected in the preset menu`,
+    out: `surface 57,221 → 23,643 tokens · seqs 10–154 shadowed (33,575 tok) · archived verbatim
+plot carried: "PLOT: 3 of 6 reports in and cross-verified…" · inference tokens: 0`,
+  },
+];
+---
+<section class="dsh-cmds" id="commands">
+  <div class="dsh-section-title"><h2>The commands</h2></div>
+  <p class="scope">
+    <strong>Scope &amp; activation.</strong> Installing the plugin registers these commands, six agent
+    tools, and the fork button in <em>every session</em> of your profile — nothing else to enable.
+    Routing the host’s <code>/compact</code> through the plugin’s zero-token engine is the one part that
+    needs the <strong>chapters preset</strong>: pick it from the preset menu in the composer
+    (installed automatically; a continuation session composes its preset itself).
+  </p>
+  <div class="dsh-tabs" role="tablist" aria-orientation="vertical">
+    <div class="tablist">
+      {cmds.map((c, i) => (
+        <button class="tab" role="tab" id={`tab-${i}`} aria-selected={i === 0} aria-controls={`panel-${i}`} data-idx={i}>{c.tab}</button>
+      ))}
+    </div>
+    <div>
+      {cmds.map((c, i) => (
+        <div class="panel" role="tabpanel" id={`panel-${i}`} aria-labelledby={`tab-${i}`} {...(i === 0 ? { 'data-open': '' } : {})}>
+          <h4>{c.tab}</h4>
+          <p>{c.desc}</p>
+          <div class="ex"><div class="lbl">Usage</div><pre>{c.usage}</pre></div>
+          <div class="ex"><div class="lbl">Example output</div><pre class="o">{c.out}</pre></div>
+        </div>
+      ))}
+    </div>
+  </div>
+  <p style="font-size:.82rem;color:var(--sl-color-gray-3);margin-top:.8rem">
+    Every flag, refusal message, and output shape is documented authoritatively in
+    <a href="./reference/commands/">Part IV · Commands</a>.
+  </p>
+</section>
+<script>
+  const root = document.querySelector('.dsh-tabs');
+  if (root) {
+    const tabs = [...root.querySelectorAll('button.tab')];
+    const panels = [...root.querySelectorAll('.panel')];
+    root.addEventListener('click', (ev) => {
+      const t = (ev.target as HTMLElement).closest('button.tab');
+      if (!t || !root.contains(t)) return;
+      const idx = Number((t as HTMLElement).dataset.idx);
+      tabs.forEach((b) => b.setAttribute('aria-selected', String(b === t)));
+      panels.forEach((p, j) => { if (j === idx) p.setAttribute('data-open', ''); else p.removeAttribute('data-open'); });
+    });
+  }
+</script>

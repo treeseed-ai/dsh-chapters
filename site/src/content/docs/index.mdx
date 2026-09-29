@@ -1,42 +1,24 @@
 ---
 title: dsh-chapters
-description: Long memory for local coding agents — verbatim archives, zero-token compaction, and cross-session knowledge pools for DeepSeek Harness. No API key, no vector DB, no cloud.
+description: Long memory for local coding agents — verbatim archives, zero-token compaction, and cross-session knowledge pools for DeepSeek Harness. Apache-2.0, no API key, no vector DB, no cloud.
 template: splash
 editUrl: false
 lastUpdated: false
 ---
 import HomeBanner from '../../components/HomeBanner.astro';
-import TryIt from '../../components/TryIt.astro';
-import BenefitList from '../../components/BenefitList.astro';
-import BenchResults from '../../components/BenchResults.astro';
-import DocsDirectory from '../../components/DocsDirectory.astro';
+import GettingStarted from '../../components/GettingStarted.astro';
+import BenefitSections from '../../components/BenefitSections.astro';
+import CommandsTabs from '../../components/CommandsTabs.astro';
+import DocsGrid from '../../components/DocsGrid.astro';
+import SiteFooter from '../../components/SiteFooter.astro';
 
 <HomeBanner />
 
-<TryIt />
-
-<div class="dsh-section-title"><h2>What it gives you — ten things, each with a receipt</h2></div>
-<p class="dsh-home-note">
-  Nothing below is a roadmap promise. Every benefit carries a number from a real production run —
-  ten sessions, nine sub-agents, 680K tokens of live agent memory on one 8&nbsp;GB GPU — and links
-  to the chapter of the documentation that goes deeper.
-</p>
-<BenefitList />
-
-<BenchResults compact />
-
-<div class="dsh-section-title dsh-mt-lg"><h2>The documentation</h2></div>
-<p class="dsh-home-note dsh-mb-sm">
-  Six parts, twenty-seven chapters — the plugin archives conversations in chapters; the docs follow
-  suit. Start at Part I, or jump to the theory, the knowledge layer, or the evidence.
-</p>
-<DocsDirectory />
-
-<div class="dsh-close">
-  <p>Installed in one line, verified in one session:</p>
-  <p><code>dsh plugin --profile web add @treeseed/dsh-chapters</code></p>
-  <div class="dsh-actions">
-    <a class="dsh-btn" href="/start/quickstart/">Read the quickstart →</a>
-    <a class="dsh-btn ghost" href="https://github.com/treeseed-ai/dsh-chapters">Star it on GitHub</a>
-  </div>
+<div class="dsh-inner">
+  <GettingStarted />
+  <BenefitSections />
+  <CommandsTabs />
+  <div class="dsh-mt-lg"><DocsGrid /></div>
 </div>
+
+<SiteFooter />

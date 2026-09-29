@@ -1,33 +1,52 @@
 ---
-/** Overview / getting-started banner — flat editorial style, no bubbles.
- * Category up top, one-sentence promise, what it is, install line, CTA row, live trust cues. */
-import InstallCard from './InstallCard.astro';
+/** Full-width banner: one purpose statement, key benefits as list items,
+ * prominent GitHub action, live trust badges, license. Dark in both themes. */
 const base = import.meta.env.BASE_URL;
+const GH = 'https://github.com/treeseed-ai/dsh-chapters';
 ---
-<section class="dsh-banner">
-  <div class="dsh-kicker">Open-source memory layer for coding agents · a DeepSeek Harness plugin</div>
-  <h1>Your model ran out of context.<br/>Your work didn't have to.</h1>
-  <p class="lead">
-    When the window fills, dsh-chapters archives the conversation as <strong>verbatim chapters</strong> —
-    copied straight from the session log, never re-typed by a model — and opens the next session with a
-    one-paragraph table of contents of everything. Compaction costs <strong>zero inference tokens</strong>.
-    Nothing is rewritten, nothing is paraphrased, and every byte stays retrievable — on one 8&nbsp;GB GPU.
-    No API key, no vector database, no cloud subscription between you and your own memory.
-  </p>
-
-  <InstallCard />
-
-  <div class="dsh-actions">
-    <a class="dsh-btn" href={`${base}start/quickstart/`}>Start here — the quickstart →</a>
-    <a class="dsh-btn ghost" href={`${base}evidence/field-study/`}>See the production receipts</a>
-    <a class="dsh-btn ghost" href="https://github.com/treeseed-ai/dsh-chapters">GitHub</a>
-  </div>
-
-  <div class="dsh-badges" aria-label="Project status">
-    <img alt="GitHub stars" src="https://img.shields.io/github/stars/treeseed-ai/dsh-chapters?style=flat-square&logo=github&labelColor=1b2523&color=35c79b">
-    <img alt="npm version" src="https://img.shields.io/npm/v/@treeseed/dsh-chapters?style=flat-square&logo=npm&labelColor=1b2523&color=35c79b">
-    <img alt="npm downloads" src="https://img.shields.io/npm/dm/@treeseed/dsh-chapters?style=flat-square&labelColor=1b2523&color=7f9a91">
-    <img alt="CI status" src="https://img.shields.io/github/actions/workflow/status/treeseed-ai/dsh-chapters/ci.yml?style=flat-square&label=CI%20%2B%20tape%20acceptance&labelColor=1b2523&color=35c79b">
-    <img alt="Provenance" src="https://img.shields.io/badge/provenance-SLSA%20v1-brightgreen?style=flat-square&labelColor=1b2523">
+<section class="dsh-band dsh-bleed">
+  <div class="inner dsh-inner">
+    <div>
+      <div class="kicker">Open-source memory layer for coding agents · DeepSeek Harness plugin</div>
+      <h1>Long memory for local AI — your agents keep every word, without ever summarizing a thing.</h1>
+      <p class="one">
+        When the context window fills, dsh-chapters archives the conversation as verbatim chapters and
+        opens the next session with a table of contents — compaction costs zero inference tokens, and
+        every byte stays retrievable.
+      </p>
+      <ul class="key">
+        <li><strong>Zero-token compaction</strong> — 680K tokens archived in one production run at no model cost</li>
+        <li><strong>Verbatim, never paraphrased</strong> — 49/49 archive retrievals succeeded where agents reached back</li>
+        <li><strong>Nothing destroyed, ever</strong> — append-only history; the original session stays open and reversible</li>
+        <li><strong>Runs on your GPU</strong> — proven on a 64K-context model in 8&nbsp;GB VRAM; no API key, no vector DB, no cloud</li>
+        <li><strong>Team memory over plain git</strong> — one link turns session archives into a shared, searchable pool</li>
+      </ul>
+      <div class="acts">
+        <a class="gh" href={GH} rel="noopener"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg> View on GitHub</a>
+        <a class="dsh-btn" href={`${base}#getting-started`}>Get started in one line ↓</a>
+      </div>
+    </div>
+    <aside class="side">
+      <div>
+        <strong>Status</strong>
+        <div class="badges">
+          <img alt="GitHub stars" src="https://img.shields.io/github/stars/treeseed-ai/dsh-chapters?style=flat-square&logo=github&labelColor=1b2523&color=35c79b">
+          <img alt="npm version" src="https://img.shields.io/npm/v/@treeseed/dsh-chapters?style=flat-square&logo=npm&labelColor=1b2523&color=35c79b">
+          <img alt="npm downloads" src="https://img.shields.io/npm/dm/@treeseed/dsh-chapters?style=flat-square&labelColor=1b2523&color=7f9a91">
+          <img alt="CI status" src="https://img.shields.io/github/actions/workflow/status/treeseed-ai/dsh-chapters/ci.yml?style=flat-square&label=CI%20%2B%20tape%20acceptance&labelColor=1b2523&color=35c79b">
+          <img alt="Provenance" src="https://img.shields.io/badge/provenance-SLSA%20v1-brightgreen?style=flat-square&labelColor=1b2523">
+        </div>
+      </div>
+      <div>
+        <strong>License</strong>
+        Apache-2.0 — free to use, modify, and ship; the archive stays yours.<br/>
+        <a style="color:#9fd8c0" href={`${GH}/blob/main/LICENSE`}>Read the license →</a>
+      </div>
+      <div>
+        <strong>Built for</strong>
+        <a style="color:#9fd8c0" href="https://github.com/deepseek-ai/deepseek-harness">DeepSeek Harness</a> —
+        the open agentic coding host this plugin extends.
+      </div>
+    </aside>
   </div>
 </section>

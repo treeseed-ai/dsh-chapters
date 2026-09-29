@@ -1,0 +1,55 @@
+---
+/** Getting started — deliberately the simplest section on the page:
+ * current-version install and update commands, each with its own line and
+ * one sentence on what it does. No prose beyond that. */
+import { getLatest } from '../data/latest';
+const { version } = await getLatest();
+---
+<section class="dsh-start" id="getting-started">
+  <div class="dsh-inner" style="padding-inline:0">
+    <div class="dsh-section-title"><h2>Getting started</h2></div>
+    <ol class="steps">
+      <li class="step">
+        <div class="dsh-step">
+          <h3>Install</h3>
+          <p class="note">Adds the latest dsh-chapters to your harness profile and brings its tools, commands, and the <code>chapters</code> preset with it.</p>
+          <div class="dsh-cmdline">
+            <code id="cmd-add">dsh plugin --profile web add @treeseed/dsh-chapters@{version}</code>
+            <button class="dsh-copy" type="button" data-cmd="#cmd-add">copy</button>
+          </div>
+        </div>
+      </li>
+      <li class="step">
+        <div class="dsh-step">
+          <h3>Keep it current</h3>
+          <p class="note">Updates the plugin to the newest published version whenever you run it.</p>
+          <div class="dsh-cmdline">
+            <code id="cmd-update">dsh plugin --profile web update @treeseed/dsh-chapters</code>
+            <button class="dsh-copy" type="button" data-cmd="#cmd-update">copy</button>
+          </div>
+        </div>
+      </li>
+      <li class="step">
+        <div class="dsh-step">
+          <h3>Restart, then go</h3>
+          <p class="note">Restart <code>dsh web</code> so the bundle loads. From any session: click <em>Fork with chapters</em> on a message, or ask your agent to archive and continue. That’s the whole setup.</p>
+        </div>
+      </li>
+    </ol>
+    <p style="font-size:.82rem;color:var(--sl-color-gray-3);margin-top:1rem">
+      <code>--profile web</code> is required on every plugin command — swap <code>web</code> for your profile
+      name. Prefer the manual tour? <a href="#commands">Commands are catalogued below</a>, and the
+      <a href="./start/quickstart/"> quickstart</a> walks the first continuation end to end.
+    </p>
+  </div>
+</section>
+<script is:inline>
+  document.addEventListener('click', async (ev) => {
+    const btn = ev.target.closest ? ev.target.closest('.dsh-copy') : null;
+    if (!btn) return;
+    const code = document.querySelector(btn.dataset.cmd);
+    if (!code) return;
+    try { await navigator.clipboard.writeText(code.textContent.trim()); btn.textContent = 'copied ✓'; btn.classList.add('done');
+      setTimeout(() => { btn.textContent = 'copy'; btn.classList.remove('done'); }, 1600); } catch (e) {}
+  });
+</script>

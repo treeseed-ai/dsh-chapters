@@ -1,0 +1,24 @@
+---
+/** Documentation sections as a grid of boxes: title, short description, entry link. */
+const base = import.meta.env.BASE_URL;
+const sections = [
+  { href: 'start/quickstart/', t: 'I · First Contact', d: 'Install in one line, take your first continuation, link a knowledge pool — plus the traps we already hit for you.' },
+  { href: 'concepts/why-not-summaries/', t: 'II · Concepts & Theory', d: 'The economics and the architecture of memory: invariants, budget math, and the recursive-language-model result the archive instantiates.' },
+  { href: 'knowledge/pool/', t: 'III · The Knowledge Layer', d: 'Shared, cross-machine memory: pools, the two transports, ranked search, per-machine rules, the enrichment ladder.' },
+  { href: 'reference/commands/', t: 'IV · Reference', d: 'Every command, agent tool, and configuration key — plus the continuation notice dissected line by line.' },
+  { href: 'evidence/benchmarks/', t: 'V · Evidence & Measurement', d: 'The three-arm benchmark you can run locally, the full production field study, and honest cache arithmetic for llama.cpp.' },
+  { href: 'operations/install/', t: 'VI · Operate & Extend', d: 'Install, upgrades, signed provenance, the development discipline, the internals map, and every incident straight.' },
+];
+---
+<section>
+  <div class="dsh-section-title"><h2>Documentation</h2></div>
+  <div class="dsh-docs-grid">
+    {sections.map((s) => (
+      <a href={`${base}${s.href}`}>
+        <strong>{s.t}</strong>
+        <span>{s.d}</span>
+        <em>Open Part →</em>
+      </a>
+    ))}
+  </div>
+</section>

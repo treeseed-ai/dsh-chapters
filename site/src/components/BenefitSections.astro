@@ -1,0 +1,77 @@
+---
+/** Ten benefit sections, each enclosed: description + doc links left,
+ * the metric or concrete improvement right. All numbers from real runs. */
+const base = import.meta.env.BASE_URL;
+const B = (title: string, body: string[], big: string, cap: string, points: string[], links: [string, string][]) =>
+  ({ title, body, big, cap, points, links });
+const items = [
+  B('Compaction that costs zero inference tokens',
+    ['Summarizing a conversation means feeding the whole history back through the model — ~55 minutes of wall-clock per 100K tokens at 30 tok/s, repeated every time the window fills. dsh-chapters writes chapters by copying its own log and derives the index deterministically: compaction stops costing inference entirely.'],
+    '0 tokens', 'spent compacting — across 680K tokens archived in one production run',
+    ['21 compactions, one 10-session multi-agent job', 'the stock equivalent pays ~680K prefill tokens'],
+    [['concepts/why-not-summaries/', 'Why not summaries'], ['concepts/budget/', 'Budget math']]),
+  B('Verbatim memory your agents actually use',
+    ['“Lossless” here means byte-true text on disk, not a paraphrase you must trust — and retrieval is something real agents demonstrably do: they reached into the archive unprompted, dozens of times, because every TOC line is a path back to the original bytes.'],
+    '49 / 49', 'archive retrievals succeeded in the documented run, ~497 KB restored',
+    ['a child re-consulted a 24K-token artifact after its compaction dropped it — three times', 'agents even grep their own chapter files for a prior phrasing'],
+    [['concepts/archive-anatomy/', 'Archive anatomy'], ['evidence/field-study/', 'Field study']]),
+  B('Nothing is ever destroyed',
+    ['The session log is append-only; compaction shadows spans in the rendered surface and archives them first. The original session stays open, cacheable, and usable — fork a branch, abandon it, keep working in the parent. History is evidence, and evidence is kept.'],
+    '30 / 30', 'chapters registered = files on disk — every shadowed range covered',
+    ['145 events hidden from one window, none lost', 'reversibility is the default, not an undo feature'],
+    [['concepts/invariants/', 'The four invariants'], ['operations/security/', 'Integrity guarantees']]),
+  B('New sessions inherit a map, not a burden',
+    ['A continuation opens with exactly one message: the cumulative, chronologically flattened Table of Contents of its ancestor chain. It is small enough to always pay for, and complete enough to decide from.'],
+    '~102 tokens', 'of index vs ~2,476 for the transcript it replaces — measured',
+    ['every line links verbatim chapter text', 'the whole inherited-context surface fits one screen'],
+    [['reference/notice/', 'The notice, annotated'], ['start/first-continuation/', 'First continuation']]),
+  B('The tool-output firehose, defused at arrival',
+    ['Oversized results — the 40K-line log, the lockfile cat — are stubbed before they ever enter context, stored content-addressed, and re-inspected through toc / search / windowed reads. This is the Recursive Language Model pattern (arXiv:2512.24601), instantiated with files and query tools instead of a code sandbox.'],
+    '373 KB', 'book fetched live with zero blob prefills; drill-downs served ~497 KB more on demand',
+    ['the model, not a size rule, decides what stays inline', 'identical outputs across the tree store once (SHA-256)'],
+    [['concepts/recursive-context/', 'Recursive-context theory'], ['reference/tools/', 'chapters_artifact']]),
+  B('One link turns session memory into team memory',
+    ['Point the workspace at a knowledge pool — a plain git repository (even a local path, no credentials) or a TreeDX service — and every linked session can search the shared corpus: two-layer derived index, emergent topics, machine-stamped provenance. The link is per project, so every session and sub-agent inherits it automatically.'],
+    '2 transports', 'git and TreeDX behind one six-verb seam; search reads the same mirror either way',
+    ['offline degrades to local-only, naming the failed step', 'divergence resolves by rebuilding from the store'],
+    [['start/link-pool/', 'Link a pool'], ['knowledge/pool/', 'How pools work'], ['knowledge/providers/', 'git vs TreeDX']]),
+  B('Built for the model on your own GPU',
+    ['The thesis is small models, more capable: the entire proof-of-work — every number on this page — comes from a 64K-context local model on one 8 GB card. No embeddings service, no vector DB, no daemon, no telemetry. Your memory is Markdown files your other tools can grep.'],
+    '8 GB VRAM', 'was the whole infrastructure for a 10-session, 402-request production job',
+    ['works identically against hosted providers — but doesn’t need one', 'the corpus is plain files: survives the plugin, the harness, the vendor'],
+    [['evidence/llamacpp-cache/', 'Cache reality on llama.cpp'], ['operations/install/', 'Requirements']]),
+  B('Team steering that respects every machine',
+    ['Rules are write-once proposals that bind only after each machine approves — approval is a curation fact of that box, never a shared rewrite. Approved core rules ride verbatim into continuation notices under a budget that refuses with numbers rather than clipping a line.'],
+    '1,200 tokens', 'core-rules budget per notice — overflow refuses, never truncates',
+    ['per-machine approval, per-machine search bonus', 'rules never touch the global system prompt'],
+    [['knowledge/rules/', 'Rules & governance'], ['knowledge/search/', 'Ranking']]),
+  B('Loud honesty, from the engine to the CI',
+    ['A system that summarizes silently is a system that lies silently; this one refuses loudly everywhere: offline says local-only with the failed step named, budgets refuse with numbers, refusals log their reason to your diagnostics file — and the acceptance CI cannot fake green.'],
+    '464 tests', 'deterministic + seven browser journeys replayed from committed model tapes — a miss fails the run loudly',
+    ['zero LLM calls, zero GPUs in CI — and zero silent skips', '≥85 % coverage gate; releases carry SLSA v1 provenance'],
+    [['operations/development/', 'The tape discipline'], ['start/faq/', 'Troubleshooting']]),
+  B('Continuity you can click',
+    ['One button under every assistant message — “Fork with chapters” — archives, continues, and switches sessions in a click. The install is one line. The scope is everything after that.'],
+    '1 line', 'to install, 1 click to continue — with commands and tools catalogued below and in Part IV',
+    ['the plugin never rewrites a session to do its job', 'uninstall removes code; your archive and pool stay'],
+    [['reference/commands/', 'Commands'], ['reference/configuration/', 'Configuration']]),
+];
+---
+<div class="dsh-bsecs">
+  {items.map((f, i) => (
+    <section class="dsh-bsec">
+      <div className="head"><span className="num">{String(i + 1).padStart(2, '0')}</span><h3>{f.title}</h3></div>
+      <div className="desc">
+        {f.body.map((p) => <p>{p}</p>)}
+        <div className="more">
+          {f.links.map(([href, label]) => <a href={`${base}${href}`}>{label} →</a>)}
+        </div>
+      </div>
+      <figure className="metric">
+        <div className="big">{f.big}</div>
+        <figcaption>{f.cap}</figcaption>
+        <ul>{f.points.map((p) => <li>{p}</li>)}</ul>
+      </figure>
+    </section>
+  ))}
+</div>
