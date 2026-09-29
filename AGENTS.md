@@ -2,6 +2,18 @@
 
 Working spec for an agent with a 32K–128K context. This file holds only what you must not get wrong.
 Detail lives in `docs/` and is linked at the point of use — read those on demand, not first.
+**User-facing documentation lives ONLY on the site: https://treeseed-ai.github.io/dsh-chapters/**
+(numbered §1–§27; `site/src/content/docs/` holds its sources) — never duplicate a how-to into this
+repo; link the site. README = doorway for humans, AGENTS.md = load-bearing spec for agents.
+
+**Find-fast table (query → where).** What is this / install / commands / config → site §§1–4, 15–17.
+Why not summaries, budgets, RLM theory, invariants → site §§5–8 (+ this file's sections below).
+Knowledge pool, providers, search, rules, enrichment mechanics → `docs/knowledge-repo.md` (record) +
+site Part III. Host API facts incl. exact file:line → `docs/contract.md`. Compaction seam →
+`docs/host-compaction-seam.md`. Build/test loop + tape system → `docs/development.md` + site §24.
+Claims & verification procedures → `docs/verify.md`. Transport truth table → `docs/provider.md`.
+Numbers from real runs (compaction, cache, retrievals) → site Part V (field study §20, cache §21).
+Releases/incidents → site §26 + git log. Benchmarks → `benchmarks/README.md` + site §19.
 
 **Scope: development only.** This file guides agents developing THIS repository. Nothing shipped —
 runtime behavior, the knowledge corpus, or any test — may depend on it or its contents: every real
