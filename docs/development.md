@@ -97,6 +97,14 @@ Re-record discipline (learned the hard way 2026-09-22/23):
   injected presence and misses. Re-record the whole project, not a single spec, when specs
   share a boot — and never run two GPU-consuming suites concurrently (RR2=137 + timeout
   cascades: a fanout that passes alone failed at 1.1 h while a heal chain shared the server).
+  **Home freshness is part of the context** (measured 2026-09-29): the host injects
+  skill-catalog-changed and runtime-context snapshot notices on the FIRST boot against a
+  fresh/absent throwaway home. Distilling against a stale home produced a tape without those
+  messages that a pristine replay then demanded — structural message-count divergence, which
+  no content mask can bridge. Discipline: `rm -rf var/e2e-home-<port>` before RECORD and
+  before the verifying REPLAY, so both sides saw the same boot world. Hosted CI is inherently
+  pristine: a locally-distilled tape that passes only on an accumulated home is a red flag,
+  not a pass.
 - **Ports are parameterized end to end**: the model proxy derives `E2E_PROXY_PORT = boot port
   + 1000` (a hard-coded 41799 turned one killed run's orphan into EADDRINUSE for every later
   boot), and `boot.ts` fails FAST with a named-port message when the boot port is already
