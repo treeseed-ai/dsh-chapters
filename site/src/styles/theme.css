@@ -126,3 +126,31 @@ html { scroll-behavior: smooth; }
 /* homepage full-bleed */
 html:has(.dsh-hero) main { max-width: 100%; }
 html:has(.dsh-hero) .sl-markdown-content { max-width: 78rem; margin-inline: auto; }
+
+/* trust badges */
+.dsh-badges { display: flex; gap: .45rem; flex-wrap: wrap; margin-top: 1.15rem; align-items: center; }
+.dsh-badges img { height: 20px; border-radius: 4px; }
+
+/* terminal preview */
+.dsh-try { margin: .5rem 0 2.4rem; }
+.dsh-term {
+  border-radius: 1rem; overflow: hidden; border: 1px solid #1d2b27; background: #0a0f0e;
+  box-shadow: 0 24px 70px rgba(0,0,0,.45), 0 2px 0 rgba(255,255,255,.03) inset;
+}
+.dsh-term .bar { display: flex; align-items: center; gap: .45rem; padding: .6rem .95rem; background: #101716; border-bottom: 1px solid #1d2b27; }
+.dsh-term .dot { width: .62rem; height: .62rem; border-radius: 50%; display: inline-block; }
+.dsh-term .tab { margin-left: .7rem; font-family: var(--sl-font-code); font-size: .72rem; color: #7f9a91; }
+.dsh-term pre { margin: 0; padding: 1rem 1.15rem 1.2rem; font-family: var(--sl-font-code); font-size: .78rem; line-height: 1.7; color: #c9dcd5; overflow-x: auto; white-space: pre; }
+.dsh-term .t-prompt { color: #35c79b; font-weight: 700; }
+.dsh-term .t-cmd { color: #eafff6; font-weight: 600; }
+.dsh-term .t-ok { color: #35c79b; }
+.dsh-term .t-note { color: #6e877e; font-style: italic; }
+.dsh-term .t-file { color: #f5a524; }
+.dsh-term .t-plot { color: #9fd8ff; }
+.dsh-term .t-sec { color: #c8a2ff; font-weight: 700; }
+.dsh-term .t-num { color: #7f9a91; }
+.dsh-term .t-hl { color: #eafff6; font-weight: 700; }
+
+/* feature cards: title is the deep link */
+.dsh-card h3 a { color: inherit; text-decoration: none; border-bottom: 1px dotted color-mix(in srgb, var(--dsh-brand) 55%, transparent); }
+.dsh-card h3 a:hover { color: var(--sl-color-text-accent); border-bottom-color: var(--dsh-brand); }
