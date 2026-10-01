@@ -87,10 +87,10 @@ html:has(.dsh-band) .content-panel:has(> .sl-container > h1#_top) { display: non
 }
 .dsh-band .gh svg { width: 19px; height: 19px; }
 .dsh-band .gh:hover { background: #ededed; }
-.dsh-band .side { border-left: 1px solid #262626; padding-left: clamp(1.2rem, 3vw, 2.2rem); display: grid; gap: 1rem; font-size: .86rem; color: #8f8f8f; }
-.dsh-band .side strong { color: #e5e5e5; display: block; margin-bottom: .15rem; font-size: .92rem; }
-.dsh-band .badges { display: flex; flex-wrap: wrap; gap: .4rem; margin-top: .1rem; }
-.dsh-band .badges img { height: 19px; border-radius: 3px; }
+.dsh-band .side { border-left: 1px solid #262626; padding-left: clamp(1.2rem, 3vw, 2.2rem); display: flex; flex-direction: column; justify-content: center; gap: 1.7rem; }
+.dsh-band .side ul.key { margin: 0; }
+.dsh-band .acts { display: grid; gap: .7rem; }
+.dsh-band .acts .gh, .dsh-band .acts .dsh-btn { justify-content: center; }
 
 /* ---------- getting started ---------- */
 .dsh-start { padding-block: clamp(2rem, 5vw, 3rem); }
