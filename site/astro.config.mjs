@@ -81,7 +81,12 @@ export default defineConfig({
       title: 'dsh-chapters',
       description:
         'Long memory for local coding agents: verbatim archives, zero-token compaction, and cross-session knowledge pools — no API key, no vector DB, no cloud.',
-      head: [{ tag: 'script', content: themeSyncScript }],
+      head: [
+        { tag: 'script', content: themeSyncScript },
+        { tag: 'link', attrs: { rel: 'preconnect', href: 'https://fonts.googleapis.com' } },
+        { tag: 'link', attrs: { rel: 'preconnect', href: 'https://fonts.gstatic.com', crossorigin: true } },
+        { tag: 'link', attrs: { rel: 'stylesheet', href: 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Inter+Tight:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap' } },
+      ],
       favicon: '/favicon.svg',
       lastUpdated: true,
       editLink: { pattern: 'https://github.com/treeseed-ai/dsh-chapters/edit/main/site/$filepath' },

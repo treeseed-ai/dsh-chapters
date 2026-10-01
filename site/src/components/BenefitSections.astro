@@ -60,15 +60,15 @@ const items = [
 <div class="dsh-bsecs">
   {items.map((f, i) => (
     <section class="dsh-bsec">
-      <div className="head"><span className="num">{String(i + 1).padStart(2, '0')}</span><h3>{f.title}</h3></div>
-      <div className="desc">
+      <div class="head"><span class="num">{String(i + 1).padStart(2, '0')}</span><h3>{f.title}</h3></div>
+      <div class="desc">
         {f.body.map((p) => <p>{p}</p>)}
-        <div className="more">
+        <div class="more">
           {f.links.map(([href, label]) => <a href={`${base}${href}`}>{label} →</a>)}
         </div>
       </div>
-      <figure className="metric">
-        <div className="big">{f.big}</div>
+      <figure class="metric">
+        <div class="big">{f.big}</div>
         <figcaption>{f.cap}</figcaption>
         <ul>{f.points.map((p) => <li>{p}</li>)}</ul>
       </figure>
