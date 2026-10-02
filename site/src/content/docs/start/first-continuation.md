@@ -25,13 +25,20 @@ The continuation is a brand-new session whose first message is a **Table of Cont
 ```
 # Continuation: <title you/agent gave>
 
+[core rules, if any are approved on this machine]
+
+This session continues an archived conversation. Chapters are verbatim Markdown in the workspace;
+every byte remains retrievable — inline, or at artifact paths cited inside a chapter. Read a chapter
+by its path with the read tool when the detail matters. The previous session stays intact.
+
+## In flight
 <State of play — your handoff note>
 
-## Conversation TOC
+## Chapters
 1. [Deeply analyze this project…](.dsh-chapters/<root>/chapters/001-….md) — 33 user / 21 assistant messages (16,055 est tokens)
 2. [Earlier history](.dsh-chapters/<root>/chapters/002-….md) — …
 
-[core rules, if any are approved on this machine]
+Ancestry: root <root-id>; parent <parent-id>; archive under .dsh-chapters/.
 ```
 
 Measured size: **~102 tokens of index where the replaced transcript ran ~2,476** — and unlike a summary, every line is a *path to verbatim text*, not a paraphrase to trust.

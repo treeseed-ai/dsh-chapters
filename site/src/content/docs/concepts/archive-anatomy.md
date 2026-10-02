@@ -11,11 +11,11 @@ Three durable layers, in three different places on purpose:
 ```
 .dsh-chapters/
   <root-session>/
-    chapters/001-<slug>.md      # verbatim body + YAML frontmatter (id, ranges, hashes, topics)
+    chapters/001-<slug>.md      # verbatim body + YAML frontmatter (title, seq range, body hash, topics)
     artifacts/<aa>/<sha256>.txt # content-addressed oversized tool results — the blobs that never hit the window
 ```
 
-Why the workspace: the model reloads chapters with its ordinary `read` tool, so the text must live where `read` reaches — a `$HOME` path can be reachable-but-not-writable or writable-but-not-readable; the workspace is the one place both guarantees hold. Content-addressing means the same 40K-line log across twelve chapters is stored **once**.
+Why the workspace: the model reloads chapters with its ordinary `read` tool, so the text must live where `read` reaches — a `$HOME` path can be reachable-but-not-writable or writable-but-not-readable; the workspace is the one place both guarantees hold. Content-addressing applies to the artifacts: identical tool results anywhere in the archive are stored **once**. Chapter bodies need no dedup — each is one validated, non-overlapping range of the log, so the same text never appears in two chapters.
 
 ## 2. The harness storage domain — bookkeeping
 

@@ -31,7 +31,7 @@ The follow-up, SRLM (*arXiv:2603.15653*), supplies the caution: **recursion that
 
 ## What it buys, in one line each
 
-- **Unbounded horizon on a bounded model** — the same 64K window carries a months-long, multi-agent corpus; the field study in [§20](/evidence/field-study/) is the existence proof.
+- **Unbounded horizon on a bounded model** — the same 64K window carried a ten-session, multi-agent project analysis; the field study in [§20](/evidence/field-study/) is the existence proof.
 - **Verbatim, lossless retrieval** — you pull the *bytes*, not a paraphrase of them; a summary can never do that.
 - **Structural cost control** — the retention paradox (huge-but-new) never fires because the huge result is stubbed *at arrival* ([§9](/concepts/archive-anatomy/)).
 - **Model-agnostic quality** — it's about context *management*, so a 64K local model gains capability rather than merely longevity. The thesis is *small models, more capable*.

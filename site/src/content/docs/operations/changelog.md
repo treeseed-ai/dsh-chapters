@@ -4,7 +4,7 @@ description: Every version, what it fixed, and the incidents that found them —
 lastUpdated: true
 ---
 
-Releases publish automatically from a bare-semver tag on `main` via **npm trusted publishing (OIDC)** — the deterministic suite, coverage gate, and tape-replay acceptance chain must be green for a tag to ship, and each published version carries a provenance attestation tying it back to this repo, that workflow run, and that commit.
+Releases publish automatically from a bare-semver tag via **npm trusted publishing (OIDC)**. The publish itself is gated on the full deterministic suite under the coverage gate; the seven-segment tape-replay acceptance chain runs in CI on every push to `main`, so a release is always cut from a green acceptance run. Each CI-published version carries a provenance attestation tying it back to this repo, that workflow run, and that commit — 0.1.0, the one manual ship, predates attestation.
 
 ### 0.1.3 — 2026-09 · plot elicitation goes loud and gets a real budget
 
@@ -21,6 +21,6 @@ Releases publish automatically from a bare-semver tag on `main` via **npm truste
 
 ### 0.1.0 — 2026-09 · first release
 
-The full platform: zero-token deterministic compaction, citation continuations with cumulative TOCs, arrival-time artifacting, the knowledge pool (git + TreeDX transports), enrichment ladder, per-machine rules ledger, the fork button, and an acceptance suite that replays browser journeys from committed model tapes with zero LLM calls in CI. 450→464 deterministic tests, 97.95% statements / 85.6%+ branch/function gates held from day one.
+The full platform: zero-token deterministic compaction, citation continuations with cumulative TOCs, arrival-time artifacting, the knowledge pool (git + TreeDX transports), enrichment ladder, per-machine rules ledger, the fork button, and an acceptance suite that replays browser journeys from committed model tapes with zero LLM calls in CI. 450→464 deterministic tests, 97.95% statements / 85.6%+ branch/function gates held from day one. (Shipped manually before trusted publishing was wired — the one version without a provenance attestation.)
 
 > **On naming.** The package was `dsh-chapter-fork` once — and "fork" in DSH means *copy the parent's history*, the one operation this plugin must never perform. It now names the artifact instead; the reasoning, including the candidates that lost, is in the repo's architecture record.

@@ -4,13 +4,13 @@ description: Six transport verbs, two shipped backends, one honest failure model
 lastUpdated: true
 ---
 
-Transport is a **provider seam** (design record: *transport is pluggable; git is one provider*). Six verbs — clone / pull / push / commit / list / fetch — carry every sync path. Two backends ship; the layer above (search, rules, index, notices) reads the **materialized mirror** and is identical under both.
+Transport is a **provider seam** (design record: *transport is pluggable; git is one provider*). Six verbs — `ensureClone` (make the mirror exist and reflect the remote), `initLocal` (offline mirror), `removeMirror` (destroy transport), `stageAllAndCommit` (commit local work), `pullFastForward` (converge), `push` (ship the delta) — carry every sync path. Two backends ship; the layer above (search, rules, index, notices) reads the **materialized mirror** and is identical under both.
 
 |  | **`git`** (default) | **`treedx`** |
 |---|---|---|
-| Address | `https://…/pool.git` + token, or a **local path** (no credentials) | `treedx+<url>/<repo>` + bearer token (token always required) |
+| Address | `https://…/pool.git` + token (mandatory; loopback exempt for test forges), or a **local path** (no credentials) | `treedx+<url>/<repo>` + bearer token (token always required) |
 | Wire | git smart-HTTP via isomorphic-git; plain repo, browsable by any git client | TreeDX service API: workspace-create → overlay writes → commit, lease-managed |
-| Mirror memory | cloned mirror dir under the store | `.treedx-state.json` remembers the served head |
+| Mirror memory | a git clone mirror in the workspace (`.dsh-knowledge/`) | `.treedx-state.json` remembers the head, per-path baseline hashes, and staged work |
 | Contention | push rejected → ff-pull retry → **divergence = rebuild from the store** | lease contention maps onto the same ladder; moved-head → diverged |
 | Listing | git objects | paginated `paths/list` — **followed to the end** (a real truncation bug at >100 paths, caught live and pinned by a paginating stub) |
 | Migration | — | every pre-existing record has `kind` absent ⇒ `git`; upgrading the transport changed no stored state |

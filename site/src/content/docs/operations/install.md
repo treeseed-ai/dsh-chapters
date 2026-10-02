@@ -19,13 +19,13 @@ dsh plugin --profile web list                                # enabled state for
 `--profile` is required on every plugin command — `web` is the browser harness profile; substitute your
 own profile name.
 
-Restart the harness. Expect on boot: engine-constructed lines in the server log, the six `chapters_*` tools, four `/chapters-*` commands, the fork button on assistant rows.
+Restart the harness. Expect on boot: engine-constructed lines in the server log, the six `chapters_*` tools, four `/chapters-*` commands, the fork button on assistant rows, and the optional `chapters` preset that routes `/compact` through the zero-token engine.
 
 ## Supply chain, auditable
 
 - every CI-published version carries an **npm provenance attestation** (SLSA v1, via OIDC trusted publishing — no long-lived tokens) linking the tarball to the exact repo, workflow, commit, and CI run that built it;
 - `npm audit signatures` on an installed tree verifies it;
-- releases are gated by: 464 deterministic tests, an ≥85% coverage gate, and a **seven-segment browser acceptance chain replayed from committed model tapes** — no LLM, no GPU, no key, and a *loud* failure (503 on tape miss) rather than a skip.
+- releases publish from a green `main`: the release workflow itself blocks on the **full deterministic suite — 464 tests — under the ≥85% coverage gate**, and CI runs the **seven-segment browser acceptance chain replayed from committed model tapes** on every push to `main`, so a release is always cut from a green acceptance run — no LLM, no GPU, no key, and a *loud* failure (503 on tape miss) rather than a skip.
 
 ## Versioning & the changelog
 

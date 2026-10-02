@@ -4,16 +4,18 @@ description: Every knob, which plane it lives on, and the one rule that ties the
 lastUpdated: true
 ---
 
-No hardcoded tunables anywhere the harness can configure them, and one reference that never lies: the **comment header of the shipped `cordis.patch.yml`** (inside `node_modules/@treeseed/dsh-chapters/`) mirrors the live config schema exactly — enforced by a schema test. This page lists what users reach for; the patch file is the authority.
+No hardcoded tunables anywhere the harness can configure them. The table below is the complete host-plane list (the `config` schema in `src/index.ts`); the comment header of the shipped `cordis.patch.yml` (inside `node_modules/@treeseed/dsh-chapters/`) mirrors the schema and is the in-repo reference, but this page is kept current with the code.
 
-**Two planes.** `config` (below) is the *host plane* — your profile's plugin entry. The compaction *engine* lives on the *realm plane*: the `chapters` agent-preset row (`presets/chapters/agent.cordis.yml`), which owns `thresholdRatio`, `retainRatio/retainTokens`, `elicitedPlot`, `toolResultArtifactTokens`, `enrichmentTrigger`, and friends. Shared names behave per plane — design record §12.
+**Two planes.** `config` (below) is the *host plane* — your profile's plugin entry. The compaction *engine* lives on the *realm plane*: the `chapters` agent-preset row (`presets/chapters/agent.cordis.yml`), which owns `thresholdRatio`, `retainRatio/retainTokens`, `maxTokens`, `compactionRetries/maxOverflowRetries`, `summarizationProvider/summarizationModel` (legacy override), `enrichmentTrigger` (`afterPush|idle|both|manual`), `elicitedPlot`, and `toolResultArtifactTokens`. Shared names behave per plane — design record §12.
 
 | Key | Default | Meaning |
 |---|---|---|
 | `harnessId` | hostname | this machine's identity: commit author, curation partition, rule authorship |
 | `knowledgeRemote` | `''` | pre-bind an upstream (else `/chapters-link`) |
+| `knowledgeProvider` | `auto` | transport policy: `auto` dispatches on the remote scheme (`treedx+` → TreeDX, else git); an explicit `git`/`treedx` must match the scheme or the link refuses |
 | `projectKeyOverride` | `''` | wins over the remote-derived project key |
 | `syncDebounceMs` | 30000 | coalesce window for post-archive pushes |
+| `treedxFetchTimeoutMs` / `treedxWorkspaceTtlSeconds` / `treedxLeaseRetries` / `treedxLeaseRetryDelayMs` | 15000 / 900 / 3 / 1000 | TreeDX transport tunables (fetch timeout, workspace TTL, lease retry count and delay) |
 | `enrichmentEnabled` | true | **false makes the whole P2 ladder a pure no-op** — corpus stays fully working |
 | `enrichmentModel` | `''` (conversation route) | the annotator override |
 | `enrichmentIdleMs` / `enrichmentBatchCap` | 60000 / 5 | idle trigger; chapters per drain |
@@ -28,6 +30,6 @@ No hardcoded tunables anywhere the harness can configure them, and one reference
 | `artifactStoreRoot` | `.dsh-chapters` | workspace store (must be `read`-reachable) |
 | `installChaptersPreset` | true | copy preset into `.agent-presets/` at boot (never clobbers your edits) |
 | `fallbackPreset` | `chapters` | mounted for children when the caller's preset can't be resolved |
-| `searchDefaultMaxTokens` | 400 | answer packing budget |
+| `searchDefaultMaxTokens` | 400 | `chapters_search` result-packing budget |
 
 Read the row values, change what you own, restart to reload. Next: [18. The continuation notice, annotated](/reference/notice/).

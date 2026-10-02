@@ -20,10 +20,11 @@ lastUpdated: true
 | Error / failure / unparseable events | **0** | full scan |
 | Deepest single session | **95 requests, 6 compactions** — one task threaded through 6 windows, one stable carried plot | child `6d2d93a6` |
 | Steady-state cache hit (quiet windows) | **0.997 – 1.000** | provider usage lines |
+| Stock-method equivalence | **≈ 113 min** (derived estimate: 680K prefill tokens @ 100 tok/s + 21 summary generations) | committed results JSON, labeled estimate |
 
 ## What the cache did (the honest part)
 
-With a child bursting 20K-token results through the *single* llama.cpp slot, the parent's provider-side `cacheRead` occasionally fell to the shared-prefix floor (~9.6K — a single-slot capacity fact, [§21](/evidence/llamacpp-cache/)) — and **recovered on the next request, every time** (full series: rise to .999 → one-turn dip → .997+.). The session even survived an in-place compaction mid-run and re-warmed to .97 afterward. What it never showed: the *permanent* pin-to-header that the pre-fix build produced. Post-compaction, agents re-consulted a 24K-token artifact **three times** — retrieval across a window boundary.
+Mid-run, the parent's provider-side `cacheRead` collapsed from a warm prefix (29,656 tokens, hit .997) to a pinned **9,613** — the exact size of the shared header prefix. The cause was not message mutation but **KV-capacity eviction**: parent + three fan-out children + a live agent session sharing one 65,536-token llama.cpp pool (`total_slots 1`), so prefix lookup kept doing exactly its job — returning the shared 9,613-token header for every divergent chain (a single-slot capacity fact, [§21](/evidence/llamacpp-cache/)). Once the children quiesced, the parent **re-warmed** (read 21,969, hit .97) — the in-place compaction mid-run did not prevent recovery. What the series never showed: the *permanent* pin-to-header that the pre-fix build produced. Post-compaction, agents re-consulted a 24K-token artifact **three times** — retrieval across a window boundary.
 
 ## The two real findings it produced
 

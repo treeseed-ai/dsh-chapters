@@ -5,7 +5,7 @@ lastUpdated: true
 ---
 
 **1. Never rewrite the durable session log.**
-Append-only, always. Compaction *shadows* spans in the rendered surface (the durable record is untouched and fully auditable). Rewriting history is how memory products lose your trust the one time it matters.
+Append-only, always. Surface-span *shadowing* is permitted — in fact it is the shipped mechanism: `compaction/*` events are log-only, and the durable record stays append-only and fully auditable. Rewriting history is how memory products lose your trust the one time it matters.
 
 **2. Never seed a continuation from the parent's history.**
 A naive "fork" copies the parent's events into the child — context *grows* every generation and nothing ever compacts. The continuation is instead **unseeded but for one synthetic message: the TOC notice**. Citation, not copying — the whole economics of the system follow from this one line.
@@ -18,6 +18,6 @@ The model chooses ranges and titles; the plugin renders the text from the log. M
 
 ## Why invariants instead of settings
 
-Every one of these was chosen after watching the convenient alternative fail: seeded forks that never shrink, summaries that drop the detail the task turns on, a global prompt every user of the machine must trust. The architecture is small because the rules are strict — and the strictness is the product. The invariants are enforced in code, tested by name (`tests/unit/engine-core.test.ts`, the golden TOC test for byte-identical absence), and referenced from commit messages like load-bearing walls.
+Every one of these was chosen after watching the convenient alternative fail: seeded forks that never shrink, summaries that drop the detail the task turns on, a global prompt every user of the machine must trust. The architecture is small because the rules are strict. They are enforced in code and tested by name — `tests/unit/engine-core.test.ts` (the plugin renders every body from the log; the model never authors text) and `tests/unit/notice-rules.test.ts` (the byte-identical absence test: no rules ⇒ no notice section).
 
 Next: [7. Continuation budget math](/concepts/budget/).

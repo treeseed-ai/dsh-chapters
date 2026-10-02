@@ -156,6 +156,8 @@ html[data-theme='light'] .dsh-bsec .desc p { color: #525252; }
 .dsh-section-title { display: flex; align-items: baseline; gap: .7rem; margin: 2rem 0 .8rem; }
 .dsh-section-title h2 { margin: 0; font-size: 1.45rem; letter-spacing: -.02em; }
 .dsh-mt-lg { margin-top: 2.6rem; }
+.dsh-evidence-note { font-size: .84rem; color: var(--sl-color-gray-3); margin: -.4rem 0 .8rem; }
+.dsh-evidence-note a { color: var(--sl-color-text-accent); }
 .dsh-mb-sm { margin-bottom: .9rem; }
 
 /* evidence page: bench bars + cards */

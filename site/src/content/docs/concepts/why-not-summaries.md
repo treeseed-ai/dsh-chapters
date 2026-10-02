@@ -19,7 +19,7 @@ Producing a summary means prefilling the whole history into one auxiliary call â
 | History | 30 tok/s | 100 tok/s | 300 tok/s |
 |---|---|---|---|
 | 32K | 18 min | 5 min | 2 min |
-| 100K | **55 min** | 17 min | 3.5 min |
+| 100K | **55 min** | 17 min | 6 min |
 
 On local hardware that is not "slow", it is *stop-working* slow. The index this plugin carries instead cost, measured, **~102 tokens** where the equivalent transcript ran ~2,476 â€” and produced with **zero inference**. The field number to anchor on: a real 10-session production run archived **680K tokens across 21 compactions at 0 model tokens**; the stock equivalent pays that 680K as prefill, repeatedly, plus the generation.
 

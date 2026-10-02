@@ -42,7 +42,7 @@ The two backends are documented side-by-side in [§11, Providers](/knowledge/pro
 /chapters-status
 ```
 
-shows the last sync with the steps behind it (`cloned → published N → pushed`), or an honest `local-only` with the failed step named and the mirror marked current so the push lands when the remote returns. On a fresh workspace the first sync may report `origin changed — rebuilding mirror`: that is the correct recovery, not a bug — the store is the truth, the transport is expendable.
+shows the last sync with the steps behind it (`cloned → published N new file(s) → pushed`), or an honest `local-only` with the failed step named and the mirror marked current so the push lands when the remote returns. If you ever see `origin changed — rebuilding mirror` — the workspace's mirror was built for a different upstream (typically right after you re-linked) — that is the correct recovery, not a bug: the stale mirror is discarded, republished from the store, and pushed. The store is the truth, the transport is expendable.
 
 ## One nuance about "before the first prompt"
 

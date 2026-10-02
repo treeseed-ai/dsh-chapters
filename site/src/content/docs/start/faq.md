@@ -10,7 +10,7 @@ The harness draft screen turns composer text into the **first message**, not a c
 
 ### `/chapters-status` says `local-only — no credentials` / `no upstream linked`
 
-Correct, not broken. Before you link a pool, the archive is local and fully usable (`chapters_search` reads the mirror once it exists; chapters are on disk regardless). The status command reports the *transport* state and names the failed step precisely — [Part III](/knowledge/pool/) explains linking.
+Correct, not broken. Before you link a pool, the archive is on disk and fully usable — open it, grep it, commit it; the model reads chapters by path with `read`, and `chapters_search` answers honestly ("no knowledge mirror yet") until a link materializes its index. The status command reports the *transport* state and names the failed step precisely — [Part III](/knowledge/pool/) explains linking.
 
 ### `origin changed — rebuilding mirror`
 
@@ -26,7 +26,7 @@ Restart `dsh web` — bundles load at boot (`dsh plugin --profile web update …
 
 ### A continuation said "over budget" and refused
 
-Budget is *newly added* context after the header; the plugin refuses with per-rule numbers and never silently truncates a handoff note (a clipped note is the lossy behavior the whole design rejects). Trim the note or lower `continuationBudgetRatio` — [§7](/concepts/budget/).
+Budget is *newly added* context after the header; the plugin refuses with per-rule numbers and never silently truncates a handoff note (a clipped note is the lossy behavior the whole design rejects). Trim the note or raise `continuationBudgetRatio` (default 0.25) — [§7](/concepts/budget/).
 
 ### My model never writes `PLOT:` lines, so checkpoints have no plot
 

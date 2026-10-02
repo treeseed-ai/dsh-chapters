@@ -18,7 +18,7 @@ A 32K model with a ~9K system prompt and tool schemas has only ~23K of headroom.
 
 ## Why refuse rather than clip
 
-A dropped or clipped handoff note is precisely the lossy behavior this whole project rejects. A summary can shrink; a *citation index* should stop short and say so — "TOC 6,120 tokens + note 1,300 > budget 5,750; the 6 chapters that fit are listed, these 4 are not" — so the human narrows the ranges or raises the ratio deliberately. The same doctrine runs everywhere in the system: offline degrades to `local-only` **naming the failed step**; budget overflow lists the rules that didn't fit; oversized tool results that can't be deferred **warn rather than inline silently**. Loud beats lossy, every time.
+A dropped or clipped handoff note is precisely the lossy behavior this whole project rejects. A summary can shrink; a *citation index* should stop short and say so — "TOC + note = 7,420 tokens over an allowance of 5,750 (0.25 × 23,000); trim the note or raise `continuationBudgetRatio`" — so the human decides deliberately. The same doctrine runs everywhere in the system: offline degrades to `local-only` **naming the failed step**; the rules section refuses with its overage and **never clips a rule**; an oversized tool result whose artifact write fails **inlines with the failure named**, never silently. Loud beats lossy, every time.
 
 ## The retention paradox, structurally avoided
 

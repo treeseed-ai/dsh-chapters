@@ -11,17 +11,17 @@ lastUpdated: true
 
 ## Data boundary
 
-The plugin has no network of its own: it writes files (workspace store, mirror clone) and drives **your** git/TreeDX transport to **your** linked remote. No telemetry, no phoning, no account, no default egress beyond the DSH home's configured providers. The archive is plain Markdown — it can and should go through the same review (and `.gitignore`, if you don't want the store in your repo working tree) as any other file.
+The plugin has no network of its own: it writes files (workspace store, mirror clone) and drives **your** git/TreeDX transport to **your** linked remote. No telemetry, no phoning, no account, no default egress beyond the DSH home's configured providers. The archive is plain Markdown — it can and should go through the same review (and `.gitignore`, if you don't want the store in your repo working tree) as any other file. Nor does the knowledge pool ever carry another project's instructions: the archive-time injection screen marks host-injected context (instruction files, runtime snapshots, skill catalogs) and never archives it, so corpus search sees conversation only.
 
 ## Integrity
 
 - **The log is append-only** — no tool path rewrites or deletes durable history; compaction *shadows* in the rendered surface and the shadowed spans are archived verbatim with coverage checked per span.
 - **Write-once everywhere it matters** — chapters are never edited (the body-hash guard makes the enrichment metadata regions the only sanctioned mutation, with provenance chains), rules are never edited, artifacts are content-addressed.
-- **Supply chain**: published versions are provenance-attested via OIDC trusted publishing (no long-lived npm tokens exist in the pipeline), and `npm audit signatures` verifies any install.
+- **Supply chain**: published versions (0.1.1 onward) are provenance-attested via OIDC trusted publishing (no long-lived npm tokens exist in the pipeline), and `npm audit signatures` verifies any install.
 
 ## If your sessions contain sensitive text
 
-The same advice as any chat-log system, honestly scoped: **chapters archive conversation bytes verbatim** — if a secret is said in a session, the archive stores it like the session log does. Treat pools as you'd treat git history you can rewrite *before* first push, and use per-project pools + scoped tokens (a read-write-token to one pool is the blast radius). Redaction hooks for specific chapter writes are a known gap, on the record, not a hidden one.
+The same advice as any chat-log system, honestly scoped: **chapters archive conversation bytes verbatim** — if a secret is said in a session, the archive stores it like the session log does. One guard ships: credential **redaction at the render chokepoint** — deterministic, config-extensible patterns replace secrets with stable markers (`⟦redacted:credential sha256=…⟧`) in chapters and artifact files alike, and the same secret always yields the same marker. It is deliberately credentials-only and is a speed bump, not a guarantee; broader content redaction is not offered, and per-write redaction hooks beyond it remain a known gap, on the record. Treat pools as you'd treat git history you can rewrite *before* first push, and use per-project pools + scoped tokens (a read-write-token to one pool is the blast radius).
 
 Questions on this page deserve a repo issue rather than an email — the answers belong in public.
 

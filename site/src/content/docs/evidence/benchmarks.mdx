@@ -8,7 +8,7 @@ sidebar:
     variant: caution
 ---
 
-This page renders every committed study in `site/src/data/results/` — a mix of **observational field studies** (real production sessions, instrumented from durable logs) and **controlled benchmarks** (the three-arm runner below). No number here is decorative: each cites its source, and the arms benchmark is reproducible on any machine.
+This page renders every committed study in `site/src/data/results/` — today that is one **observational field study** (a real production run, instrumented from durable logs). **Controlled benchmarks** — the three-arm runner below — join the list only when someone runs the runner on their own machine, and the renderer says so honestly until then. No number here is decorative: each cites its source, and the arms runner is reproducible on any machine.
 
 import BenchResults from '../../../components/BenchResults.astro';
 
@@ -24,17 +24,18 @@ The runner compares the *same* long-conversation task under three memory regimes
 | **LLM summarization** | compact by paraphrase | recall partial, cost = full-history prefill each compaction |
 | **dsh-chapters** | verbatim archive + TOC + retrieval | recall exact on retrieval; compaction = 0 model tokens |
 
-Metrics per arm × horizon: **uncached tokens** (the real cost), **recall %** (needle facts restored), wall-to-first-answer, task completion. Results are machine/model-specific by design — that's the point of running it on *your* local model.
+Metrics per arm × horizon: **uncached tokens** (the real cost), **recall %** (needle facts restored in the final answer), **wall time** (summed across the arm's calls — the summarization tax shows exactly where it lives), and task completion. Results are machine/model-specific by design — that's the point of running it on *your* local model.
 
 ## Run them locally (never CI)
 
 Benchmarks need a live model and a quiet machine, so they are **not** part of CI. From the repo root:
 
 ```bash
-npm run bench                 # one pass against the local llama server (default :8080)
-npm run bench -- --horizons 32768,65536 --model qwen3.8-flash-next
+npm run build            # first: the arms import the plugin's built lib/ modules
+npm run bench            # one pass against the local llama server (default :8080)
+npm run bench -- --horizon 65536 --needles 12
 ```
 
-It appends `site/src/data/results/bench-<utc>.json`; commit it and rebuild the site to publish. Methodology, seeds, and the exact protocol live in `benchmarks/README.md`.
+Each pass appends `site/src/data/results/bench-<utc>.json`; commit it and rebuild the site to publish. Methodology and the exact protocol live in `benchmarks/README.md` — including its documented honesty limits (arm C is a module-level emulation of the plugin, not the browser harness; needle grading is exact-substring and undercounts paraphrased-but-correct recall).
 
 Next: [20. Field study — the TreeSeed run](/evidence/field-study/).

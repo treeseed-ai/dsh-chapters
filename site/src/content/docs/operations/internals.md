@@ -15,7 +15,7 @@ The plugin is small because the rules are strict. One glance at the module map:
 | `src/continue-core.ts` | the TOC notice composer (ancestry flattened chronologically, budget preflight refusing with numbers) |
 | `src/sync.ts` / `src/provider.ts` | the sync loop (offline degrade, divergence rebuild) and the six-verb provider seam |
 | `src/gitops.ts` / `src/treedx/` | the two transports (isomorphic-git; TreeDX workspace→overlay→commit) |
-| `src/index-build.ts` / `src/search.ts` / `src/vocabulary.ts` / `src/enrich-wire.ts` / `src/rules.ts` | the knowledge layer: derived index, ranked search, shadow vocabulary, enrichment ladder, per-machine rule ledger |
+| `src/indexing.ts` / `src/search.ts` / `src/vocabulary.ts` / `src/enrich-wire.ts` / `src/rules.ts` | the knowledge layer: derived index, ranked search, shadow vocabulary, enrichment ladder, per-machine rule ledger |
 | `src/client/` | browser plane: the fork action on assistant rows |
 | `tests/unit` + `tests/integration` | 464 deterministic tests (zero skips when services are up — skips are treated as defects) |
 | `tests/e2e` + `tests/fixtures/model-tape/` | seven browser journeys replayed from committed model tapes; misses are loud failures |

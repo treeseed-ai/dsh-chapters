@@ -4,19 +4,19 @@ description: What a shared knowledge pool is, what goes in, what's derived, and 
 lastUpdated: true
 ---
 
-A **pool** is a git repository (or TreeDX workspace) that holds your chapter corpus and its derived indices, shared across machines. One `/chapters-link` connects a workspace; the sync loop then does the rest in the background (debounced by `syncDebounceMs`).
+A **pool** is a git repository (or TreeDX workspace) that holds your chapter corpus and its derived indices, shared across machines. One `/chapters-link` connects a workspace; the sync loop then does the rest in the background (debounced by `syncDebounceMs`, default 30 s).
 
 ## What travels
 
 | Path | Kind | Notes |
 |---|---|---|
 | `chapters/<projectKey>/<session>/NNN-slug.md` | primary | verbatim text — the authority |
-| `artifacts/<aa>/<sha>.txt` | primary | content-addressed blobs |
-| `rules/<category>/…` | primary | **proposed** rule files only — write-once |
-| `index/` | derived | two-layer: cheap append-only fragments, stitched into ranked entries at sync |
-| `collections/` | derived | JSONL collection records |
-| `topics/vocabulary.json` | derived | emergent vocabulary (aliases under review stay shadow-only) |
-| `edits/<harness>/` | curation | per-machine curation facts — provenance-stamped |
+| `artifacts/<projectKey>/<aa>/<sha>.txt` | primary | content-addressed blobs (shared across sessions — the per-session prefix is dropped) |
+| `collections/<projectKey>/<session>.jsonl` | primary | one JSONL line per completed turn — the composition signature |
+| `rules/<projectKey>/<harnessId>/NNN-slug.md` | primary | **proposed** rule files only — write-once; approval status rides per-machine facts, never the file |
+| `index/` | derived | one shard per canonical topic + a build manifest, rebuilt deterministically at sync |
+| `topics/vocabulary.json` | derived | canonical vocabulary + aliases (candidates stay shadow-only until `vocabApply`) |
+| `edits/<harness>/curation.jsonl` | curation | per-machine curation and rule-status facts — one writer per file, ever |
 
 Derived is *always rebuildable from primaries* — divergence resolves by rebuilding the mirror from the store, which is why a force-push history rewrite is recoverable and a pool is never a hostage.
 

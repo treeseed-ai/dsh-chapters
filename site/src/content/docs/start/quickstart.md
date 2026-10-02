@@ -6,7 +6,7 @@ lastUpdated: true
 
 ## Three steps
 
-**1. Install the plugin** (DeepSeek Harness ≥ 0.1.x, Node ≥ 24):
+**1. Install the plugin** (DeepSeek Harness ≥ 0.1.5-rc.x, Node ≥ 24):
 
 ```bash
 dsh plugin --profile web add @treeseed/dsh-chapters
@@ -36,7 +36,7 @@ The agent archives verbatim chapters, opens the continuation, and the new sessio
 /chapters-status
 ```
 
-Before linking a knowledge pool, the honest answer is `local-only` with the reason ("no upstream linked") — that is the system working as designed, not a failure: the local archive is written and searchable the moment it exists, and transport comes later ([Part III](/knowledge/pool/)).
+On a fresh workspace the honest answer is `No knowledge repository is linked yet` — that is the system working as designed, not a failure: chapters are on disk and greppable the moment they exist, and `chapters_search` gains its index with the first sync after you link a pool ([Part III](/knowledge/pool/)).
 
 ## Two traps we documented so you don't rediscover them
 

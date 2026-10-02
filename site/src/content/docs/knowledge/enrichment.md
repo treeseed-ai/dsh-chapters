@@ -4,15 +4,15 @@ description: The deferred annotator that keeps topics, summaries, and search fre
 lastUpdated: true
 ---
 
-Freshly archived chapters are *verbatim* but *unlabeled*: the archive is done, the labeling is background work. The enrichment ladder runs after pushes and on idle, per a bounded batch (`enrichmentBatchCap`), on a model you choose (`enrichmentModel`, or the conversation route), or **off** entirely (`enrichmentEnabled: false` makes the whole subsystem a pure no-op — corpus stays fully functional).
+Freshly archived chapters are *verbatim* but *unlabeled*: the archive is done, the labeling is background work. The enrichment ladder runs after pushes and on idle (trigger seam `enrichmentTrigger`/`enrichmentIdleMs`, defaults `both`/60 s), a bounded batch per pass (`enrichmentBatchCap`, default 5), on a model you choose (`enrichmentModel`; empty = the conversation route) — or **off** entirely (`enrichmentEnabled: false` makes the whole subsystem a pure no-op; the corpus stays fully functional, and signatures are model-free either way).
 
 ## The ladder
 
-For each chapter: derive what's free (deterministic topics from titles/headings) → ask the model for the semantic layer (topic labels, a summary line) only when the cheaper rung doesn't answer → **validate before commit** → write.
+For each chapter: keep what's free (the deterministic topics already derived from the turn signatures — paths, commands, terms) → ask the model for the semantic layer (a better title, a 2–3-sentence summary, topic labels) only when the cheaper rung doesn't answer → **validate before commit** → write. Malformed output retries once; on a second failure the deterministic values survive untouched — a slow or failing model never blocks or blanks a chapter.
 
 ## The guard that makes it safe: the body hash
 
-Every chapter's frontmatter carries a hash of its body. Enrichment is the **only** sanctioned mutation of a chapter file, and only ever to the metadata regions — the body-hash guard rejects any write that would change the verbatim text. So "write-once archive" and "model annotates it later" coexist honestly: the *record* is immutable; the *label* is versioned with a provenance chain — `generated: <model>, <date>` stamped newest-first, so you can always see which annotation came from a model rather than the log.
+Every chapter's frontmatter carries a hash of its body. Enrichment is the **only** sanctioned mutation of a chapter file, and only ever to the metadata fields (title, summary, topics, provenance) — the body-hash guard rejects any write that would change the verbatim text. So "write-once archive" and "model annotates it later" coexist honestly: the *record* is immutable; the *label* is versioned with a provenance chain — `generated: <model>, <date>` stamped newest-first, so you can always see which annotation came from a model rather than the log.
 
 ## Emergent vocabulary stays in the dark until you flip a switch
 
