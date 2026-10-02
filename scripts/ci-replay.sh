@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # CI acceptance: replay the committed model tapes — no local model, no GPU, no
 # LLM API key. Every model turn is served by tests/e2e/model-proxy.ts from the
-# committed corpus under tests/fixtures/model-tape/<project>/ (six projects:
-# suite, heavy, arrival, enrich, fanout, rules). A tape MISS is a loud proxy
+# committed corpus under tests/fixtures/model-tape/<project>/ (seven projects:
+# suite, fork, heavy, arrival, enrich, fanout, rules). A tape MISS is a loud proxy
 # 503 that fails the run; with E2E_MODEL=replay (and no E2E_TAPE_FALLBACK=1)
 # the proxy never reaches a live server — this proves the acceptance suite
 # green on a machine with no model present.
@@ -62,6 +62,6 @@ npm run build
 # Chromium for Playwright, cached in the workspace so it survives across steps.
 PLAYWRIGHT_BROWSERS_PATH="$PWD/var/ms-playwright" npx playwright install chromium
 
-# Strict tape replay across all six projects; any miss fails the chain.
+# Strict tape replay across all seven projects; any miss fails the chain.
 E2E_MODEL=replay npm run test:e2e
-echo "ci-replay: PASS — six browser projects replayed green on committed tapes, no LLM present."
+echo "ci-replay: PASS — seven browser projects replayed green on committed tapes, no LLM present."

@@ -2,7 +2,9 @@
 # plugin's composition patch, applied when a profile adds the plugin. The YAML
 # below the comment block is functional; everything in this comment is the
 # complete configuration reference (kept in sync with src/index.ts and
-# src/engine.ts — verified 2026-09-20 against both schemas).
+# src/engine.ts — verified 2026-10-01 against both schemas, including the
+# 2026-09-21 transport keys). The site's §17 (Configuration) is the readable
+# authority; this header mirrors it.
 # Scratch-profile install: DSH_HOME=$PWD/.dshdev dsh plugin --profile web add "link:$(pwd)"
 #
 # Two planes, two surfaces:
@@ -72,6 +74,16 @@
 #   rulesCoreBonus: 0.15           # rank bonus for rules effective-core on
 #                                  # THIS machine (approval = per-machine
 #                                  # curation fact, record §15)
+#
+#   # ---- transport (2026-09-21 provider-seam amendment) -------------------
+#   knowledgeProvider: 'auto'      # 'auto' | 'git' | 'treedx'; 'auto' dispatches
+#                                  # on the remote scheme (treedx+ → TreeDX),
+#                                  # an explicit value must match the scheme or
+#                                  # the link refuses — never a silent fallback
+#   treedxFetchTimeoutMs: 15000    # TreeDX HTTP timeout per call
+#   treedxWorkspaceTtlSeconds: 900 # TreeDX workspace lease TTL
+#   treedxLeaseRetries: 3          # pull-retry budget when the lease is held
+#   treedxLeaseRetryDelayMs: 1000  # delay between lease retries
 #
 # Realm-row-only keys (in the preset's engine row, not this patch):
 #   thresholdRatio, retainRatio, retainTokens, maxTokens, compactionRetries,

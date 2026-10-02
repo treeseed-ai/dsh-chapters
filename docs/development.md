@@ -69,8 +69,8 @@ scripts/bootstrap-dev-profile.sh --with-probe   # scripted rounds only (probe se
 | unit | `npm test` (`tests/unit`) | node --test, no build, no network | pure core: registry, render, archive, notice, engine-core, tools, commands |
 | integration | (today: probe rounds — see spikes/probe/README pattern) | boots real hosts in scratch homes | host wiring, realm mounts, provider economics |
 | e2e (tape — the default loop) | `npm run test:e2e:replay` | same boots with `E2E_MODEL=replay`; model turns answered from `tests/fixtures/model-tape/<project>` via the record/replay proxy (`tests/e2e/model-proxy.ts`) — seconds, deterministic |
-| e2e (distillation — occasional) | `npm run test:e2e:record` | `E2E_MODEL=record`: forwards every exchange to the real Local model and appends the tape. Run once per scenario; wipe `var/model-tape` first for a clean corpus; tapes are isolated per project (suite/heavy/arrival); re-record when scenarios, prompts, or thresholds change. The GPU model is the DISTILLER, never the test oracle (user directive 2026-09-19) |
-| e2e | `npm run test:e2e` (`tests/e2e`, THREE projects: suite/heavy/arrival) | Playwright + workspace-cached chromium vs a throwaway `var/e2e-home-<port>` rebuilt per boot (port-keyed so no boot can stomp another's state) (isolated from live agents — see FINDINGS 2026-09-19) | the browser: identity, fork button + switch, knowledge loop end-to-end, the oversized turn (mid-turn compactions), the subagent fan-out, arrival-time artifacting (low-floor project) |
+| e2e (distillation — occasional) | `npm run test:e2e:record` | `E2E_MODEL=record`: forwards every exchange to the real Local model and appends the tape. Run once per scenario; wipe `var/model-tape` first for a clean corpus; tapes are isolated per project (seven: suite/heavy/arrival/fanout/enrich/rules/fork); re-record when scenarios, prompts, or thresholds change. The GPU model is the DISTILLER, never the test oracle (user directive 2026-09-19) |
+| e2e | `npm run test:e2e` (`tests/e2e`, SEVEN projects: suite/heavy/arrival/fanout/enrich/rules/fork) | Playwright + workspace-cached chromium vs a throwaway `var/e2e-home-<port>` rebuilt per boot (port-keyed so no boot can stomp another's state) (isolated from live agents — see FINDINGS 2026-09-19) | the browser: identity, fork button + switch, knowledge loop end-to-end, the oversized turn (mid-turn compactions), the subagent fan-out, arrival-time artifacting (low-floor project) |
 
 The e2e layer exists because client-plane facts were being GUESSED (services, methods, tooltips,
 switching) and every guess cost the user a browser round-trip. Playwright answers those in seconds
@@ -82,14 +82,14 @@ activation, `fork-button.spec.ts` proves the click end-to-end on durable + visib
 heavy specs pin their claims to DURABLE facts (own-log turn/end, registry chapters, coverage) —
 never to model verbosity. ACCEPTANCE DEFAULTS TO THE TAPE (`test:e2e:replay`, model turns served
 from `tests/fixtures/model-tape/<project>` in seconds — explore: 14.7 s replayed vs 1.7 min live); the live
-chain remains the distiller (`test:e2e:record`) and the ultimate witness. The one honest
-limit of AGENTS-BLIND masking (measured 2026-09-23): it keys on the `instructions from:` /
-`<system-reminder>` delimiters, so it strips injected instruction blocks — but when a
-near-threshold session compacts, the harness's own checkpoint summary re-emits the doc as
-free prose at msg[1], which no delimiter mask reaches. Effect: `heavy` and `fanout` tapes
-carry the live AGENTS.md text, so an AGENTS.md edit means re-recording THOSE two projects
-(suite/enrich/rules carry too little to compact and stay doc-independent). Rule: finalize
-doc edits, then distill — never the reverse.
+chain remains the distiller (`test:e2e:record`) and the ultimate witness. AGENTS-BLIND
+masking (user decision 2026-09-20, reaffirmed 2026-10-01 with no exceptions): the tapes
+stand in for ANOTHER project — a workspace docs edit (AGENTS.md, skill catalogs) NEVER
+requires a re-record. The delimiter mask strips injected doc blocks from matching on both
+sides, and a compaction summary that paraphrases doc prose (observed 2026-09-23 in
+`heavy`/`fanout`) rides the tape as recorded model output — replay-side requests never
+regenerate it, so committed tapes stay green across doc edits. Never gate a doc edit on
+a distillation.
 
 Re-record discipline (learned the hard way 2026-09-22/23):
 - **A tape records the CONTEXT it was distilled in.** A spec replayed in a different

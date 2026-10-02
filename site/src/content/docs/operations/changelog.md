@@ -21,6 +21,6 @@ Releases publish automatically from a bare-semver tag via **npm trusted publishi
 
 ### 0.1.0 — 2026-09 · first release
 
-The full platform: zero-token deterministic compaction, citation continuations with cumulative TOCs, arrival-time artifacting, the knowledge pool (git + TreeDX transports), enrichment ladder, per-machine rules ledger, the fork button, and an acceptance suite that replays browser journeys from committed model tapes with zero LLM calls in CI. 450→464 deterministic tests, 97.95% statements / 85.6%+ branch/function gates held from day one. (Shipped manually before trusted publishing was wired — the one version without a provenance attestation.)
+The full platform: zero-token deterministic compaction, citation continuations with cumulative TOCs, arrival-time artifacting, the knowledge pool (git + TreeDX transports), enrichment ladder, per-machine rules ledger, the fork button, and an acceptance suite that replays browser journeys from committed model tapes with zero LLM calls in CI. 450→464 deterministic tests, the ≥85% all-axes coverage gate held from day one (today: 97.98% statements / 85.61% branch / 93.62% functions). (Shipped manually before trusted publishing was wired — the one version without a provenance attestation.)
 
 > **On naming.** The package was `dsh-chapter-fork` once — and "fork" in DSH means *copy the parent's history*, the one operation this plugin must never perform. It now names the artifact instead; the reasoning, including the candidates that lost, is in the repo's architecture record.

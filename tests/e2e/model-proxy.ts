@@ -85,14 +85,17 @@ const VOLATILE: Array<[RegExp, string]> = [
   // message past its recorded twin). Same family, same doctrine: harness
   // injection, machine- and timing-dependent, matched out entirely.
   [/(?:<system-reminder>)?\s*(?:\[System: )?The available skill catalog changed[\s\S]*?(?:<\/system-reminder>|$)/gi, '<SKILL-CATALOG>'],
-  // AGENTS-BLIND (user decision 2026-09-20): workspace instruction files are
-  // DEVELOPMENT artifacts — every real project ships its own; plugin behavior
-  // must not hinge on their bytes. Masking the injected block (header to the
-  // reminder close, or end of message) frees doc edits from the re-record
-  // cycle permanently. Ordinary conversation mentions of 'AGENTS.md' are
-  // untouched: the pattern demands the exact injected header. This is the
-  // LAST pipeline change: after its one re-record, the corpus is stable
-  // against everything except product prompts (persona, tools, notice).
+  // AGENTS-BLIND (user decision 2026-09-20, reaffirmed 2026-10-01 with no
+  // exceptions): workspace instruction files are DEVELOPMENT artifacts — every
+  // real project ships its own; plugin behavior must not hinge on their bytes.
+  // The tapes stand in for ANOTHER project, so masking the injected block
+  // (header to the reminder close, or end of message) keeps doc edits FREE
+  // forever: no AGENTS.md change ever requires a re-record, and a compaction
+  // summary that paraphrases doc prose rides the tape as recorded model output.
+  // Ordinary conversation mentions of 'AGENTS.md' are untouched: the pattern
+  // demands the exact injected header. This is the LAST pipeline change: after
+  // its one re-record, the corpus is stable against everything except product
+  // prompts (persona, tools, notice).
   [/(?:updated |current |this is an automatically updated )?instructions from: AGENTS\.md[\s\S]*?(?=<\/system-reminder>|$)/gi, '<AGENTS-BLIND>'],
   // RUNTIME-BLIND: the harness re-injects its environment snapshot (file
   // policy, writable paths, approval policy — "Current runtime context. This

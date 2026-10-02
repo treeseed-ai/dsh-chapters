@@ -86,7 +86,7 @@ jobs:
       - run: sudo apt-get update && sudo apt-get install -y libnss3 libatk-bridge2.0-0 libdrm2 libxkbcommon0 libgbm1 libasound2t64 zstd
       # Self-checking chain: pins the host version, builds, bootstraps the
       # scratch home, installs chromium into var/ms-playwright, and runs
-      # E2E_MODEL=replay npm run test:e2e (suite/heavy/arrival/enrich/fanout/
+      # E2E_MODEL=replay npm run test:e2e (suite/fork/heavy/arrival/enrich/fanout/
       # rules). Tape misses answer as loud 503s — nothing talks to a model.
       # E2E_TAPE_DIFF: a miss also dumps the normalized incoming vs the
       # stored same-length prefixes, so the exact divergent byte pair is
