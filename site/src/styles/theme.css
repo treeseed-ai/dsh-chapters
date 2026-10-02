@@ -106,20 +106,16 @@ html:has(.dsh-band) .content-panel:has(> .sl-container > h1#_top) { display: non
 .dsh-copy.done { color: var(--dsh-brand-soft); border-color: var(--dsh-brand); }
 
 /* ---------- benefit sections ---------- */
-.dsh-bsec { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); column-gap: clamp(1rem, 3vw, 2.4rem); row-gap: .55rem;
+.dsh-bsec { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); column-gap: clamp(1rem, 3vw, 2.4rem); row-gap: .55rem;
   border: 1px solid var(--sl-color-hairline); border-radius: var(--dsh-radius); padding: clamp(1.2rem, 3vw, 1.8rem); margin-top: 1.1rem; background: transparent; }
 .dsh-bsec .head { grid-column: 1 / -1; display: flex; gap: .9rem; align-items: baseline; margin-bottom: .55rem; }
 .dsh-bsec .num { font-family: var(--sl-font-mono); color: var(--dsh-amber); font-size: .82rem; }
 .dsh-bsec h3 { margin: 0; font-size: 1.16rem; letter-spacing: -.015em; }
-.dsh-bsec .desc p { margin: 0 0 .7rem; color: var(--sl-color-gray-2); line-height: 1.62; font-size: .94rem; }
+.dsh-bsec .desc p { margin: 0; color: var(--sl-color-gray-2); line-height: 1.62; font-size: .94rem; }
 html[data-theme='light'] .dsh-bsec .desc p { color: #525252; }
-.dsh-bsec .desc .more { display: flex; gap: 1rem; flex-wrap: wrap; font-size: .84rem; margin-top: .2rem; }
-.dsh-bsec .desc .more a { color: var(--sl-color-text-accent); text-decoration: underline; text-decoration-color: color-mix(in srgb, currentColor 35%, transparent); text-underline-offset: 4px; }
-.dsh-bsec .desc .more a:hover { text-decoration-color: currentColor; }
-.dsh-bsec figure.metric { margin: 0; border: 1px solid var(--sl-color-hairline); border-radius: 12px; padding: 1.05rem 1.15rem; background: var(--dsh-panel); align-self: start; }
-.dsh-bsec figure.metric .big { font-family: var(--sl-font-mono); font-size: clamp(1.55rem, 3vw, 2.05rem); font-weight: 700; color: var(--sl-color-text-accent); letter-spacing: -.03em; line-height: 1.1; }
-.dsh-bsec figure.metric figcaption { font-size: .8rem; color: var(--sl-color-gray-3); margin-top: .35rem; line-height: 1.5; }
-.dsh-bsec figure.metric ul { margin: .5rem 0 0; padding-left: 1.05rem; font-size: .82rem; color: var(--sl-color-gray-2); display: grid; gap: .25rem; }
+.dsh-bsec .more { display: grid; gap: .55rem; align-content: center; justify-items: start; border-left: 1px solid var(--sl-color-hairline); padding-left: clamp(1rem, 2.5vw, 1.6rem); }
+.dsh-bsec .more a { color: var(--sl-color-text-accent); text-decoration: none; font-size: .9rem; font-weight: 500; }
+.dsh-bsec .more a:hover { text-decoration: underline; text-underline-offset: 4px; }
 
 /* ---------- commands (vertical tabs) ---------- */
 .dsh-cmds .scope { border-left: 3px solid var(--dsh-amber); padding: .65rem 1rem; margin: 1rem 0 1.3rem; font-size: .92rem; color: var(--sl-color-gray-2); background: color-mix(in srgb, var(--dsh-amber) 6%, transparent); border-radius: 0 8px 8px 0; }
@@ -181,6 +177,7 @@ html:has(.dsh-band) .sl-markdown-content { max-width: none; margin-inline: auto;
   .dsh-band .inner { grid-template-columns: 1fr; }
   .dsh-band .side { border-left: none; padding-left: 0; border-top: 1px solid #262626; padding-top: 1.2rem; }
   .dsh-bsec { grid-template-columns: 1fr; }
+  .dsh-bsec .more { border-left: none; padding-left: 0; border-top: 1px solid var(--sl-color-hairline); padding-top: .8rem; align-content: start; }
   .dsh-tabs { grid-template-columns: 1fr; }
   .dsh-tabs .tablist { flex-direction: row; overflow-x: auto; border-right: none; border-bottom: 1px solid var(--sl-color-hairline); }
   .dsh-tabs button.tab { border-left: none; border-bottom: 3px solid transparent; white-space: nowrap; }
