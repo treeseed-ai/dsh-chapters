@@ -159,26 +159,45 @@ function acquireLock(lockPath: string, force: boolean): { held: boolean; release
  */
 export function planStoreToRepo(storeDir: string, projectKey: string): { abs: string; rel: string }[] {
   const out: { abs: string; rel: string }[] = []
+  const seen = new Set<string>()
+  const push = (abs: string, rel: string): void => {
+    // Content-addressed artifacts can be reachable from BOTH layouts below —
+    // one rel path must map to exactly one file (last-writer races would
+    // otherwise commit duplicates under identical keys).
+    if (seen.has(rel)) return
+    seen.add(rel)
+    out.push({ abs, rel })
+  }
+  const walkArtifacts = (dir: string, rel: string): void => {
+    for (const f of fs.readdirSync(dir, { withFileTypes: true })) {
+      const p = path.join(dir, f.name)
+      if (f.isDirectory()) walkArtifacts(p, path.join(rel, f.name))
+      else push(p, path.join('artifacts', projectKey, rel, f.name))
+    }
+  }
   for (const sessionDir of fs.existsSync(storeDir) ? fs.readdirSync(storeDir, { withFileTypes: true }) : []) {
     if (!sessionDir.isDirectory() || sessionDir.name.startsWith('.')) continue
     // P3: the rules author tree is project-level, not session-level
     if (sessionDir.name === 'rules') continue
+    // Store-root artifacts (measured 2026-09-28, the treeseed pool audit):
+    // arrival-time deferral writes blobs to <storeRoot>/artifacts/aa/<sha>.txt
+    // — shared and content-addressed, NOT per-session. Publishing these is
+    // what makes 'every byte remains retrievable' hold across machines;
+    // before this, pools shipped chapter stubs pointing at unpublished blobs.
+    // The session loop must not double-walk it (sessions' 'chapters'/'artifacts'
+    // children do not exist under 'artifacts', so the rel-dedupe covers both).
+    if (sessionDir.name === 'artifacts') { walkArtifacts(path.join(storeDir, 'artifacts'), ''); continue }
     const chaptersDir = path.join(storeDir, sessionDir.name, 'chapters')
     if (fs.existsSync(chaptersDir)) {
       for (const f of fs.readdirSync(chaptersDir)) {
         if (!f.endsWith('.md')) continue
-        out.push({ abs: path.join(chaptersDir, f), rel: path.join('chapters', projectKey, sessionDir.name, f) })
+        push(path.join(chaptersDir, f), path.join('chapters', projectKey, sessionDir.name, f))
       }
     }
+    // legacy per-session layout (design record §2.2) stays planned for stores
+    // that wrote artifacts under the session directory.
     const artifactsDir = path.join(storeDir, sessionDir.name, 'artifacts')
-    const walk = (dir: string, rel: string) => {
-      for (const f of fs.readdirSync(dir, { withFileTypes: true })) {
-        const p = path.join(dir, f.name)
-        if (f.isDirectory()) walk(p, path.join(rel, f.name))
-        else out.push({ abs: p, rel: path.join('artifacts', projectKey, rel, f.name) })
-      }
-    }
-    if (fs.existsSync(artifactsDir)) walk(artifactsDir, '')
+    if (fs.existsSync(artifactsDir)) walkArtifacts(artifactsDir, '')
   }
   // rules/<harness>/*.md -> rules/<projectKey>/<harness>/*.md (record §7.1:
   // rules are chapters of a different kind, same transport, author-partitioned)
@@ -188,7 +207,7 @@ export function planStoreToRepo(storeDir: string, projectKey: string): { abs: st
       if (!h.isDirectory()) continue
       for (const f of fs.readdirSync(path.join(rulesRoot, h.name))) {
         if (!f.endsWith('.md')) continue
-        out.push({ abs: path.join(rulesRoot, h.name, f), rel: path.join('rules', projectKey, h.name, f) })
+        push(path.join(rulesRoot, h.name, f), path.join('rules', projectKey, h.name, f))
       }
     }
   }

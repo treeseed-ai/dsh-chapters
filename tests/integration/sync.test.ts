@@ -251,3 +251,21 @@ test('a junk-strewn store and mirror are absorbed: non-md files, stray files whe
   assert.ok(r2.ok, `the rebuild must survive the poison: ${r2.detail}`)
   fs.rmSync(junk, { recursive: true, force: true })
 })
+
+test('planStoreToRepo publishes store-root artifacts (the arrival-time layout) and dedupes rel collisions', () => {
+  const base = fs.mkdtempSync(path.join(os.tmpdir(), 'store-root-'))
+  const store = path.join(base, '.dsh-chapters')
+  const sha = 'de'.padEnd(2, 'e') + 'f'.repeat(60) // aa/<sha>.txt convention
+  fs.mkdirSync(path.join(store, 'artifacts', 'de'), { recursive: true })
+  fs.writeFileSync(path.join(store, 'artifacts', 'de', `${sha}.txt`), 'BLOB')
+  // same blob ALSO under a legacy per-session dir → rel collision must plan once
+  fs.mkdirSync(path.join(store, 'sessR', 'artifacts', 'de'), { recursive: true })
+  fs.writeFileSync(path.join(store, 'sessR', 'artifacts', 'de', `${sha}.txt`), 'BLOB')
+  fs.mkdirSync(path.join(store, 'sessR', 'chapters'), { recursive: true })
+  fs.writeFileSync(path.join(store, 'sessR', 'chapters', '001-x.md'), '# x')
+  const plan = planStoreToRepo(store, 'KEY')
+  const artRels = plan.filter((x) => x.rel.startsWith('artifacts'))
+  assert.equal(artRels.length, 1, 'one rel, one entry — deduped')
+  assert.equal(artRels[0]!.rel, path.join('artifacts', 'KEY', 'de', `${sha}.txt`))
+  assert.ok(plan.some((x) => x.rel === path.join('chapters', 'KEY', 'sessR', '001-x.md')))
+})

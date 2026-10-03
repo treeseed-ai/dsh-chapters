@@ -18,7 +18,7 @@ import { composeChapters } from './compose.ts'
 import { projectForCwd } from './sync.ts'
 import { deriveRanges, refusalResult, runContinue, runFork, type BudgetProbe, type ContinueConfig, type ContinuePorts } from './continue-core.ts'
 import { searchKnowledge } from './search.ts'
-import { resolveArtifactPath, buildToc, searchArtifact, readLines } from './artifact-query.ts'
+import { resolveArtifactPath, resolveArtifactWithMirror, buildToc, searchArtifact, readLines } from './artifact-query.ts'
 import { makeArchiveFs, type DomainLike, type RegistryStore } from './store.ts'
 import type { SessionState } from './registry.ts'
 
@@ -532,9 +532,10 @@ export function buildChaptersTools(
       if ('reason' in caller) return { ...CALLER_MISSING }
       const cwd = (caller.session as { header?: { cwd?: string } }).header?.cwd ?? ''
       const storeDir = path.join(cwd, config.artifactStoreRoot ?? '.dsh-chapters')
-      let abs: string
-      try { abs = resolveArtifactPath(storeDir, args.path) } catch (error) { return { ok: false as const, error: String((error as Error)?.message ?? error) } }
-      if (!fs.existsSync(abs)) return { ok: false as const, error: `no artifact at ${args.path} inside ${storeDir}` }
+      let abs: string | null
+      try { abs = resolveArtifactWithMirror(storeDir, args.path, path.join(cwd, DEFAULT_CLONE_DIR)) }
+      catch (error) { return { ok: false as const, error: String((error as Error)?.message ?? error) } }
+      if (abs === null) return { ok: false as const, error: `no artifact at ${args.path} — searched the store (${storeDir}) and the knowledge mirror (${path.join(cwd, DEFAULT_CLONE_DIR)}/artifacts/<projectKey>/); the blob was never written here or its pool has not published/pulled it yet (/chapters-status shows the transport state)` }
       const text = fs.readFileSync(abs, 'utf8')
       const action = args.action.toLowerCase()
       if (action === 'toc') {

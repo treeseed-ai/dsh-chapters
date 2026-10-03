@@ -10,10 +10,10 @@ Every continuation archives the *chosen ranges* of the session log as numbered M
 
 ```
 .dsh-chapters/
+  artifacts/8f/8f3a1c….txt      # content-addressed, deduplicated, shared across sessions
   <root-session-id>/
     chapters/001-deeply-analyze-this-project-and-describe-it-for-.md
     chapters/002-earlier-history.md
-    artifacts/8f/8f3a1c….txt        # content-addressed, deduplicated
 ```
 
 Chapter files are plain Markdown with YAML frontmatter — open them, grep them, commit them. They are not a proprietary format; the archive outlives the plugin.

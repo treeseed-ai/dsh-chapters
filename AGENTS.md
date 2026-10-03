@@ -197,7 +197,7 @@ The split of responsibility:
 ```
 **Assistant:** Reading the runner to trace the migration order.
   ↳ tool: bash `npm run migrate -- --dry-run`
-    result: 41.2 KB, sha256 8f3a1c… → .dsh-chapters/<root>/artifacts/8f/8f3a1c….txt
+    result: 41.2 KB, sha256 8f3a1c… → .dsh-chapters/artifacts/8f/8f3a1c….txt   (store root: shared & content-addressed)
 ```
 
 Content-addressed, so identical results across the whole subtree are stored once. The guarantee becomes

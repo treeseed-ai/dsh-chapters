@@ -130,6 +130,18 @@ export function toolResultCandidates(
   const out: ToolResultCandidate[] = []
   for (const ev of events) {
     if (ev.type !== 'tool/result' || ev.seq < range.startSeq || ev.seq > range.endSeq) continue
+    {
+      const msg = (ev.data as Record<string, unknown> | undefined)?.message as Record<string, unknown> | undefined
+      const cid = (msg?.source as Record<string, unknown> | undefined)?.callId
+      if (typeof cid === 'string') {
+        let last = -1
+        for (const o of events) if (o.type === 'tool/result' && o.seq >= range.startSeq && o.seq <= range.endSeq) {
+          const om = (o.data as Record<string, unknown> | undefined)?.message as Record<string, unknown> | undefined
+          if ((om?.source as Record<string, unknown> | undefined)?.callId === cid && o.seq > last) last = o.seq
+        }
+        if (ev.seq !== last) continue // keep last copy of a redelivery
+      }
+    }
     const text = toolResultText(ev.data ?? {})
     const call = events.find((c) => c.type === 'tool/call' && c.seq < ev.seq && sameCall(c, ev))
     out.push({
@@ -172,6 +184,21 @@ export function renderChapter(
     .filter((e) => e.seq >= range.startSeq && e.seq <= range.endSeq)
     .sort((a, b) => a.seq - b.seq)
 
+  // Host redelivery (measured 2026-09-28, treeseed run: 25 calls carried TWO
+  // tool/result events for one callId — read x17, chapters_artifact x3,
+  // web_fetch x2): keep only the LAST result per callId, else the verbatim
+  // body inflates with the same text twice and counts double.
+  const callIdOf = (ev: SessionEventLike): string | undefined => {
+    const msg = (ev.data as Record<string, unknown> | undefined)?.message as Record<string, unknown> | undefined
+    const src = msg?.source as Record<string, unknown> | undefined
+    return typeof src?.callId === 'string' ? src.callId : undefined
+  }
+  const lastResultSeq = new Map<string, number>()
+  for (const ev of inRange) {
+    if (ev.type !== 'tool/result') continue
+    const cid = callIdOf(ev)
+    if (cid !== undefined) lastResultSeq.set(cid, ev.seq)
+  }
   const body: string[] = [`# ${range.title}`, '', `> ${range.summary}`, '']
   const artifacts: ArtifactRef[] = []
   const unrenderedSeqs: number[] = []
@@ -229,6 +256,10 @@ export function renderChapter(
         break
       }
       case 'tool/result': {
+        {
+          const cid = callIdOf(ev)
+          if (cid !== undefined && lastResultSeq.get(cid) !== ev.seq) break // earlier copy of a redelivery
+        }
         const text = redact(toolResultText(data))
         const tokens = estimateTokens(text)
         const wantsInline = inline.get(ev.seq) ?? tokens <= config.toolResultDeferFloorTokens

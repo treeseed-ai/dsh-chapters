@@ -6,6 +6,15 @@ lastUpdated: true
 
 Releases publish automatically from a bare-semver tag via **npm trusted publishing (OIDC)**. The publish itself is gated on the full deterministic suite under the coverage gate; the seven-segment tape-replay acceptance chain runs in CI on every push to `main`, so a release is always cut from a green acceptance run. Each CI-published version carries a provenance attestation tying it back to this repo, that workflow run, and that commit — 0.1.0, the one manual ship, predates attestation.
 
+### 0.1.4 — 2026-10 · the shared-pool audit fixes: artifacts travel, results dedupe
+
+Found by a real 12-session run against a linked git pool (parent + 10 sub-agents at two depths, plus a search probe): the pool was **publishing zero artifact blobs**. The cause was a layout disagreement — the arrival stubber writes content-addressed blobs to the store **root** (`artifacts/aa/<sha>.txt`), while the publisher scanned a per-session path that never existed. Every pool chapter's `⟦see artifacts/…⟧` reference dangled on other machines.
+
+- **Publisher** now walks the store-root artifacts directory into `artifacts/<projectKey>/…` (legacy per-session layouts still plan; rel collisions dedupe — one blob, one entry).
+- **`chapters_artifact` reads the pool**: a local store miss falls back to the linked workspace's mirror, so a teammate's deferred 40K-line log is retrievable with the same toc/search/read windows. Misses name both roots searched and point at `/chapters-status` — the loud-not-silent contract, extended to the cross-machine leg.
+- **Renderer dedupes host redeliveries**: the host can emit two `tool/result` events for one callId (measured: 25 in that run — read ×17, web_fetch ×2, chapters_artifact ×3); chapters now archive keep-last, so verbatim bodies never bloat with the same text twice.
+- Same run's good news, for the record: **26/26 checkpoints carried genuine plots** (0.1.3's elicitation budget in production), the dead-link → relink degrade/rebuild path worked end to end, and cross-session search returned ranked hits minutes after the first publish.
+
 ### 0.1.3 — 2026-09 · plot elicitation goes loud and gets a real budget
 
 - `extractPlot` fixed after the first real-world multi-agent run exposed **8 of 9 checkpoints inheriting the persona instruction's own quoted `'PLOT:'` text** as the "plot" (the substring scan scraped the prompt; non-null garbage then *suppressed* the bounded elicited fallback — the mechanism designed for exactly that case). Contract-shaped now: marker must start a line, system-role messages never yield a plot, template echoes rejected.

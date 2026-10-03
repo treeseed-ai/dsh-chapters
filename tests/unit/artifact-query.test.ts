@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { resolveArtifactPath, buildToc, searchArtifact, readLines } from '../../src/artifact-query.ts'
+import { resolveArtifactPath, resolveArtifactWithMirror, buildToc, searchArtifact, readLines } from '../../src/artifact-query.ts'
 
 test('resolveArtifactPath: sha form, in-store paths, and escape refusal', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'aq-'))
@@ -61,4 +61,21 @@ test('readLines: 1-based window, file-end bound, hard cap', () => {
   const tail = readLines(text, 990, 500)
   assert.equal(tail.end, 1000)
   assert.equal(tail.lines.length, 11, 'file end bounds the window')
+})
+
+test('resolveArtifactWithMirror: store first, mirror second, sha-form too, traversal refused, honest null', () => {
+  const base = fs.mkdtempSync(path.join(os.tmpdir(), 'art-mirror-'))
+  const store = path.join(base, '.dsh-chapters')
+  const mirror = path.join(base, '.dsh-knowledge')
+  const sha = 'ab' + 'c'.repeat(62)
+  fs.mkdirSync(path.join(store, 'artifacts', 'ab'), { recursive: true })
+  fs.writeFileSync(path.join(store, 'artifacts', 'ab', `${sha}.txt`), 'STORED')
+  assert.equal(resolveArtifactWithMirror(store, `artifacts/ab/${sha}.txt`, mirror), path.join(store, 'artifacts', 'ab', `${sha}.txt`), 'store hit wins')
+  const sha2 = 'cd' + 'e'.repeat(62)
+  fs.mkdirSync(path.join(mirror, 'artifacts', 'PROJKEY1', 'cd'), { recursive: true })
+  fs.writeFileSync(path.join(mirror, 'artifacts', 'PROJKEY1', 'cd', `${sha2}.txt`), 'POOLED')
+  assert.equal(resolveArtifactWithMirror(store, `artifacts/cd/${sha2}.txt`, mirror), path.join(mirror, 'artifacts', 'PROJKEY1', 'cd', `${sha2}.txt`), 'pool mirror fills the local miss')
+  assert.equal(resolveArtifactWithMirror(store, sha2, mirror), path.join(mirror, 'artifacts', 'PROJKEY1', 'cd', `${sha2}.txt`), 'bare sha-64 resolves through the mirror too')
+  assert.equal(resolveArtifactWithMirror(store, 'artifacts/ff/deadbeef.txt', mirror), null, 'missing everywhere is null, never a guess')
+  assert.equal(resolveArtifactWithMirror(store, 'artifacts/cd/../../escape.txt', mirror), null, 'traversal can never escape the mirror root')
 })

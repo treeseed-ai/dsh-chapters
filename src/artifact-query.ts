@@ -120,3 +120,35 @@ export function loadArtifact(absPath: string): { text: string; bytes: number; li
   const st = fs.statSync(absPath)
   return { text: fs.readFileSync(absPath, 'utf8'), bytes: st.size, lines: 0 }
 }
+
+/**
+ * Store-first, mirror-second resolution (measured 2026-09-28, treeseed pool
+ * audit): chapters cite 'artifacts/aa/<sha>.txt' — on another machine the blob
+ * lives in the knowledge MIRROR (artifacts/<projectKey>/aa/<sha>.txt, one dir
+ * per linked project), not the local store. Returns the absolute path of the
+ * first existing match, or null. Containment holds on BOTH roots; '..' can
+ * never escape.
+ */
+export function resolveArtifactWithMirror(storeDir: string, ref: string, mirrorDir: string): string | null {
+  const primary = resolveArtifactPath(storeDir, ref) // still throws on escapes
+  if (fs.existsSync(primary)) return primary
+  const clean = ref.trim()
+  // tail = the aa/<sha>.txt portion under artifacts/, whatever the ref form
+  const tail: string | null = /^[0-9a-f]{64}$/.test(clean)
+    ? path.join(clean.slice(0, 2), `${clean}.txt`)
+    : (() => {
+        const m = clean.replace(/^\.\//, '').match(/artifacts[/\\](.+\.txt)$/)
+        return m?.[1] ?? null
+      })()
+  if (tail === null || tail.split(/[\\/]/).includes('..')) return null
+  const artRoot = path.join(mirrorDir, 'artifacts')
+  if (!fs.existsSync(artRoot)) return null
+  for (const key of fs.readdirSync(artRoot, { withFileTypes: true })) {
+    if (!key.isDirectory()) continue
+    const cand = path.join(artRoot, key.name, tail)
+    const root = path.resolve(artRoot)
+    if (path.resolve(cand) !== root && !path.resolve(cand).startsWith(root + path.sep)) continue
+    if (fs.existsSync(cand)) return cand
+  }
+  return null
+}

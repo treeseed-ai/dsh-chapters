@@ -199,3 +199,19 @@ test('stats.messages counts user+assistant message events only (record §7.3)', 
   assert.equal(r.stats.messages, 2)
   assert.equal(r.stats.events, 4)
 })
+
+test('host redelivery: two tool/result events for one callId render keep-last, once (treeseed 2026-09-28 audit)', () => {
+  const events = [
+    msg(0, 'user', 'read the file'),
+    call(1, 'read', '{"file_path":"a.ts"}', 'cX'),
+    result(2, 'FIRST-COPY-OF-THE-RESULT', 'cX'),
+    result(3, 'FINAL-COPY-OF-THE-RESULT', 'cX'),
+  ]
+  const chapter = renderChapter(events, { title: 'T', summary: 's', startSeq: 0, endSeq: 9 }, CONFIG)
+  assert.match(chapter.markdown, /FINAL-COPY-OF-THE-RESULT/, 'the last copy renders')
+  assert.doesNotMatch(chapter.markdown, /FIRST-COPY-OF-THE-RESULT/, 'the earlier copy is skipped, not double-inlined')
+  assert.equal(chapter.stats.toolResultsInlined + chapter.stats.toolResultsDeferred, 1, 'one result archived, not two')
+  const cands = toolResultCandidates(events, { startSeq: 0, endSeq: 9 })
+  assert.equal(cands.length, 1, 'the candidate enumeration dedupes too')
+  assert.equal(cands[0]!.seq, 3, 'keep-last by seq')
+})
