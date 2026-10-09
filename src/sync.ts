@@ -459,6 +459,54 @@ function runVocabularyPass(
  * pull rebuilds the mirror from the remote (safe: the mirror is transport,
  * the store is truth, §3.1). ok=true means the remote accepted the push.
  */
+/**
+ * Store rehydration (0.1.5 — treeseed workspace-wipe incident, 2026-10-08):
+ * the pool is not only a downstream copy. When a workspace store loses files
+ * (accidental rm of dot-dirs, cleanup, fresh checkout) the registry rows and
+ * continuation TOCs still cite the store paths — `read` dangles silently.
+ * The freshly cloned/pulled mirror is usually the ONLY surviving copy of
+ * those exact bytes, so every sync restores before it publishes:
+ *   mirror chapters/<projectKey>/<session>/<file>.md → <storeRoot>/<session>/chapters/<file>
+ *   mirror artifacts/<projectKey>/<path>             → <storeRoot>/artifacts/<path>
+ * Only ABSENT files are filled (the store stays ground truth for anything it
+ * still holds — rehydration fills gaps, it never arbitrates drift); other
+ * projects' prefixes are out of scope; counts land in the sync steps so the
+ * recovery is never silent.
+ */
+export function rehydrateStoreFromMirror(cloneDir: string, storeDir: string, projectKey: string): number {
+  let restored = 0
+  const tryRestore = (absSrc: string, absDst: string): void => {
+    if (fs.existsSync(absDst)) return
+    try {
+      fs.mkdirSync(path.dirname(absDst), { recursive: true })
+      fs.copyFileSync(absSrc, absDst)
+      restored += 1
+    } catch { /* per-file best effort; a half-restored chapter is still better than none, and the next sync retries */ }
+  }
+  const chaptersRoot = path.join(cloneDir, 'chapters', projectKey)
+  if (fs.existsSync(chaptersRoot)) {
+    for (const session of fs.readdirSync(chaptersRoot, { withFileTypes: true })) {
+      if (!session.isDirectory()) continue
+      const dir = path.join(chaptersRoot, session.name)
+      for (const f of fs.readdirSync(dir)) {
+        if (f.endsWith('.md')) tryRestore(path.join(dir, f), path.join(storeDir, session.name, 'chapters', f))
+      }
+    }
+  }
+  const artRoot = path.join(cloneDir, 'artifacts', projectKey)
+  if (fs.existsSync(artRoot)) {
+    const walk = (dir: string, rel: string): void => {
+      for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+        const p = path.join(dir, e.name)
+        if (e.isDirectory()) walk(p, path.join(rel, e.name))
+        else tryRestore(p, path.join(storeDir, 'artifacts', rel, e.name))
+      }
+    }
+    walk(artRoot, '')
+  }
+  return restored
+}
+
 export async function runSync(opts: SyncOpts): Promise<SyncResult> {
   const steps: string[] = []
   const storeDir = path.join(opts.cwd, opts.storeRoot)
@@ -531,6 +579,9 @@ export async function runSync(opts: SyncOpts): Promise<SyncResult> {
         steps.push(`${clone.code === 'auth' ? 'credentials rejected' : 'remote unreachable'} (${clone.detail}) — ${init.detail}`)
       }
     }
+
+    const restored = rehydrateStoreFromMirror(cloneDir, storeDir, opts.project.projectKey)
+    if (restored > 0) steps.push(`rehydrated ${restored} file(s) from the pool into the store`)
 
     const { committed } = await publishCommit()
     void committed

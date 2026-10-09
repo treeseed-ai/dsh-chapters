@@ -6,6 +6,14 @@ lastUpdated: true
 
 Releases publish automatically from a bare-semver tag via **npm trusted publishing (OIDC)**. The publish itself is gated on the full deterministic suite under the coverage gate; the seven-segment tape-replay acceptance chain runs in CI on every push to `main`, so a release is always cut from a green acceptance run. Each CI-published version carries a provenance attestation tying it back to this repo, that workflow run, and that commit — 0.1.0, the one manual ship, predates attestation.
 
+### 0.1.5 — 2026-10 · the store heals: sync rehydrates deleted chapters from the pool
+
+A user deleting the workspace's `.dsh-chapters/` (a natural instinct when testing a re-link) exposed a real hole: the registry and continuation TOCs keep citing store paths, the pool keeps every byte, but nothing flowed back — 56 of 57 chapter references dangling silently, and `read` on an archived chapter would simply miss. Worse, migrating to a *new* pool sources from the store, so relinking after such a wipe published nothing while looking idle.
+
+- **`runSync` rehydrates before it publishes**: the freshly cloned mirror's `chapters/<projectKey>/…` and `artifacts/<projectKey>/…` are copied back into any *absent* store paths (present files are never overwritten — the store stays ground truth; other projects' prefixes are out of scope; idempotent).
+- **The recovery is loud**: `rehydrated N file(s) from the pool into the store` lands in `/chapters-status` steps.
+- Tests: direct rehydrate semantics (fill / no-overwrite / key-scope / idempotence) + a runSync-after-store-wipe integration proving the steps line and byte return.
+
 ### 0.1.4 — 2026-10 · the shared-pool audit fixes: artifacts travel, results dedupe
 
 Found by a real 12-session run against a linked git pool (parent + 10 sub-agents at two depths, plus a search probe): the pool was **publishing zero artifact blobs**. The cause was a layout disagreement — the arrival stubber writes content-addressed blobs to the store **root** (`artifacts/aa/<sha>.txt`), while the publisher scanned a per-session path that never existed. Every pool chapter's `⟦see artifacts/…⟧` reference dangled on other machines.

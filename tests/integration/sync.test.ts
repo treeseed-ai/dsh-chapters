@@ -12,7 +12,7 @@ import assert from 'node:assert/strict'
 import * as fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { runSync, planStoreToRepo, syncLockPath, readSyncStatus } from '../../src/sync.ts'
+import { runSync, planStoreToRepo, syncLockPath, readSyncStatus, rehydrateStoreFromMirror } from '../../src/sync.ts'
 import { stageAllAndCommit } from '../../src/gitops.ts'
 import { canonicalizeRemote, projectKeyFromRemote } from '../../src/repo.ts'
 import { makeFakeRemote, makeFakeDriver, type FakeRemote } from '../support/fake-driver.ts'
@@ -268,4 +268,36 @@ test('planStoreToRepo publishes store-root artifacts (the arrival-time layout) a
   assert.equal(artRels.length, 1, 'one rel, one entry — deduped')
   assert.equal(artRels[0]!.rel, path.join('artifacts', 'KEY', 'de', `${sha}.txt`))
   assert.ok(plan.some((x) => x.rel === path.join('chapters', 'KEY', 'sessR', '001-x.md')))
+})
+
+test('rehydrateStoreFromMirror: fills absent chapters/artifacts, never overwrites, key-scoped', () => {
+  const base = fs.mkdtempSync(path.join(os.tmpdir(), 'rehyd-'))
+  const clone = path.join(base, 'clone')
+  const store = path.join(base, 'store')
+  const wf = (p: string, t: string) => { fs.mkdirSync(path.dirname(p), { recursive: true }); fs.writeFileSync(p, t) }
+  wf(path.join(clone, 'chapters', 'K1', 'sessA', '001-x.md'), 'POOL-VERSION')
+  wf(path.join(clone, 'chapters', 'K1', 'sessA', '002-y.md'), 'Y')
+  wf(path.join(clone, 'artifacts', 'K1', 'ab', 'abcdef.txt'), 'blob')
+  wf(path.join(clone, 'chapters', 'K2', 'sessZ', '001-other-project.md'), 'OTHER')
+  wf(path.join(store, 'sessA', 'chapters', '001-x.md'), 'STORE-GROUND-TRUTH') // exists — must NOT be touched
+  const n = rehydrateStoreFromMirror(clone, store, 'K1')
+  assert.equal(n, 2, 'fills only the two absent K1 files')
+  assert.equal(fs.readFileSync(path.join(store, 'sessA', 'chapters', '001-x.md'), 'utf8'), 'STORE-GROUND-TRUTH', 'present files are never overwritten')
+  assert.equal(fs.readFileSync(path.join(store, 'sessA', 'chapters', '002-y.md'), 'utf8'), 'Y')
+  assert.ok(fs.existsSync(path.join(store, 'artifacts', 'ab', 'abcdef.txt')), 'store-root artifacts restore')
+  assert.equal(fs.existsSync(path.join(store, 'sessZ')), false, 'other projects prefixes are out of scope')
+  assert.equal(rehydrateStoreFromMirror(clone, store, 'K1'), 0, 'idempotent second pass restores nothing')
+})
+
+test('runSync after a store wipe rehydrates from the pool and says so in steps', async () => {
+  // reuse machine A's established pool (earlier tests published rootA's chapter + artifact)
+  const storeDir = path.join(machineA(), '.dsh-chapters')
+  const backup = storeDir + '.bak'
+  fs.renameSync(storeDir, backup) // simulate the accidental rm -rf of the workspace store
+  const res = await syncA()
+  fs.rmSync(backup, { recursive: true, force: true })
+  assert.ok(res.ok, res.detail + ' | ' + res.steps.join('; '))
+  assert.ok(res.steps.some((x) => /rehydrated \d+ file\(s\) from the pool into the store/.test(x)), 'recovery is LOUD in the status: ' + res.steps.join('; '))
+  assert.ok(fs.existsSync(path.join(storeDir, 'rootA', 'chapters', '001-first-topic.md')), 'chapter bytes back on disk')
+  assert.ok(fs.existsSync(path.join(storeDir, 'artifacts', 'ab', 'abcdef0123.txt')), 'store-root artifact back too')
 })

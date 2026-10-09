@@ -18,7 +18,7 @@ A **pool** is a git repository (or TreeDX workspace) that holds your chapter cor
 | `topics/vocabulary.json` | derived | canonical vocabulary + aliases (candidates stay shadow-only until `vocabApply`) |
 | `edits/<harness>/curation.jsonl` | curation | per-machine curation and rule-status facts — one writer per file, ever |
 
-Derived is *always rebuildable from primaries* — divergence resolves by rebuilding the mirror from the store, which is why a force-push history rewrite is recoverable and a pool is never a hostage.
+The store itself heals: if workspace store files go missing (accidental cleanup, fresh checkout), the next sync **rehydrates** them from the pool mirror — absent files restored, present files never overwritten, counts visible in `/chapters-status`. Deleting the store locally is survivable because the pool holds the copies. Derived is *always rebuildable from primaries* — divergence resolves by rebuilding the mirror from the store, which is why a force-push history rewrite is recoverable and a pool is never a hostage.
 
 ## What every linked workspace gets
 
