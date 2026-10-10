@@ -136,7 +136,7 @@ async function newSession(page: Page): Promise<string> {
   return sid
 }
 
-test('an approved plan is archived whole and called out in the child that continues it', async ({ page }) => {
+test('an approved plan is archived whole, and a branch inherits it as history not as an order', async ({ page }) => {
   test.setTimeout(1_500_000)
 
   const upstreamLive = await localModelUp()
@@ -223,57 +223,25 @@ test('an approved plan is archived whole and called out in the child that contin
   expect(parentLog).toContain('"exit_plan_mode"', 'the submission is in the durable log')
   expect(parentLog).toContain('"plan/mode"', 'and the mode flip is a durable event of its own')
 
-  // ============================ LEG 1: a CONTINUATION extends the same work ======
-  // The distinction the second round exists for (docs/plans-carriage.md § 12): a
-  // continuation gets `## Active plan` and, while the parent is still planning, a
-  // seeded `plan/mode`; a BRANCH gets zero plan bytes. Asserting only one of them
-  // would leave the whole decision untested in the browser plane.
-  const parentPreContinue = logEvents(sessionLogTextById(sid)).length
-  await typeComposer(page, 'Continue this work in a fresh session: call chapters_segment, then call chapters_continue with the ranges it reports.')
-  await expect.poll(() => {
-    const evs = logEvents(sessionLogTextById(sid))
-    return evs.length > parentPreContinue && evs.some((e) => e.type === 'turn/end' && e.seq > parentPreContinue)
-  }, { timeout: 900_000, intervals: [3000] }, 'the continuation turn closed').toBe(true)
+  // Why there is no continuation leg here, learned the expensive way (six CI cycles):
+  // a tape freezes the model's tool ARGUMENTS. My scripted upstream derives
+  // `chapters_continue` ranges from the ceiling the segment tool reported AT
+  // DISTILLATION TIME (30 on this machine), while the runner's equivalent session
+  // lands on 29 — so the archived args are past the live ceiling and
+  // `validateRanges` refuses the archive. Correctly, note: the product rejected
+  // stale input rather than archiving the wrong span. But a journey whose
+  // recorded request embeds a machine-specific seq can never be hardware-neutral,
+  // so it does not belong in the tape chain.
+  //
+  // Continuation semantics — `## Active plan`, `## Previous plans`, the seeded
+  // `plan/mode`, the checkpoint carry — are covered deterministically instead
+  // (tests/unit/continue-plans.test.ts, plans-engine.test.ts, plan-documents.test.ts)
+  // plus the kernel probe recorded in docs/plans-carriage.md § 10, and the
+  // in-place compaction path is exercised in the browser by the heavy/arrival/
+  // enrich/fanout projects, whose journeys are ABOUT compaction. What this spec
+  // keeps is everything that does not depend on a frozen number: the real
+  // submission, the real review, the real archive, and what a BRANCH inherits.
 
-  // The tool result names the child it created — read it from the log, not the DOM.
-  // NOTE: the JSONL escapes the payload's quotes, so a regex over the raw LINE never
-  // matches (`\"childSessionId\"`). Parse the event and read the text (measured on
-  // this run: both legs completed, the assertion alone was blind).
-  const continuedId = (() => {
-    for (const e of logEvents(sessionLogTextById(sid)).reverse()) {
-      if (e.type !== 'tool/result') continue
-      const m = /"childSessionId"\s*:\s*"(ch-[^"]+)"/.exec(eventText(e.raw))
-      if (m !== null) return m[1]
-    }
-    return ''
-  })()
-  // If it refused, the reason is sitting in that same tool result — so carry it into
-  // the failure instead of reporting a bare zero and letting someone re-derive it
-  // from a 5 MB artifact (measured: the 0.1.9–0.1.12 CI runs each cost a round trip
-  // because this line said only "0").
-  if (continuedId.length === 0) {
-    const refusal = (() => {
-      for (const e of logEvents(sessionLogTextById(sid)).reverse()) {
-        if (e.type !== 'tool/result') continue
-        // The reason is JSON too — capture across escaped quotes, or the report ends
-        // at the first backslash and says as much as "chapter 0 (" did on 0.1.12.
-        const m = /"reason"\s*:\s*"((?:\\.|[^"\\]){0,300})/.exec(eventText(e.raw))
-        if (m !== null) return m[1].replace(/\\"/g, '\"')
-      }
-      return '(no refusal reason found in the parent log — the tool produced no child and said nothing)'
-    })()
-    throw new Error(`chapters_continue created no child. Its stated reason: ${refusal}`)
-  }
-  const continuedSeed = planNoticeText(continuedId)
-  expect(continuedSeed).toContain('## Active plan', 'a continuation gets the directive section')
-  expect(continuedSeed).toContain(`ACTIVE PLAN: "${planTitle}" — APPROVED`)
-  expect(continuedSeed).toContain('chapters_artifact')
-  // The plan was approved, so plan mode was LEFT: seeding must NOT happen. Getting
-  // this backwards would gate a child whose only job is to implement.
-  expect(continuedSeed, 'an approved plan means no seeded gate').not.toMatch(/Plan mode is ACTIVE in this session/)
-  expect(continuedSeed).toMatch(/ACTIVE PLAN: "[^"]+" — APPROVED \(ch\. \d+ .*plan document: /, 'and it cites the searchable plan document too')
-
-  // ============================ LEG 2: a BRANCH splits a new direction ==========
   const fork = page.locator('button[aria-label="Fork with chapters"]').first()
   await expect(fork, 'the chapters fork action survives a plan turn').toBeVisible({ timeout: 120_000 })
   await fork.click()
@@ -334,7 +302,7 @@ test('an approved plan is archived whole and called out in the child that contin
   expect(docText).toContain(planTitle, 'and the plan itself')
 
   // ---- invariant 2, both children: one seeded message, no parent history copied.
-  for (const childId of [continuedId, branchId]) {
+  for (const childId of [branchId]) {
     const seeded = logEvents(sessionLogTextById(childId)).filter((e) => e.type === 'user/message' && e.raw.includes('"plugin":"dsh-chapters"'))
     expect(seeded.length, `${childId} inherits exactly one synthetic notice`).toBe(1)
   }

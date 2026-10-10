@@ -88,14 +88,17 @@ never opens and the spec fails loudly rather than recording a session that never
 planned. Then update this file to say the tape is model-distilled.
 
 
-## Re-distilled the same day for the two-leg journey
+## What is in this tape now (and what was taken out, on purpose)
 
-The journey grew a second leg (continuation *and* branch, so § 12's distinction is executed rather than
-described), which changed the request prefixes and invalidated the earlier tape. This directory is the
-re-distilled set: 6 scripted-upstream entries — title, the `exit_plan_mode` call, the approval
-acknowledgement, `chapters_segment`, `chapters_continue` with the ceiling read back out of the real tool's
-own result, and the closing turn. Strict replay of the whole project passes in ~17 s with no LLM present,
-and the full eight-project chain runs it on every push.
+Three entries: the session-title call, the `exit_plan_mode` submission, and the post-approval turn. Strict
+replay passes in ~13 s with no LLM, and the eight-project chain runs it on every push.
+
+A fourth leg — the model calling `chapters_segment` then `chapters_continue` — was distilled here and then
+**removed**: a tape freezes a model's tool ARGUMENTS, and those args carried the ceiling this machine's live
+segment tool happened to report (30) against the runner's 29. `validateRanges` refused the stale range, which
+is the product behaving exactly as designed, and the journey was unreproducible by construction. Continuation
+semantics moved to the deterministic plane, where a ceiling is a number under test rather than a number on
+tape. Full account: `docs/plans-carriage.md` and verify.md P11.
 
 ## Threshold pin (0.1.10) — why this project does not use the stress regime's 0.9
 
