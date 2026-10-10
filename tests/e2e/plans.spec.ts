@@ -73,6 +73,26 @@ const archivedPlans = (rootSession: string): Array<{ chapter: string; blob: stri
   return found
 }
 
+/**
+ * The plan text the model submitted, read back out of its own durable log.
+ * `arguments` arrives as an object or a JSON string depending on host version —
+ * the same both-shapes rule `src/log-shape.ts` handles on the plugin side, so the
+ * test must not assume the one it happened to see first.
+ */
+function planSubmission(log: string): string {
+  for (const e of logEvents(log)) {
+    if (e.type !== 'tool/call') continue
+    try {
+      const d = JSON.parse(e.raw).data as { name?: string; arguments?: unknown }
+      if (d.name !== 'exit_plan_mode') continue
+      const args = typeof d.arguments === 'string' ? JSON.parse(d.arguments) : d.arguments
+      const plan = (args as { plan?: unknown } | undefined)?.plan
+      if (typeof plan === 'string' && plan.trim() !== '') return plan
+    } catch { /* partial line or unexpected shape: keep looking */ }
+  }
+  return ''
+}
+
 /** Create a session and wait only for its identity (no turn is expected yet). */
 async function newSession(page: Page): Promise<string> {
   await page.evaluate(() => {
@@ -125,11 +145,28 @@ test('an approved plan is archived whole and called out in the child that contin
   const card = page.getByRole('region', { name: /Approve this plan and leave plan mode/ })
   await expect(card, 'the host opens its plan review').toBeVisible({ timeout: 900_000 })
 
-  // Read the plan the card is showing BEFORE answering: it is the same text the
-  // tool call carried, so this asserts the review received the real bytes.
+  // Read what the model ACTUALLY submitted out of the durable log, and hold the
+  // review to THOSE bytes. Deriving the expectation from the log rather than
+  // hard-coding it is what lets one spec serve both upstreams: a scripted plan and
+  // a live model's own plan must be carried identically — the carriage claim has to
+  // hold for text nobody wrote in this repo.
+  const submitted = planSubmission(sessionLogTextById(sid))
+  expect(submitted.length, 'the parent log carries an exit_plan_mode submission').toBeGreaterThan(40)
+  const planTitle = (/^#{1,6}\s+(.+?)\s*#*\s*$/m.exec(submitted)?.[1] ?? '').trim()
+  expect(planTitle.length, 'the submission opens with a heading (the host requires one)').toBeGreaterThan(0)
+
   const cardText = await card.innerText()
-  expect(cardText).toMatch(/Verify the plan carriage end to end/, 'the plan the human reviews is the plan the model sent')
-  expect(cardText).toMatch(/unit plans suite, the carriage integration/, 'through to the plan\u2019s last line')
+  expect(cardText, 'the human reviews the plan the model sent').toContain(planTitle)
+  // The card is showing the plan, not a summary of it: a body line from the middle
+  // of the submission must be present too.
+  // Compared with markdown emphasis stripped from BOTH sides: the card renders the
+  // plan, so `**bold**` on disk is `bold` on screen — a literal substring test
+  // would fail for a reason that has nothing to do with carriage.
+  const stripMd = (t: string): string => t.replace(/[*_`>]+/g, '').replace(/\s+/g, ' ').trim()
+  const bodyLine = (submitted.split('\n').map((l) => l.trim())
+    .filter((l) => stripMd(l).length > 24 && !l.startsWith('#')).pop() ?? '')
+  expect(bodyLine.length, 'the submission has body text to check').toBeGreaterThan(24)
+  expect(stripMd(cardText), 'and the body is on screen, not just the title').toContain(stripMd(bodyLine))
 
   await card.getByRole('button', { name: 'Approve' }).click()
 
@@ -153,11 +190,22 @@ test('an approved plan is archived whole and called out in the child that contin
   // ---- durable plane: chapter carries the block, blob carries the bytes.
   await expect.poll(() => archivedPlans(sid).length, { timeout: 180_000, intervals: [2000] }).toBeGreaterThan(0)
   const [plan] = archivedPlans(sid)
-  expect(plan!.bytes).toBeGreaterThan(200, 'a plan is more than its printed head')
+  expect(plan!.bytes).toBeGreaterThan(60, 'a plan is more than its printed head')
   const blob = fs.readFileSync(plan!.blob, 'utf8')
-  expect(blob).toMatch(/^# Verify the plan carriage end to end/, 'the stored bytes are the plan markdown itself')
-  expect(blob).toContain('## Tests', 'through to the last section')
-  expect(plan!.text).toMatch(/### Plan — "Verify the plan carriage end to end" — APPROVED/)
+  // THE load-bearing assertion of the whole feature: the stored bytes ARE the
+  // submission. Redaction is the one authorised difference (the § 9 chokepoint
+  // rewrites credential shapes on the way to disk), and it announces itself with a
+  // ⟦redacted:credential …⟧ marker — so: byte-identical when nothing was redacted,
+  // and provably only-redacted otherwise. A silent mismatch would be data loss.
+  const redactionMarkers = blob.match(/⟦redacted:credential sha256=[0-9a-f]+⟧/g) ?? []
+  if (redactionMarkers.length === 0) {
+    expect(blob, 'every byte the model submitted is in the artifact').toBe(submitted.trim())
+  } else {
+    const skeleton = (t: string): string[] => t.split('\n').filter((l) => !l.includes('⟦redacted:credential'))
+    expect(skeleton(blob).length, 'redaction rewrote lines, it did not drop them').toBeGreaterThanOrEqual(skeleton(submitted.trim()).length - redactionMarkers.length)
+    expect(blob, 'and it starts where the plan starts').toContain(planTitle.slice(0, 40))
+  }
+  expect(plan!.text).toContain(`### Plan — "${planTitle}" — APPROVED`, 'and the block names it by its own title')
   // MEASURED, not assumed (this run's first attempt expected 'active' and the
   // product said otherwise): approving a plan EXITS plan mode, so the last logged
   // `plan/mode` in the archived span is inactive. Both flips print, and the fold
@@ -180,7 +228,7 @@ test('an approved plan is archived whole and called out in the child that contin
   expect(noticeEvent, 'the child holds exactly one seeded TOC notice').not.toBeUndefined()
   const notice = JSON.parse(noticeEvent!.raw).data.content[0].text as string
   expect(notice).toMatch(/^## Plans on this path$/m, 'the block rides above the fold')
-  expect(notice).toMatch(/ACTIVE PLAN: "Verify the plan carriage end to end" — APPROVED/)
+  expect(notice).toContain(`ACTIVE PLAN: "${planTitle}" — APPROVED`, 'the child is told which plan governs it')
   expect(notice).toContain('chapters_artifact', 'the child is told HOW to load it without swallowing it')
   expect(notice).toMatch(/Do NOT re-plan from recall/)
   expect(notice).toMatch(/full text: \.dsh-chapters\/[^ ]+artifacts\/[0-9a-f]{2}\/[0-9a-f]{64}\.txt/, 'cited to a path under the archive')

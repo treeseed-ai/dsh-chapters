@@ -35,6 +35,26 @@ tape entries recorded. A `/v1/models` answer is therefore NOT evidence the serve
 real completion through `curl /v1/chat/completions` with a header the size the journey actually sends
 (~17K tokens) before scheduling a re-record.
 
+## Third attempt, same day, AFTER memory was freed — the most useful one
+
+The journey got further than the model's limits:
+
+| tape entry | what it was | outcome |
+|---|---|---|
+| `0000` | the session-title call | answered (`finish_reason: "length"`) |
+| `0001` | the plan turn, ~17K-token header | **`finish_reason: "tool_calls"`** — the live model DID submit `exit_plan_mode` |
+| — | the turn AFTER the human clicks Approve | never answered; CUDA out of memory |
+
+So the remaining blocker is not the model's willingness to plan (proven, in tape) and not the
+spec — it is **KV-cache growth on the follow-up request**, which carries the header plus the plan
+plus the review result. The server's own startup line says why there is no headroom:
+`n_slots = 4, n_ctx_slot = 65536, kv_unified = 'true'` — unified KV sized for four concurrent
+64K contexts. Before re-trying, cut that: `-np 1`, `--ctx-size` near the 32K the e2e regime pins,
+and/or `--cache-type-k q8_0 --cache-type-v q8_0` (roughly halves KV bytes). The partial
+`plans-live/` directory from this attempt was deleted; this stub tape remains the one in the chain,
+and the spec it replays is now derived from the log rather than from my script, so it is ready for
+the live bytes the moment they land (two of the three entries above already exist).
+
 ## Re-recording from the live model
 
 Retires this note. Nothing else changes — the spec is the same spec:
