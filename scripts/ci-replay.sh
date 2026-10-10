@@ -74,43 +74,37 @@ PLAYWRIGHT_BROWSERS_PATH="$PWD/var/ms-playwright" npx playwright install chromiu
 STATUS=0
 E2E_MODEL=replay npm run test:e2e 2>&1 | tee var/ci-replay.log || STATUS=${PIPESTATUS[0]}
 if [[ "$STATUS" -ne 0 ]]; then
-  echo "::error::ci-replay: tape replay exited $STATUS"
-  # What each boot actually wrote into its preset — the difference between a pin that
-  # was applied and one that was only requested.
-  grep -E "^\[e2e\] boot pins" var/ci-replay.log | head -10 | while read -r line; do
-    echo "::error::ci-replay ${line:0:300}"
-  done
-  # Playwright's error TEXT is the part that matters, and it is indented — the old
-  # grep caught the ✘ line and dropped every `Error:` beneath it, which is why the
-  # 0.1.12 run could say "plans failed in 14.9s" and nothing about the assertion.
-  grep -E "✘|Error:|expect\(|Received:|Expected:|failed|No tests found|503" var/ci-replay.log | head -30 | while read -r line; do
-    echo "::error::ci-replay ${line:0:300}"
-  done
-  # And playwright's own saved context per failure, which carries the snippet + the
-  # page snapshot: the difference between "an assertion failed" and why.
-  for f in $(ls -1 test-results/*/error-context.md 2>/dev/null | head -3); do
-    echo "::error::ci-replay — $f"
-    head -12 "$f" | while read -r line; do echo "::error::ci-replay ${line:0:280}"; done
-  done
-  grep -E "IGNORED-PATTERN" var/ci-replay.log | head -1 | while read -r line; do
-    echo "::error::ci-replay ${line:0:300}"
-  done
-  if [[ -s var/e2e-tape-misses.log ]]; then
-    echo "::error::ci-replay: tape-miss journal tail (what the proxy could not match)"
-    tail -12 var/e2e-tape-misses.log | while read -r line; do echo "::error::ci-replay ${line:0:300}"; done
-  fi
-  # The engine's own diagnostics ride along too: boot.ts points
-  # DSH_CHAPTERS_ENGINE_ERRORS at this file on EVERY boot, and it has already
-  # been the difference between guessing and knowing (plot elicitation,
-  # finalization deferral). Without it a tape miss says only "unmatched".
-  # Per-boot diagnostics (port-keyed since 0.1.12): the tail of each engine log names
-  # the boot that wrote it, so a plot-elicitation line can no longer be blamed on the
-  # wrong project.
-  for f in var/e2e-engine-errors*.log; do
-    [[ -s "$f" ]] || continue
-    echo "::error::ci-replay engine diagnostics — ${f}"
-    tail -6 "$f" | while read -r line; do echo "::error::ci-replay ${line:0:280}"; done
-  done
+  # ONE annotation, not twenty. GitHub truncates a check run to 10 annotations, and
+  # the 97bd603 run proved what that costs: the boot-pin lines and the ✘ consumed
+  # the budget, and the actual `Error:` text — the only thing I was chasing — was
+  # silently dropped. A single multi-line message (newlines %-encoded) cannot be
+  # truncated into meaninglessness.
+  DIAG="ci-replay: tape replay exited $STATUS"
+  while IFS= read -r line; do
+    [[ -n "$line" ]] || continue
+    DIAG+=$'\n'"${line:0:280}"
+  done < <(
+    grep -E "^\[e2e\] boot pins" var/ci-replay.log | tail -2
+    grep -E "✘|Error:|expect\(|Received:|Expected:|[0-9]+ failed|No tests found" var/ci-replay.log | head -12
+    # playwright's own saved context: the snippet plus the page snapshot, i.e. the
+    # difference between "an assertion failed" and why it failed.
+    for f in $(ls -1 test-results/*/error-context.md 2>/dev/null | head -2); do
+      echo "— $f"
+      head -24 "$f"
+    done
+    for f in var/e2e-engine-errors-*.log; do
+      [[ -s "$f" ]] || continue
+      echo "— $f"
+      tail -4 "$f"
+    done
+    if [[ -s var/e2e-tape-misses.log ]]; then
+      echo "— tape misses"
+      tail -4 var/e2e-tape-misses.log
+    fi
+  )
+  DIAG=$(printf '%s' "$DIAG" | sed -e 's/%/%25/g' -e 's/$/%0A/' | tr -d '\n')
+  DIAG=${DIAG%$'%0A'}
+  echo "::error::${DIAG:0:16000}"
   exit "$STATUS"
 fi
 echo "ci-replay: PASS — eight browser projects replayed green on committed tapes, no LLM present."
