@@ -27,6 +27,27 @@ notice built from that path — unbounded, and un-costed until the budget gate r
 - Browser-plane ledger for the eight-project chain (`npm run coverage:e2e`): 79.92 / 64.64 / 76.28 —
   reported, not tuned; the ≥85 gate is the deterministic one.
 
+### 0.1.11 — 2026-10 · the plans journey cannot ask the model anything
+
+0.1.10 pinned the threshold and still went red on hosted CI — with the new annotations making the cause
+unambiguous: the miss was the **plot-elicitation** request again, i.e. the engine had decided to compact
+mid-journey on the runner no matter what the threshold said. Tuning a threshold to beat a token count I
+cannot observe is not a fix; **removing the machinery is**. The acceptance boot now takes a per-project
+pin (`E2E_NO_AUX_MODEL=1`) that writes `auto: false` and `elicitedPlot: false` into the engine row of the
+throwaway profile, so for this journey:
+
+- pressure compaction is not registered at all — no threshold, and no runner's header size, can make it
+  fire;
+- the plot-elicitation call that produced the two missed requests **cannot be issued** — which is the
+  difference between "unlikely on this machine" and "impossible on any machine";
+- and the spec still asserts `compaction/*` is absent, so if someone re-enables the machinery under a
+  journey that depends on its absence, the test says so locally, in words.
+
+The pin is additive and per-project: every other journey keeps the 32K/15K stress regime and its
+compaction behaviour, because for those the point *is* compaction. Verified: the plans project replays
+green with the pin, the eight-project chain passes, and a boot with both rows patched starts cleanly (the
+base config accepts them — an unknown key would fail the boot loudly, not silently).
+
 ### 0.1.10 — 2026-10 · a tape that only passes on the machine that made it stops being acceptable
 
 0.1.9 shipped with a red hosted acceptance chain: `[plans]` missed a tape entry that replayed green on

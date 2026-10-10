@@ -245,6 +245,11 @@ Registry note: **do not** use `state.plans` — that name is the compaction mani
   produce, after three local greens. So this journey pins its own determinism: no compaction may interrupt
   it, and the spec fails if `compaction/*` appears, with the reason written where the assertion lives.
   Determinism that only holds on the machine that recorded the tape is not determinism.
+- **0.1.11: the pin is structural, not numeric.** 0.1.10's threshold pin did NOT stop the hosted runner
+  compacting (same annotated miss), so the journey now boots with `auto: false` + `elicitedPlot: false`
+  (`E2E_NO_AUX_MODEL=1` in the chain, applied by `boot.ts` into the throwaway preset). No auxiliary model
+  request can exist for a tape to be missing. The `compaction/*`-absent guard stays, to catch someone
+  undoing it.
 - **The replay chain reports its own failure** (`scripts/ci-replay.sh`): project + failing tests, the
   proxy's tape-miss journal tail, and the engine diagnostics tail that every boot already writes.
 

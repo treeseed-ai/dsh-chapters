@@ -23,6 +23,16 @@ export const e2eHome = (port: number): string => path.join(ROOT, 'var', `e2e-hom
 
 export interface Pins {
   thresholdRatio: string
+  /**
+   * Turn the engine's MODEL-INVOLVING machinery off for this boot. A journey whose
+   * tape depends on whether pressure compaction happens to fire is a journey that
+   * passes on one machine and misses on another (measured: the 0.1.9/0.1.10 plans
+   * runs on hosted CI issued a plot-elicitation request no local tape had ever seen).
+   * `noAuxModel: true` disables automatic compaction AND plot elicitation, so the
+   * request sequence the tape carries is the whole story regardless of how large a
+   * runner's header happens to be.
+   */
+  noAuxModel?: boolean
   enrichment?: boolean
   toolResultArtifactTokens?: string
 }
@@ -101,6 +111,14 @@ export async function bootE2eServer(port: number, pins: Pins): Promise<BootHandl
   // BY DESIGN — so the dedicated enrich project will opt in deliberately).
   if (!/enrichmentEnabled:/.test(y)) {
     y = y.replace(/( *)thresholdRatio: [0-9.]+/, `$1thresholdRatio: ${pins.thresholdRatio}\n$1enrichmentEnabled: false`)
+  }
+  if (pins.noAuxModel) {
+    // Idempotent row patches: the presets are copied fresh per boot, but a pin must
+    // never duplicate a key the file already carries.
+    if (!/^ *auto: false$/m.test(y)) y = y.replace(/( *)thresholdRatio: [0-9.]+/, `$1thresholdRatio: ${pins.thresholdRatio}
+$1auto: false`)
+    if (!/^ *elicitedPlot: false$/m.test(y)) y = y.replace(/( *)thresholdRatio: [0-9.]+/, `$1thresholdRatio: ${pins.thresholdRatio}
+$1elicitedPlot: false`)
   }
   if (pins.toolResultArtifactTokens !== undefined && !y.includes('toolResultArtifactTokens:')) {
     y = y.replace(/( *)thresholdRatio: [0-9.]+/, `$1thresholdRatio: ${pins.thresholdRatio}\n$1toolResultArtifactTokens: ${pins.toolResultArtifactTokens}`)
