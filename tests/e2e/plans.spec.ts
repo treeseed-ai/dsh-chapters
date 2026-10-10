@@ -247,7 +247,21 @@ test('an approved plan is archived whole and called out in the child that contin
     }
     return ''
   })()
-  expect(continuedId.length, 'chapters_continue created a child').toBeGreaterThan(3)
+  // If it refused, the reason is sitting in that same tool result — so carry it into
+  // the failure instead of reporting a bare zero and letting someone re-derive it
+  // from a 5 MB artifact (measured: the 0.1.9–0.1.12 CI runs each cost a round trip
+  // because this line said only "0").
+  if (continuedId.length === 0) {
+    const refusal = (() => {
+      for (const e of logEvents(sessionLogTextById(sid)).reverse()) {
+        if (e.type !== 'tool/result') continue
+        const m = /"reason"\s*:\s*"([^"]{0,220})/.exec(eventText(e.raw))
+        if (m !== null) return m[1]
+      }
+      return '(no refusal reason found in the parent log — the tool produced no child and said nothing)'
+    })()
+    throw new Error(`chapters_continue created no child. Its stated reason: ${refusal}`)
+  }
   const continuedSeed = planNoticeText(continuedId)
   expect(continuedSeed).toContain('## Active plan', 'a continuation gets the directive section')
   expect(continuedSeed).toContain(`ACTIVE PLAN: "${planTitle}" — APPROVED`)
