@@ -71,6 +71,8 @@ export interface NoticePlan {
   chapterNumber?: number
   chapterPath?: string
   artifactPath?: string
+  /** The plan's own `kind: plan` document, when one was written. */
+  docPath?: string
   sha256?: string
   estTokens?: number
 }
@@ -113,6 +115,27 @@ export interface ArtifactRef {
   sourceSeq: number
 }
 
+/**
+ * A plan DOCUMENT the writer emits beside its chapter: the whole plan as its own
+ * indexed file (`kind: plan`), so plans are queryable as plans — by topic, by
+ * status, by how they evolved — instead of only as bytes inside a transcript.
+ * It lives in `chapters/` on purpose: the pool transport, the mirror rehydrate and
+ * the corpus index then pick it up with zero special casing.
+ */
+export interface PlanDocFile {
+  seq: number
+  title: string
+  status: PlanStatus
+  body: string
+  sha256: string
+  /** The transcript chapter that cites it, once the writer knows its path. */
+  chapterPath?: string | undefined
+  /** The document this one supersedes (same title, earlier submission). */
+  supersedes?: string | undefined
+  topics: string[]
+  estTokens: number
+}
+
 export interface RenderedChapter {
   range: ChapterRange
   /** Index topics (deterministic floor: paths + top terms). P2 enrichment may relabel. */
@@ -142,6 +165,8 @@ export interface RenderedChapter {
     planMode?: 'active' | 'inactive' | 'unknown' | undefined
     /** Tool-call arguments artifact-backed by the `callArgArtifactTokens` rule. */
     invocationArtifacts?: number | undefined
+    /** Files to emit beside this chapter (one per plan in range). */
+    planDocs?: PlanDocFile[] | undefined
   }
 }
 

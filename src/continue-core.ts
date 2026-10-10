@@ -21,11 +21,11 @@ import { chapterTopics } from './signature.ts'
 import { estimateTokens, renderChapter, validateRanges } from './render.ts'
 import { attemptKey, coverage, verifyChapter, writeArchive } from './archive.ts'
 import type { ChapterRecord } from './archive.ts'
-import { appendChapters, freshSession, linkChild, reserve } from './registry.ts'
+import { appendChapters, freshSession, linkChild, reserve, reservePlan as reservePlanNumber } from './registry.ts'
 import type { SessionState } from './registry.ts'
 import { buildTocNotice } from './notice.ts'
 import { deriveIdentity } from './engine-core.ts'
-import { buildPlansSection, detectPlans } from './plans.ts'
+import { buildPlansSection, detectPlans, PLAN_MODE_EVENT, type PlanIntent } from './plans.ts'
 
 export interface ContinueArgs {
   callerSessionId: string
@@ -43,6 +43,8 @@ export interface ContinueArgs {
   projectLine?: string
   /** P3 §7.3: rules block for the notice (see assembleNotice). */
   rulesSection?: string
+  /** Why this child exists — see PlanIntent. Absent means 'continue'. */
+  intent?: PlanIntent | undefined
 }
 
 export interface ContinueConfig extends RenderConfig {
@@ -60,6 +62,13 @@ export interface ContinueConfig extends RenderConfig {
    * this existed — which is what keeps the model tapes matching.
    */
   plansInNotice?: boolean | undefined
+  /**
+   * Seed `plan/mode {active:true}` into a CONTINUATION child when the archived span
+   * ended with plan mode active, so the planning gate survives the boundary the way
+   * the plot does (decision 2026-10-10; measured: the kernel accepts a two-event
+   * seed and the host's own plan projection folds it to active). Never for a branch.
+   */
+  planSeedMode?: boolean | undefined
 }
 
 export interface BudgetProbe {
@@ -76,10 +85,13 @@ export interface ContinuePorts {
   fs(): import('./archive.ts').ArchiveFs
   budgetProbe(): Promise<BudgetProbe>
   newId(): string
-  /** agents.create + setup-mount + workspace attach; throws on kernel refusal. */
+  /** agents.create + setup-mount + workspace attach; throws on kernel refusal.
+   * `modeEvents` are the child's OWN synthetic state events (never a parent slice):
+   * they follow the notice, so the seed stays contiguous from seq 0. */
   createChild(input: {
     sessionId: string
     noticeEvent: SessionEventLike
+    modeEvents: SessionEventLike[]
     presetId: string
     title: string
   }): Promise<void>
@@ -237,6 +249,14 @@ export async function runContinue(
         await ports.putState(args.callerSessionId, r.state)
         return r.numbers
       },
+      // Plan documents allocate on their OWN counter, so writing one can never
+      // consume a chapter number or shift the TOC's ordering.
+      async reservePlan(attemptId, count) {
+        const fresh = await ports.getState(args.callerSessionId)
+        const r = reservePlanNumber(fresh, attemptId, count)
+        await ports.putState(args.callerSessionId, r.state)
+        return r.numbers
+      },
     },
     storeRoot: config.artifactStoreRoot,
     rootSessionId: callerState.rootSession,
@@ -300,12 +320,16 @@ export function archivedPlanRows(records: readonly ChapterRecord[], entries: rea
     const display = entries.find((e) => e.path === record.path)
     for (const fact of record.plans ?? []) {
       const written = record.artifacts.find((a) => a.sha256 === fact.sha256)
+      const doc = (record.planDocs ?? []).find((d) => d.sha256 === fact.sha256)
       rows.push({
         title: fact.title,
         status: fact.status,
         seq: fact.seq,
         ...(display !== undefined ? { chapterNumber: display.number, chapterPath: display.path } : {}),
         artifactPath: written?.path ?? fact.artifactPath,
+        // The plan's own indexed document, when the writer allocated one — the
+        // address `chapters_search` answers with, and the history a branch reads.
+        ...(doc !== undefined ? { docPath: doc.path } : {}),
         sha256: fact.sha256,
         estTokens: fact.estTokens,
       })
@@ -331,7 +355,7 @@ export const archiveWatermark = (records: readonly ChapterRecord[]): number =>
   records.reduce((m, r) => Math.max(m, r.endSeq), 0)
 
 /** Fields both continue and fork need to create the child. */
-export type FinishArgs = Pick<ContinueArgs, 'callerSessionId' | 'callerPreset' | 'title' | 'handoffNote' | 'projectLine' | 'rulesSection'>
+export type FinishArgs = Pick<ContinueArgs, 'callerSessionId' | 'callerPreset' | 'title' | 'handoffNote' | 'projectLine' | 'rulesSection' | 'intent'>
 
 /** Shared tail of both flows: notice -> budget gate -> create (invariant 2) -> commit. */
 async function finishChild(
@@ -345,13 +369,25 @@ async function finishChild(
 ): Promise<ContinueResult> {
   // ---- The plans block: stored facts + whatever the caller's live tail holds.
   // Empty list ⇒ '' ⇒ zero injected bytes (the tape-safety property, verify.md P8).
+  const intent = args.intent ?? 'continue'
+  const watermark = archiveWatermark(bundle.records)
+  const callerEvents = await ports.readCallerEvents()
+  // The parent's CURRENT mode, folded last-value-wins exactly like the host
+  // projection does. Measured against the installed kernel (docs/plans-carriage.md
+  // § 10): a two-event seed `notice@0, plan/mode@1` is accepted in the production
+  // header shape, and the host's own plan projection then folds the child's log to
+  // `active: true` — so the seeded child really IS gated, not merely told.
+  const modeActive = detectPlans(callerEvents).modeActive
+  const seedMode = intent === 'continue' && config.planSeedMode !== false && modeActive === true
+  const modeEvents: SessionEventLike[] = seedMode
+    ? [{ type: PLAN_MODE_EVENT, seq: 1, time: ports.now(), data: { active: true } }]
+    : []
+
   let plansSection = ''
   if (config.plansInNotice !== false) {
-    const watermark = archiveWatermark(bundle.records)
-    const callerEvents = await ports.readCallerEvents()
     plansSection = buildPlansSection(
       [...archivedPlanRows(bundle.records, bundle.entries), ...livePlanRows(callerEvents, watermark)],
-      { modeActive: detectPlans(callerEvents).modeActive },
+      { modeActive, intent, seeded: seedMode },
     )
   }
 
@@ -388,7 +424,7 @@ async function finishChild(
   const childId = `ch-${ports.newId()}`
   const presetId = args.callerPreset ?? config.fallbackPreset
   try {
-    await ports.createChild({ sessionId: childId, noticeEvent, presetId, title: args.title })
+    await ports.createChild({ sessionId: childId, noticeEvent, modeEvents, presetId, title: args.title })
   } catch (error) {
     throw new Refusal({ ok: false, reason: `child creation refused: ${(error as Error).message}`, warnings })
   }

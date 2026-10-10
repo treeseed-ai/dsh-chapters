@@ -40,6 +40,36 @@ export function isHumanAuthored(data: Record<string, unknown>): boolean {
   return source?.kind === undefined || source.kind === 'user'
 }
 
+/**
+ * The ONE targeted exception to the screen (human decision 2026-10-10): the harness's
+ * own mode-switch narration — `source: { kind: 'plugin', plugin: 'plan-mode',
+ * form: 'notice' }`, "The user switched this session to plan mode." — IS conversation.
+ *
+ * The screen exists so a project's private instruction files never travel in a shared
+ * corpus. A mode flip the human performed is not that: it is a fact about THIS session,
+ * and it is the seam that answers "was this approved before or after we started
+ * implementing?". Named by plugin AND form, so it cannot be widened by accident into
+ * the general plugin-source exemption — an instruction file or a runtime snapshot
+ * arriving with a different form still screens.
+ */
+export function isSessionStateNarration(data: Record<string, unknown>): boolean {
+  const source = data.source as { kind?: string; plugin?: string; form?: string } | undefined
+  return source?.kind === 'plugin' && source.plugin === 'plan-mode' && source.form === 'notice'
+}
+
+/**
+ * Does this event belong in the archive as conversation?
+ *
+ * Deliberately NARROWER than `isHumanAuthored`: the topic-signature layer keeps using
+ * the strict predicate, because the r28 lesson was that injected text poisons topic
+ * merging (every signature gained the injected filenames). A mode narration is one
+ * short sentence, so archiving it is worth more than the risk of letting it move a
+ * chapter boundary — and the two uses are separate functions on purpose.
+ */
+export function isArchivableConversation(data: Record<string, unknown>): boolean {
+  return isHumanAuthored(data) || isSessionStateNarration(data)
+}
+
 /** Label for the omission marker: kind, plus plugin name when the source
  * carries one (so `plugin:dsh-chapters` is recognizable in a chapter). */
 export function sourceLabel(data: Record<string, unknown>): string {
@@ -92,7 +122,7 @@ export interface Screened {
 }
 
 export function screenConversation(data: Record<string, unknown>, rawText: string, role: 'user' | 'assistant'): Screened {
-  if (role === 'user' && !isHumanAuthored(data)) {
+  if (role === 'user' && !isArchivableConversation(data)) {
     return { text: '', omittedEvent: true, removedChars: rawText.length, sourceKind: sourceLabel(data) }
   }
   // Assistant text is model output, but a runtime snapshot has been observed

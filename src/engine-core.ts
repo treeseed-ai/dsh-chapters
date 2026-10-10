@@ -65,6 +65,15 @@ export interface EngineConfig {
   callArgArtifactTokens: number
   /** Elicit a plot note with one bounded call when the model wrote none. */
   elicitedPlot: boolean
+  /**
+   * Carry the operative session plan into every in-place checkpoint (the PLOT
+   * mechanism, applied to plans — docs/plans-carriage.md § 9). Shadowing can hide the
+   * chapter that holds a plan; a directive that survives only in a file the agent may
+   * never open is a directive it drifts from.
+   */
+  plansInCheckpoint: boolean
+  /** Bounded plan characters carried in the checkpoint text; the archive keeps all. */
+  planCheckpointChars: number
 }
 
 export const ENGINE_CONFIG_DEFAULTS: EngineConfig = {
@@ -77,7 +86,9 @@ export const ENGINE_CONFIG_DEFAULTS: EngineConfig = {
   toolResultArtifactTokens: 8000,
   planInlineChars: 900,
   callArgArtifactTokens: 0,
-  elicitedPlot: true,}
+  elicitedPlot: true,
+  plansInCheckpoint: true,
+  planCheckpointChars: 1600,}
 
 // ---------------------------------------------------------------- input/output vocabulary
 // Structural restatements of @deepseek-ai/dsh-compaction-basic's SummarizationInput /
@@ -358,7 +369,19 @@ export function planSummarize(
   composition: readonly ChapterRange[] | null = null,
   /** Model-authored plot note carried into this checkpoint (may be null). */
   plot: string | null = null,
+  /**
+   * The operative plan, already rendered as checkpoint prose by `carryActivePlan`
+   * (plans.ts). Carried on BOTH the composed and the legacy path, because the
+   * composed path is where real pressure compaction lands. Note the asymmetry this
+   * deliberately does NOT touch: `plot` is still only prefixed on the legacy path
+   * (`:415`), and changing that would rewrite checkpoint bytes for every plot-carrying
+   * session — i.e. the committed tapes. Plans are new, so carrying them is free.
+   */
+  planCarry: string | null = null,
 ): { plan: SummarizePlan; state: SessionState } {
+  const planSection = planCarry !== null && planCarry.trim() !== ''
+    ? `Active plan — carried across this checkpoint (it is STILL the work directive):\n\n${planCarry.trim()}`
+    : null
   const blocks = extractCheckpointBlocks(input.messages)
   const { bullets, carriedProse } = parseTocState(blocks)
   const identity = deriveIdentity(input.messages, blocks.length > 0)
@@ -389,7 +412,7 @@ export function planSummarize(
     }
     return {
       plan: {
-        tocText: composedParts.join('\n\n'),
+        tocText: planSection === null ? composedParts.join('\n\n') : `${planSection}\n\n${composedParts.join('\n\n')}`,
         numbers: reserved.numbers,
         chapter: { title: chapters[0]!.title, summary: chapters[0]!.summary, path: chapters[0]!.path },
         chapters,
@@ -415,7 +438,8 @@ export function planSummarize(
   const plotSection = plot !== null && plot.trim() !== ''
     ? `Working plot (model-authored, carried across this checkpoint):\n\nPLOT: ${plot.trim()}\n\n(If it has gone stale, revise it in your next reply.)`
     : null
-  const tocText = plotSection === null ? parts.join('\n\n') : `${plotSection}\n\n${parts.join('\n\n')}`
+  const leadSections = [planSection, plotSection].filter((x): x is string => x !== null && x !== '')
+  const tocText = leadSections.length === 0 ? parts.join('\n\n') : `${leadSections.join('\n\n')}\n\n${parts.join('\n\n')}`
 
   return {
     plan: {

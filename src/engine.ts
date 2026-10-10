@@ -28,6 +28,7 @@ import {
   type EngineConfig, type EngineSession, type SummarizeInputLike, type SummarizeResultLike,
 } from './engine-core.ts'
 import { composeChapters } from './compose.ts'
+import { carryActivePlan, detectPlans } from './plans.ts'
 import { stripReminderSpans } from './injections.ts'
 import { BlockAssembler, createUserMessage } from '@deepseek-ai/dsh-llm'
 import { applyArrivalStubs, type ArrivalSessionShim } from './arrival.ts'
@@ -56,6 +57,9 @@ export interface ChaptersRowConfig extends BasicCompactionConfig {
    * block, and the tool-call-argument artifact floor (0 = off). */
   planInlineChars?: number
   callArgArtifactTokens?: number
+  /** Carry the operative plan into every checkpoint (plans-carriage § 9). */
+  plansInCheckpoint?: boolean
+  planCheckpointChars?: number
   elicitedPlot?: boolean
   // P2 enrichment (record §6): the realm plane owns the AUTO triggers.
   enrichmentEnabled?: boolean
@@ -210,7 +214,7 @@ export class ChaptersCompactionEngine extends BasicCompactionEngine {
     const {
       artifactStoreRoot, chapterTokenTarget, toolResultDeferFloorTokens,
       mergeThreshold, chapterLimit, syncDebounceMs, toolResultArtifactTokens, elicitedPlot,
-      planInlineChars, callArgArtifactTokens,
+      planInlineChars, callArgArtifactTokens, plansInCheckpoint, planCheckpointChars,
       enrichmentEnabled, enrichmentModel, enrichmentTrigger, enrichmentIdleMs, enrichmentBatchCap,
       vocabApply, vocabCoMin, vocabOverlapMin,
       treedxFetchTimeoutMs, treedxWorkspaceTtlSeconds, treedxLeaseRetries, treedxLeaseRetryDelayMs,
@@ -236,6 +240,8 @@ export class ChaptersCompactionEngine extends BasicCompactionEngine {
       toolResultArtifactTokens: toolResultArtifactTokens ?? 8000,
       planInlineChars: planInlineChars ?? 900,
       callArgArtifactTokens: callArgArtifactTokens ?? 0,
+      plansInCheckpoint: plansInCheckpoint ?? true,
+      planCheckpointChars: planCheckpointChars ?? 1600,
       elicitedPlot: elicitedPlot ?? true,
     }
     this.syncDebounceMs = syncDebounceMs ?? 30000
@@ -446,7 +452,20 @@ export class ChaptersCompactionEngine extends BasicCompactionEngine {
     let plot = extractPlot(input.messages)
     if (plot === null && this.chaptersConfig.elicitedPlot) plot = await this.#elicitPlot(agent, input, _signal)
 
-    const { plan, state: next } = planSummarize(session, state, input, this.chaptersConfig, reserve, cid, composition, plot)
+    // The operative plan travels INTO the checkpoint, session-wide and newest-first:
+    // "what am I building" is not a property of the region being shadowed, so the
+    // carry reads the whole log rather than the span (docs/plans-carriage.md § 9).
+    let planCarry: string | null = null
+    if (this.chaptersConfig.plansInCheckpoint) {
+      try {
+        const all = (session as { snapshotEvents?: () => readonly SessionEventLike[] } | undefined)?.snapshotEvents?.() ?? []
+        planCarry = carryActivePlan(detectPlans(all).plans, { maxChars: this.chaptersConfig.planCheckpointChars })
+      } catch (error) {
+        this.ctx.logger?.warn?.(`dsh-chapters: plan carriage skipped (${String(error)}) — the archive still holds the plan`)
+      }
+    }
+
+    const { plan, state: next } = planSummarize(session, state, input, this.chaptersConfig, reserve, cid, composition, plot, planCarry)
     const stored = rememberPlan(next, cid, {
       number: plan.numbers[0]!, path: plan.chapter.path, title: plan.chapter.title, summary: plan.chapter.summary,
       ...(plan.chapters !== undefined ? { chapters: plan.chapters } : {}),

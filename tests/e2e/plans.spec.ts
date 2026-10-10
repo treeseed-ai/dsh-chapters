@@ -93,6 +93,33 @@ function planSubmission(log: string): string {
   return ''
 }
 
+/** All text inside a serialized event, unescaped — the payload is JSON-in-JSON. */
+function eventText(raw: string): string {
+  try {
+    const e = JSON.parse(raw)
+    const content = (((e?.data ?? {}) as Record<string, unknown>).message as Record<string, unknown> | undefined)?.content
+    if (!Array.isArray(content)) return raw
+    return content.map((b) => {
+      const inner = (b as { content?: unknown })?.content
+      if (typeof inner === 'string') return inner
+      if (Array.isArray(inner)) return inner.map((c) => (c as { text?: string })?.text ?? '').join('\n')
+      return JSON.stringify(b)
+    }).join('\n')
+  } catch { return raw }
+}
+
+/** The child's own seeded TOC notice text, parsed out of its durable log. */
+function planNoticeText(sessionId: string): string {
+  for (const e of logEvents(sessionLogTextById(sessionId))) {
+    if (e.type !== 'user/message' || !e.raw.includes('chapters:toc')) continue
+    try {
+      const content = JSON.parse(e.raw).data?.content
+      if (Array.isArray(content) && typeof content[0]?.text === 'string') return content[0].text as string
+    } catch { /* partial line */ }
+  }
+  return ''
+}
+
 /** Create a session and wait only for its identity (no turn is expected yet). */
 async function newSession(page: Page): Promise<string> {
   await page.evaluate(() => {
@@ -134,7 +161,12 @@ test('an approved plan is archived whole and called out in the child that contin
   //
   // The model's exit_plan_mode call then opens the host's review, which BLOCKS the
   // turn — so waiting for the card is the correct wait, not a deadline.
-  await typeComposer(page, '/plan Which file defines the chapter renderer? Plan only — do not edit anything, and present the plan with the exit_plan_mode tool when ready.')
+  // Tool-free IN WORDS THE MODEL OBEYS (the RR2 lesson, and the cause of attempt 4's
+  // failure: asked to plan, a real model correctly explored the repo first — glob,
+  // grep — and the follow-up request TIMED OUT before it ever reached the plan).
+  // The journey wants one turn to a submission, so it must forbid exploration as
+  // loudly as it asks for the plan.
+  await typeComposer(page, '/plan Which file defines the chapter renderer? Answer from what you already know — do not read, list, search, or open any file, and do not run any tool except the plan tool. Present your plan with the exit_plan_mode tool now; if you need a fact, state it as an assumption.')
 
   // The review renders as a REGION named by the question, with the plan text
   // inside it and an "Approve" button (measured from the failure snapshot of the
@@ -182,10 +214,62 @@ test('an approved plan is archived whole and called out in the child that contin
   expect(parentLog).toContain('"exit_plan_mode"', 'the submission is in the durable log')
   expect(parentLog).toContain('"plan/mode"', 'and the mode flip is a durable event of its own')
 
-  // Fork: everything through the last completed turn is archived; a child opens.
+  // ============================ LEG 1: a CONTINUATION extends the same work ======
+  // The distinction the second round exists for (docs/plans-carriage.md § 12): a
+  // continuation gets `## Active plan` and, while the parent is still planning, a
+  // seeded `plan/mode`; a BRANCH gets zero plan bytes. Asserting only one of them
+  // would leave the whole decision untested in the browser plane.
+  const parentPreContinue = logEvents(sessionLogTextById(sid)).length
+  await typeComposer(page, 'Continue this work in a fresh session: call chapters_segment, then call chapters_continue with the ranges it reports.')
+  await expect.poll(() => {
+    const evs = logEvents(sessionLogTextById(sid))
+    return evs.length > parentPreContinue && evs.some((e) => e.type === 'turn/end' && e.seq > parentPreContinue)
+  }, { timeout: 900_000, intervals: [3000] }, 'the continuation turn closed').toBe(true)
+
+  // The tool result names the child it created — read it from the log, not the DOM.
+  // NOTE: the JSONL escapes the payload's quotes, so a regex over the raw LINE never
+  // matches (`\"childSessionId\"`). Parse the event and read the text (measured on
+  // this run: both legs completed, the assertion alone was blind).
+  const continuedId = (() => {
+    for (const e of logEvents(sessionLogTextById(sid)).reverse()) {
+      if (e.type !== 'tool/result') continue
+      const m = /"childSessionId"\s*:\s*"(ch-[^"]+)"/.exec(eventText(e.raw))
+      if (m !== null) return m[1]
+    }
+    return ''
+  })()
+  expect(continuedId.length, 'chapters_continue created a child').toBeGreaterThan(3)
+  const continuedSeed = planNoticeText(continuedId)
+  expect(continuedSeed).toContain('## Active plan', 'a continuation gets the directive section')
+  expect(continuedSeed).toContain(`ACTIVE PLAN: "${planTitle}" — APPROVED`)
+  expect(continuedSeed).toContain('chapters_artifact')
+  // The plan was approved, so plan mode was LEFT: seeding must NOT happen. Getting
+  // this backwards would gate a child whose only job is to implement.
+  expect(continuedSeed, 'an approved plan means no seeded gate').not.toMatch(/Plan mode is ACTIVE in this session/)
+  expect(continuedSeed).toMatch(/ACTIVE PLAN: "[^"]+" — APPROVED \(ch\. \d+ .*plan document: /, 'and it cites the searchable plan document too')
+
+  // ============================ LEG 2: a BRANCH splits a new direction ==========
   const fork = page.locator('button[aria-label="Fork with chapters"]').first()
   await expect(fork, 'the chapters fork action survives a plan turn').toBeVisible({ timeout: 120_000 })
   await fork.click()
+
+  // A branch must carry NO plan directive — its plans are history (decision 3).
+  // The switch to the branch is async (the same race fork-button.spec.ts documents),
+  // so the id AND its seed are polled together instead of read once.
+  let branchSeed = ''
+  let branchId = ''
+  await expect.poll(async () => {
+    const id = await currentSessionId(page)
+    if (id === null || id === sid) return ''
+    branchId = id
+    branchSeed = planNoticeText(id)
+    return branchSeed.length
+  }, { timeout: 120_000, intervals: [2000] }, 'the branch child opened with its seeded notice').toBeGreaterThan(40)
+  expect(branchSeed.includes('## Active plan'), 'a branch gets no directive section').toBe(false)
+  expect(branchSeed.includes('ACTIVE PLAN'), 'and no call-out either').toBe(false)
+  // It is still a real continuation of the archive — chapters cited, ancestry named —
+  // which is what "the plans are history" has to mean to be true rather than empty.
+  expect(branchSeed).toMatch(/chapters|Ancestry/, 'the archive is still cited to the branch')
 
   // ---- durable plane: chapter carries the block, blob carries the bytes.
   await expect.poll(() => archivedPlans(sid).length, { timeout: 180_000, intervals: [2000] }).toBeGreaterThan(0)
@@ -215,24 +299,19 @@ test('an approved plan is archived whole and called out in the child that contin
   expect(plan!.text).toMatch(/^planMode: inactive$/m, 'and the fold takes the last value')
   expect(plan!.text).toMatch(/^plans: \[\d+:approved:[0-9a-f]{8}\]$/m, 'frontmatter declares what the block claims')
 
-  // ---- the child's own log names the operative plan and how to load it.
-  const childId = await currentSessionId(page)
-  expect(childId, 'the app switched to the branch').toBeTruthy()
-  expect(childId).not.toBe(sid)
-  // Read the SEEDED EVENT, not the raw JSONL: inside the log the notice text is
-  // JSON-escaped, so quoting assertions against the file text silently never match
-  // (measured on this run — the poll passed on the substring, the anchored regex
-  // did not). Parse the event and assert on the text the child actually reads.
-  const childLog = sessionLogTextById(childId ?? '')
-  const noticeEvent = logEvents(childLog).find((e) => e.type === 'user/message' && e.raw.includes('chapters:toc'))
-  expect(noticeEvent, 'the child holds exactly one seeded TOC notice').not.toBeUndefined()
-  const notice = JSON.parse(noticeEvent!.raw).data.content[0].text as string
-  expect(notice).toMatch(/^## Plans on this path$/m, 'the block rides above the fold')
-  expect(notice).toContain(`ACTIVE PLAN: "${planTitle}" — APPROVED`, 'the child is told which plan governs it')
-  expect(notice).toContain('chapters_artifact', 'the child is told HOW to load it without swallowing it')
-  expect(notice).toMatch(/Do NOT re-plan from recall/)
-  expect(notice).toMatch(/full text: \.dsh-chapters\/[^ ]+artifacts\/[0-9a-f]{2}\/[0-9a-f]{64}\.txt/, 'cited to a path under the archive')
-  // and the seeded event is the ONLY inherited history (invariant 2)
-  const seeded = logEvents(childLog).filter((e) => e.type === 'user/message' && e.raw.includes('"plugin":"dsh-chapters"'))
-  expect(seeded.length).toBe(1, 'one notice, no replayed parent events')
+  // ---- the plan is QUERYABLE AS A PLAN: its own document, byte-identical.
+  const tree = path.join(storeRoot, sid, 'chapters')
+  const docFiles = fs.existsSync(tree) ? fs.readdirSync(tree).filter((f) => f.startsWith('plan-')) : []
+  expect(docFiles.length, 'a kind: plan document exists beside the chapter').toBeGreaterThan(0)
+  const docText = fs.readFileSync(path.join(tree, docFiles[0]!), 'utf8')
+  expect(docText).toMatch(/^---\nkind: plan\n/, 'the kind leads the frontmatter')
+  expect(docText).toMatch(/^status: approved$/m, 'with its verdict')
+  expect(docText).toContain(planTitle, 'and the plan itself')
+
+  // ---- invariant 2, both children: one seeded message, no parent history copied.
+  for (const childId of [continuedId, branchId]) {
+    const seeded = logEvents(sessionLogTextById(childId)).filter((e) => e.type === 'user/message' && e.raw.includes('"plugin":"dsh-chapters"'))
+    expect(seeded.length, `${childId} inherits exactly one synthetic notice`).toBe(1)
+  }
+  expect(branchSeed).toMatch(/Ancestry:/, 'and both cite the archive they were born from')
 })

@@ -65,6 +65,11 @@ export interface Config {
   planInlineChars: number
   callArgArtifactTokens: number
   plansInNotice: boolean
+  /** Seed plan mode into continuation children (plans-carriage § 10). */
+  planSeedMode: boolean
+  /** Carry the operative plan into every in-place checkpoint (§ 9). */
+  plansInCheckpoint: boolean
+  planCheckpointChars: number
   harnessId: string
   /** §12: the project's knowledge repo URL ('' = rely on /chapters-link). */
   knowledgeRemote: string
@@ -125,6 +130,12 @@ export const Config = Schema.object({
   // Renders zero bytes when the path holds no plans, so the default-on cost for
   // sessions that never enter plan mode is exactly nothing.
   plansInNotice: Schema.boolean().default(true),
+  // Seeding is measured-safe (kernel accepts the two-event seed and the host's own
+  // plan projection folds it to active) and it is what keeps the agent anchored to
+  // the task across a continuation — so it ships ON, for continuations only.
+  planSeedMode: Schema.boolean().default(true),
+  plansInCheckpoint: Schema.boolean().default(true),
+  planCheckpointChars: Schema.number().default(1600),
   // Per-machine identity for the knowledge repo (commit author + per-harness
   // token scoping, record §2.1). The hostname is the honest default; override
   // per machine when two sessions on one box must be told apart.
@@ -236,6 +247,7 @@ export async function apply(ctx: HostCtx, config: Config): Promise<void> {
       planInlineChars: config.planInlineChars,
       callArgArtifactTokens: config.callArgArtifactTokens,
       plansInNotice: config.plansInNotice,
+      planSeedMode: config.planSeedMode,
       searchMaxTokens: config.searchDefaultMaxTokens,
       harnessId: config.harnessId,
       coreRulesBudgetTokens: config.coreRulesBudgetTokens,

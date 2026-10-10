@@ -722,6 +722,39 @@ Accepted as the P3 plan's single decision point (human-approved with the plan). 
 file-status rewrite replaced by `rule-status` facts in each machine's own edits file
 (see §7.2 note for the reason). Everything else in §7 stands.
 
+### Amendment 2026-10-10 — plans are documents of a third kind
+
+Human decision, recorded here because it widens the corpus: besides transcript chapters and curated
+rules, a workspace's shared knowledge now also carries **plan documents** — one file per
+`exit_plan_mode` submission, `kind: plan`, written into `chapters/` so the §4 transport, the §5
+mirror and the §6 index carry and rank them with no special casing.
+
+Rules of the amendment, all enforced by tests (verify.md P12–P14):
+
+- **A plan document's body is the plan, byte for byte.** It is never a summary of one, and the
+  enrichment ladder (§6.4) refuses to annotate it: a directive is approved text, and paraphrasing
+  an order is the drift the whole store exists to prevent. The guard reads the file's own
+  `kind: plan` frontmatter, so renaming cannot disarm it.
+- **Superseding never overwrites.** A revised plan is a new document; the earlier one keeps its
+  bytes and its status changes only in the sense that the newest submission is operative. The store
+  stays append-only with no exceptions.
+- **Numbering is its own** (`nextPlanNumber`, registry-allocated under a distinct attempt key,
+  never a directory scan), so a plan never consumes a chapter number, never reorders the TOC, and
+  never collides with a concurrent sibling. Files are `plan-<NNN>-<slug>.md` precisely so a listing
+  cannot read as two chapters claiming the same number.
+- **Redaction is unchanged and applies identically** (§9): the chokepoint runs over plan text on the
+  way to both the blob and the document, so a credential pasted into a plan never reaches the pool.
+  The one asymmetry a reader should know: a plan is *deliberately* a human-facing directive, so it
+  keeps its own `sha256` (the blob's hash, identical bytes) plus `bodySha256` (the §2.2 anchor
+  convention) — two handles, one purpose each, provably the same content.
+- **Host-injected context is still not conversation** — but with the one named exception recorded in
+  `docs/plans-carriage.md` § 13: the harness's own `plugin: plan-mode / form: notice` mode-flip
+  sentence is session state worth keeping, so it archives verbatim. Instruction files, runtime
+  snapshots and skill catalogs screen exactly as before, and the topic-signature layer (§4.1)
+  keeps the strict predicate so injected text cannot move a chapter boundary.
+
+Design detail and measurements: `docs/plans-carriage.md` §§ 9–13.
+
 ---
 
 *Cross-references: invariants and the four invariants — `AGENTS.md`; budget math —

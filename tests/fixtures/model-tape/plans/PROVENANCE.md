@@ -55,6 +55,22 @@ and/or `--cache-type-k q8_0 --cache-type-v q8_0` (roughly halves KV bytes). The 
 and the spec it replays is now derived from the log rather than from my script, so it is ready for
 the live bytes the moment they land (two of the three entries above already exist).
 
+## Attempt 4 (same day, after memory was freed) — the blocker changed, and that is progress
+
+The review card never opened, but **not** because of CUDA: the turn ended
+`turn/end {kind:"error", error:{message:"Request timed out.", code:"TIMEOUT"}}`. The model had done the
+obviously right thing — asked to plan how a renderer works, it explored first (`glob src/**/*.ts`, then
+`grep renderChapter|...`), and the request carrying those tool results timed out before a plan was
+written. Two entries reached tape (the title call, and a `tool_calls` turn for glob); the plan turn never
+happened.
+
+Consequences for the next attempt, both actionable:
+1. The journey prompt now forbids exploration **in words the model obeys** — no reads, lists, searches or
+   tools except the plan tool, state any missing fact as an assumption — so the distillation is one turn
+   to a submission (the RR2 doctrine, applied).
+2. If a timeout still lands, it is the profile's `fetch-timeouts`/`llm-gate` budget versus a ~18K-token
+   prefill with tool results appended — not memory. Read the `code` on `turn/end` before assuming OOM.
+
 ## Re-recording from the live model
 
 Retires this note. Nothing else changes — the spec is the same spec:
@@ -70,3 +86,13 @@ The `:8080` server must be healthy (`curl localhost:8080/v1/models`), and the mo
 has to actually call `exit_plan_mode` — if it answers in prose instead, the review
 never opens and the spec fails loudly rather than recording a session that never
 planned. Then update this file to say the tape is model-distilled.
+
+
+## Re-distilled the same day for the two-leg journey
+
+The journey grew a second leg (continuation *and* branch, so § 12's distinction is executed rather than
+described), which changed the request prefixes and invalidated the earlier tape. This directory is the
+re-distilled set: 6 scripted-upstream entries — title, the `exit_plan_mode` call, the approval
+acknowledgement, `chapters_segment`, `chapters_continue` with the ceiling read back out of the real tool's
+own result, and the closing turn. Strict replay of the whole project passes in ~17 s with no LLM present,
+and the full eight-project chain runs it on every push.

@@ -36,6 +36,16 @@ import { callArg, callArgsText, lastResultFor, resultCallId, toolResultIsError, 
 import { stripReminderSpans } from './injections.ts'
 
 export const PLAN_TOOL = 'exit_plan_mode'
+
+/**
+ * Why a child exists. `continue` extends the SAME stream of work (the tool
+ * `chapters_continue`), so the operative plan stays a live directive — and plan mode
+ * can be seeded so the gate survives the boundary, which is what keeps the agent
+ * anchored to the task across compactions (decision 2026-10-10). `branch` splits a
+ * NEW direction off the history (`chapters_fork`, `/chapters-fork`), so plans are
+ * history: cited, never re-asserted, never seeded.
+ */
+export type PlanIntent = 'continue' | 'branch'
 export const PLAN_MODE_EVENT = 'plan/mode'
 
 export type { NoticePlan, PlanFact, PlanStatus }
@@ -250,9 +260,13 @@ const shorterSha = (sha: string): string => sha.slice(0, 7)
  */
 export function buildPlansSection(
   plans: readonly NoticePlan[],
-  opts: { modeActive?: boolean | null } = {},
+  opts: { modeActive?: boolean | null; intent?: PlanIntent; seeded?: boolean } = {},
 ): string {
   if (plans.length === 0) return ''
+  // A BRANCH splits off a new direction, so its plans are history: they already sit
+  // in the chapters the TOC cites, and a call-out would tell the child to keep
+  // working a directive it just chose to leave behind (decision, 2026-10-10).
+  if (opts.intent === 'branch') return ''
   // CAUSAL order is the caller's, not something this function can reconstruct: an
   // ancestor path's rows come from DIFFERENT sessions, each with its own seq space
   // (a child's seq 3 is not "before" a root's seq 40). The notice builder therefore
@@ -265,7 +279,12 @@ export function buildPlansSection(
   const counts = new Map<PlanStatus, number>()
   for (const p of sorted) counts.set(p.status, (counts.get(p.status) ?? 0) + 1)
   const tally = [...counts.entries()].map(([s, n]) => `${n} ${s}`).join(', ')
-  const lines: string[] = ['## Plans on this path', `(${sorted.length} submitted: ${tally})`, '']
+  const previous = sorted.slice(0, -1)
+  const lines: string[] = [
+    `## Active plan`,
+    `(this continuation keeps the same stream of work: ${sorted.length} plan(s) submitted on the path — ${tally})`,
+    '',
+  ]
   const ref = (p: NoticePlan): string => {
     const bits: string[] = []
     if (p.chapterPath !== undefined) {
@@ -274,6 +293,7 @@ export function buildPlansSection(
       bits.push(`NOT ARCHIVED — parent log seq ${p.seq} only`)
     }
     if (p.artifactPath !== undefined) bits.push(`full text: ${p.artifactPath}`)
+    if (p.docPath !== undefined) bits.push(`plan document: ${p.docPath}`)
     if (p.sha256 !== undefined) bits.push(`sha ${shorterSha(p.sha256)}…`)
     if (p.estTokens !== undefined) bits.push(`~${p.estTokens} tok`)
     return bits.join(' · ')
@@ -285,13 +305,79 @@ export function buildPlansSection(
     lines.push('  Read the full text with chapters_artifact (toc | search | read) before implementing.')
     lines.push('  Do NOT re-plan from recall: the bytes are in the store.')
   }
-  for (const p of sorted.slice(0, -1)) {
-    if (p.status === 'superseded' && p.title === operative.title) continue
-    lines.push(`- "${p.title}" — ${STATUS_WORD[p.status]} (${ref(p)})`)
+  if (previous.length > 0) {
+    lines.push('', '## Previous plans on this path', '(history — cited for evolution and status, not directives)')
+    for (const p of previous) {
+      if (p.status === 'superseded' && p.title === operative.title) continue
+      lines.push(`- "${p.title}" — ${STATUS_WORD[p.status]} (${ref(p)})`)
+    }
   }
-  if (opts.modeActive === true) {
-    lines.push('', 'Plan mode was ACTIVE at the end of the archived span: this child starts OUTSIDE it')
-    lines.push('(a created session never inherits mode). Ask the user whether to keep planning or act.')
+  if (opts.seeded === true) {
+    lines.push('', 'Plan mode is ACTIVE in this session — the directive above is live, not history. Keep')
+    lines.push('planning until a plan is approved; implementation begins only after that approval.')
+  } else if (opts.modeActive === true) {
+    lines.push('', 'Plan mode was ACTIVE at the end of the archived span, and a created session does not')
+    lines.push('inherit it: this child starts OUTSIDE plan mode. Ask the user whether to keep planning or act.')
   }
   return lines.join('\n')
+}
+
+
+/**
+ * The in-place checkpoint's plan carriage (the PLOT mechanism, applied to plans —
+ * docs/plans-carriage.md § 9). Shadowing a region can hide the chapter that carries a
+ * plan, and a directive that only survives in a file the child may never open is a
+ * directive the agent drifts from. So the OPERATIVE plan travels in the checkpoint
+ * text itself, bounded, with its citation and the sha that still resolves the whole.
+ *
+ * "Operative" is session-level, not region-level — the newest submission on the log,
+ * whatever region it happened to fall in — because that is what "the current task"
+ * means to the agent reading the checkpoint.
+ */
+export function carryActivePlan(
+  plans: readonly PlanDoc[],
+  opts: { maxChars: number },
+): string | null {
+  const operative = plans[plans.length - 1]
+  if (operative === undefined) return null
+  const title = operative.title === '' ? '(untitled plan)' : operative.title
+  const body = operative.text.replace(/^#{1,6}\s+.+\n/, '').trim()
+  const clipped = body.length > opts.maxChars ? `${body.slice(0, opts.maxChars).trimEnd()}…` : body
+  return [
+    `ACTIVE PLAN: "${title}" — ${STATUS_WORD[operative.status]} (submitted seq ${operative.seq}`
+      + (operative.resultSeq !== null ? `, answered seq ${operative.resultSeq}` : ', no verdict yet') + ')',
+    '',
+    clipped,
+    ...(body.length > opts.maxChars
+      // No hash claimed: at summarize time the chapter does not exist yet, and a
+      // sha we cannot verify would be a citation to nothing.
+      ? ['', '(carried truncated — the archive chapter holding this plan cites its complete text)']
+      : []),
+  ].join('\n')
+}
+
+
+/**
+ * Topics for a plan DOCUMENT: the file paths the plan names, plus its most
+ * characteristic terms. Same vocabulary as the transcript's index floor
+ * (`signature.chapterTopics`), deliberately re-derived here rather than imported —
+ * a plan is prose the agent wrote on purpose, so its own path mentions are the
+ * strongest signal about what it changes, and they must land in the same topic
+ * namespace the chapter index already uses.
+ */
+export function planTopicsOf(planText: string, maxTerms = 8): string[] {
+  const paths = new Set<string>()
+  for (const m of planText.matchAll(/([\w@.\-/]+\.[A-Za-z]{1,6})\b/g)) {
+    const p = m[1]!
+    if (p.length > 3 && !p.startsWith('http')) paths.add(p)
+  }
+  const stop = new Set(['plan', 'goal', 'tests', 'criteria', 'changes', 'subsystem', 'steps', 'summary', 'overview', 'context', 'assumptions', 'risks', 'rollback', 'acceptance', 'success', 'approach', 'implementation'])
+  const terms = new Map<string, number>()
+  for (const raw of planText.toLowerCase().split(/[^a-z0-9_+.\-/]+/)) {
+    const t = raw.replace(/^[.+\-/]+|[.+\-/]+$/g, '')
+    if (t.length < 4 || t.length > 28 || stop.has(t) || /^\d+$/.test(t)) continue
+    terms.set(t, (terms.get(t) ?? 0) + 1)
+  }
+  const top = [...terms.entries()].sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1)).slice(0, maxTerms).map(([t]) => t)
+  return [...paths, ...top]
 }

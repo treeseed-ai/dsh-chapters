@@ -130,6 +130,11 @@ export function createEnrichWiring(deps: EnrichWiringDeps): EnrichWiring {
       const file = path.join(cwd, rec.path)
       if (!fs.existsSync(file)) return { ok: false, skipped: 'chapter file absent' }
       const doc = parseChapterFile(fs.readFileSync(file, 'utf8'))
+      // A plan document is a WORK DIRECTIVE: its body is the approved text, and an
+      // annotator rewriting its summary is a paraphrase of an order (invariant 4's
+      // discipline applied to the ladder). Directives are indexed, cited and searched
+      // as they are; only transcript chapters are ever annotated.
+      if (doc.fmLines.some((l) => /^kind:\s*plan\s*$/.test(l))) return { ok: false, skipped: 'plan documents are directives — never annotated' }
       const body = doc.body
       const userChunks = body.split(/\*\*User[^*\n]*:\*\*/g).slice(1)
       const asstChunks = body.split(/\*\*Assistant[^*\n]*:\*\*/g).slice(1)

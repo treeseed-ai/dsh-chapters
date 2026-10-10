@@ -59,7 +59,14 @@ export const STUB_PLAN = [
 const TITLE_SYSTEM = 'Create a concise title'
 const PLAN_TOOL = 'exit_plan_mode'
 
-export type StubDecision = 'title' | 'plan' | 'after-approval'
+export type StubDecision =
+  | 'title'
+  | 'plan'
+  | 'after-approval'
+  /** the continuation leg: segment first… */
+  | 'segment'
+  /** …then continue, with ranges read from the segment result the REAL tool produced */
+  | { kind: 'continue'; fromSeq: number; toSeq: number }
 
 /**
  * What this turn should do, read off the request the harness ACTUALLY sent — and
@@ -73,12 +80,32 @@ export type StubDecision = 'title' | 'plan' | 'after-approval'
  * The honest signal is the shape of the transcript: a `role:'tool'` message exists
  * only once a tool has RUN, i.e. the human has answered the review.
  */
-export function decide(body: { messages?: unknown[]; [k: string]: unknown }): { kind: StubDecision } {
+const toolText = (m: unknown): string => {
+  const rec = (m ?? {}) as { role?: unknown; content?: unknown }
+  if (rec.role !== 'tool') return ''
+  return typeof rec.content === 'string' ? rec.content : JSON.stringify(rec.content ?? '')
+}
+
+export function decide(body: { messages?: unknown[]; [k: string]: unknown }): { kind: StubDecision } | { kind: 'continue'; fromSeq: number; toSeq: number } {
   const messages = Array.isArray(body.messages) ? body.messages : []
   const first = messages[0] as { content?: string } | undefined
   if (typeof first?.content === 'string' && first.content.includes(TITLE_SYSTEM)) return { kind: 'title' }
-  const answered = messages.some((m) => (m as { role?: unknown }).role === 'tool')
-  return answered ? { kind: 'after-approval' } : { kind: 'plan' }
+  const tools = messages.map(toolText).filter((t) => t !== '')
+  const lastTool = tools.length > 0 ? tools[tools.length - 1]! : ''
+  const lastUser = [...messages].reverse().map((m) => (m as { content?: unknown }).content).find((c) => typeof c === 'string') as string | undefined
+  // Continuation leg, step 2: `chapters_segment` answered, so continue with the
+  // ranges the REAL tool's ceiling allows — read from its result, never guessed.
+  if (lastTool.includes('"archiveCeiling"')) {
+    const ceiling = Number(/"archiveCeiling"\s*:\s*(\d+)/.exec(lastTool)?.[1] ?? '0')
+    if (Number.isFinite(ceiling) && ceiling > 0) return { kind: 'continue', fromSeq: 0, toSeq: ceiling }
+    return { kind: 'after-approval' }
+  }
+  // Continuation leg, step 1: the human asked for a continuation; measure first.
+  if (typeof lastUser === 'string' && /chapters_segment/.test(lastUser) && !tools.some((t) => t.includes('"childSessionId"'))) {
+    return { kind: 'segment' }
+  }
+  if (lastTool.includes('"childSessionId"')) return { kind: 'after-approval' }
+  return tools.length > 0 ? { kind: 'after-approval' } : { kind: 'plan' }
 }
 
 const chunk = (id: string, created: number, model: string, payload: Record<string, unknown>): string =>
@@ -156,6 +183,21 @@ export function startStubModel(opts: { port?: number } = {}): Promise<StubHandle
         res.write(sseToolStart(id, created, model, `stub-${randomBytes(10).toString('hex')}`, PLAN_TOOL, pieces[0]!))
         for (const p of pieces.slice(1)) res.write(sseToolArg(id, created, model, p))
         completion = Math.max(24, Math.round(args.length / 4))
+        res.write(sseFinish(id, created, model, 'tool_calls'))
+      } else if (decision.kind === 'segment') {
+        res.write(sseToolStart(id, created, model, `stub-seg-${randomBytes(6).toString('hex')}`, 'chapters_segment', '{}'))
+        completion = 8
+        res.write(sseFinish(id, created, model, 'tool_calls'))
+      } else if (decision.kind === 'continue') {
+        const args = JSON.stringify({
+          title: 'Carriage continuation',
+          handoffNote: 'Continue the approved plan; the archive carries it verbatim.',
+          chapters: [{ title: 'Planning the carriage', summary: 'the plan and its approval', startSeq: decision.fromSeq, endSeq: decision.toSeq }],
+        })
+        const pieces = argPieces(args)
+        res.write(sseToolStart(id, created, model, `stub-cont-${randomBytes(6).toString('hex')}`, 'chapters_continue', pieces[0]!))
+        for (const p of pieces.slice(1)) res.write(sseToolArg(id, created, model, p))
+        completion = Math.max(30, Math.round(args.length / 4))
         res.write(sseFinish(id, created, model, 'tool_calls'))
       } else {
         res.write(sseText(id, created, model, 'Approved — the plan is carried; nothing further to change for this journey.'))

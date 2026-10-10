@@ -21,6 +21,12 @@ export interface ArchiveFs {
 /** Number allocation through the registry, never by scanning a directory (races a concurrent sibling). */
 export interface NumberAllocator {
   reserve(key: string, count: number): Promise<number[]>
+  /**
+   * Separate allocation for plan DOCUMENTS (docs/plans-carriage.md § 11), so a plan
+   * never consumes a chapter number or reorders the chapter list. Optional: a writer
+   * without it simply emits no documents, and the chapters still cite their plans.
+   */
+  reservePlan?(key: string, count: number): Promise<number[]>
 }
 
 export interface ChapterRecord {
@@ -57,6 +63,8 @@ export interface ChapterRecord {
   plans?: import('./types.ts').PlanFact[] | undefined
   /** Folded plan-mode state at the chapter's end ('unknown' when the log never said). */
   planMode?: 'active' | 'inactive' | 'unknown' | undefined
+  /** Where each plan's own `kind: plan` document landed (docs/plans-carriage.md § 11). */
+  planDocs?: Array<{ seq: number; path: string; sha256: string }> | undefined
 }
 
 export interface WriteResult {
@@ -110,6 +118,7 @@ export async function writeArchive(input: WriteInput): Promise<WriteResult> {
 
   const records: ChapterRecord[] = []
   const artifactPathsWritten: string[] = []
+  const docPathsByChapter = new Map<string, Array<{ seq: number; path: string; sha256: string }>>()
   const seenArtifact = new Map<string, string>()   // sha256 → path, for subtree dedup
   const seenFile = new Set<string>()
 
@@ -136,6 +145,57 @@ export async function writeArchive(input: WriteInput): Promise<WriteResult> {
       await fs.write(join(treeDir, artifact.path), artifact.content)
       seenArtifact.set(artifact.sha256, artifact.path)
       artifactPathsWritten.push(join(treeDir, artifact.path))
+    }
+
+    // 2b. PLAN DOCUMENTS (docs/plans-carriage.md § 11). One file per plan in this
+    // range, written under the SAME tree as chapters so the pool transport, the
+    // mirror rehydrate and the corpus index carry them with no special casing.
+    // Numbers come from their own registry counter — never from a directory scan.
+    const docs = chapter.stats.planDocs ?? []
+    if (docs.length > 0 && allocator.reservePlan !== undefined) {
+      const numbers = await allocator.reservePlan(`${input.attemptId}#${chapterPath}`, docs.length)
+      const used = new Set<string>()
+      for (let i = 0; i < docs.length; i++) {
+        const doc = docs[i]!
+        const number = numbers[i]!
+        // `plan-NNN-` never `NNN-plan-`: a directory listing must not read like two
+        // chapters claim number 001 — chapters and plan documents count separately.
+        let name = `plan-${String(number).padStart(3, '0')}-${slugify(doc.title)}.md`
+        if (used.has(name) || seenFile.has(name)) name = name.replace(/\.md$/, `-duplicate-${number}.md`)
+        used.add(name)
+        seenFile.add(name)
+        const docPath = join(treeDir, 'chapters', name)
+        const body = `${doc.body}\n`
+        const fm = [
+          '---',
+          `kind: plan`,
+          `title: ${JSON.stringify(doc.title)}`,
+          `status: ${doc.status}`,
+          `planSeq: ${doc.seq}`,
+          `chapter: ${JSON.stringify(chapterPath)}`,
+          // The chapter's Plans block cites the content-addressed blob; the blob and
+          // this document are the SAME bytes, so the sha ties the two handles together
+          // and a reader can prove neither drifted.
+          `sha256: ${doc.sha256}`,
+          `bodySha256: ${sha256(body)}`,
+          `tokens: ${doc.estTokens}  # chars/4 estimate`,
+          `topics: [${doc.topics.map((t) => JSON.stringify(t)).join(', ')}]`,
+          `artifacts: 0`,
+          'unrenderedSeqs: []',
+          '---',
+          '',
+        ].join('\n')
+        await fs.write(docPath, fm + body)
+        const read = await fs.read(docPath)
+        if (read === undefined || read !== fm + body) {
+          warnings.push(`read-back failed for the plan document, citing the chapter only: ${docPath}`)
+          continue
+        }
+        artifactPathsWritten.push(docPath)
+        const list = docPathsByChapter.get(chapterPath) ?? []
+        list.push({ seq: doc.seq, path: docPath, sha256: doc.sha256 })
+        docPathsByChapter.set(chapterPath, list)
+      }
     }
 
     // 3. The chapter itself.
@@ -177,6 +237,10 @@ export async function writeArchive(input: WriteInput): Promise<WriteResult> {
       // be read as a fact by the notice builder.
       ...(chapter.stats.plans !== undefined && chapter.stats.plans.length > 0 ? { plans: chapter.stats.plans } : {}),
       ...(chapter.stats.planMode !== undefined && chapter.stats.planMode !== 'unknown' ? { planMode: chapter.stats.planMode } : {}),
+      ...(() => {
+        const docs = docPathsByChapter.get(chapterPath)
+        return docs !== undefined && docs.length > 0 ? { planDocs: docs } : {}
+      })(),
     })
   }
 

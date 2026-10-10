@@ -26,7 +26,8 @@ import { buildChaptersTools } from '../../src/tools.ts'
 import { makeDomainStore } from '../../src/store.ts'
 import { resolveArtifactWithMirror, buildToc, searchArtifact } from '../../src/artifact-query.ts'
 import { entryFromChapter } from '../../src/indexing.ts'
-import { searchKnowledge } from '../../src/search.ts'
+import { loadCorpus, searchKnowledge } from '../../src/search.ts'
+import { updateChapterFrontmatter } from '../../src/enrich-store.ts'
 import { DEFAULT_CLONE_DIR, planStoreToRepo } from '../../src/sync.ts'
 import { sha256 } from '../../src/render.ts'
 
@@ -236,6 +237,7 @@ test('a plan above the ceiling is announced as NOT ARCHIVED and claims no artifa
   assert.equal((r as { ok: boolean }).ok, true)
   const notice = w.noticeText()
   assert.match(notice, /ACTIVE PLAN: "Rollback plan" — PENDING/, 'the newest submission is the operative one')
+  assert.match(notice, /## Active plan/, 'continuations get the directive section')
   assert.match(notice, /NOT ARCHIVED — parent log seq 11 only/)
   const rollbackRow = notice.split('\n').find((l) => l.includes('"Rollback plan"')) ?? ''
   assert.ok(!rollbackRow.includes('full text:'), 'no artifact promised for bytes the store does not hold')
@@ -243,7 +245,7 @@ test('a plan above the ceiling is announced as NOT ARCHIVED and claims no artifa
   // A DIFFERENT title is an independent plan, not a supersession: the approved one
   // stays cited as APPROVED with its chapter and blob (supersede is same-title only).
   assert.match(notice, /"Carry session plans into chapters" — APPROVED/)
-  assert.match(notice, /\(2 submitted: 1 approved, 1 pending\)/)
+  assert.match(notice, /2 plan\(s\) submitted on the path — 1 approved, 1 pending/)
   fs.rmSync(w.tmp, { recursive: true, force: true })
 })
 
@@ -261,5 +263,78 @@ test('a plan-less session archives byte-for-byte the same archive shape as befor
   assert.ok(!/^plans: /m.test(text), 'no frontmatter line')
   assert.ok(!/^planMode: /m.test(text), 'no mode line')
   assert.ok(!w.noticeText().includes('## Plans'), 'no notice section')
+  fs.rmSync(w.tmp, { recursive: true, force: true })
+})
+
+test('the plan is QUERYABLE AS A PLAN: its own document, indexed, and searched (decision 1)', async () => {
+  const w = world(ARCHIVED)
+  const r = await w.built.chaptersContinue.execute({
+    title: 'Carriage', handoffNote: 'continue', chapters: RANGES, toolResultOverrides: [],
+  } as never, w.exec)
+  assert.equal((r as { ok: boolean }).ok, true, JSON.stringify(r))
+  const tree = path.join(w.tmp, '.dsh-chapters', 'sess-archive', 'chapters')
+  const files = fs.readdirSync(tree)
+  const docName = files.find((f) => f.startsWith('plan-'))
+  assert.ok(docName, `a plan document is written beside the chapter: ${files.join(', ')}`)
+  assert.ok(files.some((f) => /^\d{3}-/.test(f)), 'and chapters keep their own numbering')
+  const docText = fs.readFileSync(path.join(tree, docName!), 'utf8')
+  assert.match(docText, /^---\nkind: plan\n/, 'the kind leads the frontmatter')
+  assert.ok(docText.includes('# Carry session plans into chapters'), 'the body is the plan')
+
+  // The pool carries it, and the corpus index reads it as a plan — the point of the
+  // feature: "what did we plan about X" answers with the directive, not a transcript.
+  const planned = planStoreToRepo(path.join(w.tmp, '.dsh-chapters'), 'PK')
+  assert.ok(planned.some((p) => p.rel === `chapters/PK/sess-archive/${docName!}`), 'published to the pool')
+  const cloneDir = path.join(w.tmp, DEFAULT_CLONE_DIR)
+  const repoDoc = path.join(cloneDir, 'chapters', 'PK', 'sess-archive', docName!)
+  fs.mkdirSync(path.dirname(repoDoc), { recursive: true })
+  fs.copyFileSync(path.join(tree, docName!), repoDoc)
+  for (const f of files.filter((x) => /^\d{3}-/.test(x))) {
+    fs.copyFileSync(path.join(tree, f), path.join(cloneDir, 'chapters', 'PK', 'sess-archive', f))
+  }
+  const corpus = loadCorpus(cloneDir)
+  const planEntry = corpus.entries.find((e) => e.kind === 'plan')
+  assert.ok(planEntry, 'the index keeps kind: plan rather than flattening it to chapter')
+  const found = searchKnowledge(cloneDir, 'carry session plans into chapters', 800, { projectKey: 'PK' })
+  assert.ok(found.results.some((x) => x.kind === 'plan'), `search finds the plan AS a plan: ${JSON.stringify(found.results.map((x) => x.kind))}`)
+
+  // enrichment must never annotate a directive
+  const state = await w.store.get('sess-archive')
+  const rec = state.chapters[0]!
+  const docAbs = path.join(w.tmp, rec.planDocs![0]!.path)
+  const wire = await import('../../src/enrich-wire.ts')
+  assert.ok(wire, 'enrichment module loads')
+  const beforeBytes = fs.readFileSync(docAbs, 'utf8')
+  const written = updateChapterFrontmatter(docAbs, { generated: '[{by:"dsh-chapters"}]' })
+  assert.equal(written.body.includes('# Carry session plans into chapters'), true, 'a sanctioned frontmatter write keeps the body')
+  assert.equal(fs.readFileSync(docAbs, 'utf8').includes(beforeBytes.slice(beforeBytes.indexOf('\n\n') + 2).trim()), true)
+  fs.rmSync(w.tmp, { recursive: true, force: true })
+})
+
+test('a superseded plan keeps BOTH documents — evolution is history, not an overwrite', async () => {
+  const v1 = '# Carry plans\n\n## Goal\nFirst shape.\n'
+  const v2 = '# Carry plans\n\n## Goal\nSecond shape, after the feedback.\n'
+  const events: Ev[] = [
+    human(0, 'plan the carriage'),
+    ev(1, 'plan/mode', { active: true }),
+    planCall(2, v1, 'c2'), verdict(3, 'c2', 'The user chose to keep planning; their feedback: cover rollback.', true),
+    planCall(4, v2, 'c4'), verdict(5, 'c4', APPROVE),
+    asst(6, 'approved'), ev(7, 'turn/end', {}),
+  ]
+  const w = world(events)
+  const r = await w.built.chaptersContinue.execute({
+    title: 'Evolution', handoffNote: 'go', chapters: [{ title: 'Planning', summary: 's', startSeq: 0, endSeq: 7 }], toolResultOverrides: [],
+  } as never, w.exec)
+  assert.equal((r as { ok: boolean }).ok, true, JSON.stringify(r))
+  const tree = path.join(w.tmp, '.dsh-chapters', 'sess-archive', 'chapters')
+  const docs = fs.readdirSync(tree).filter((f) => f.startsWith('plan-')).sort()
+  assert.equal(docs.length, 2, 'both submissions survive as documents')
+  const bodies = docs.map((f) => fs.readFileSync(path.join(tree, f), 'utf8'))
+  assert.match(bodies[0]!, /^status: superseded$/m, 'the first records what happened to it')
+  assert.match(bodies[1]!, /^status: approved$/m, 'the second carries the verdict')
+  assert.ok(!bodies[0]!.includes('Second shape'), 'nothing was rewritten in place')
+  const state = await w.store.get('sess-archive')
+  assert.equal(state.nextPlanNumber, 3, 'two plan numbers spent, chapter numbering untouched')
+  assert.equal(state.nextChapterNumber, 2)
   fs.rmSync(w.tmp, { recursive: true, force: true })
 })

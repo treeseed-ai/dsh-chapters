@@ -25,6 +25,13 @@ export interface SessionState {
   rootSession: string
   /** Next unallocated chapter number for THIS author session. */
   nextChapterNumber: number
+  /**
+   * Next unallocated PLAN-DOCUMENT number for this author session. Its own counter so
+   * plan documents never consume a chapter number or reorder the chapter list, while
+   * still being allocated through the registry (never by scanning a directory — a
+   * concurrent sibling must not be able to pick the same name).
+   */
+  nextPlanNumber: number
   chapters: ChapterRecord[]
   /** attemptKey -> numbers, so an idempotent retry reuses rather than duplicates. */
   reservations: Record<string, number[]>
@@ -53,6 +60,7 @@ export const freshSession = (sessionId: string): SessionState => ({
   parentSession: null,
   rootSession: sessionId,
   nextChapterNumber: 1,
+  nextPlanNumber: 1,
   collections: [],
   chapters: [],
   reservations: {},
@@ -114,6 +122,33 @@ export function reserve(state: SessionState, attemptId: string, count: number): 
       ...state,
       nextChapterNumber: state.nextChapterNumber + count,
       reservations: { ...state.reservations, [attemptId]: numbers },
+    },
+    numbers,
+  }
+}
+/** The same allocation rule for plan documents, on its own counter. */
+export function reservePlan(
+  state: SessionState,
+  attemptId: string,
+  count: number,
+): { state: SessionState; numbers: number[] } {
+  if (count <= 0 || !Number.isInteger(count)) {
+    throw new Error(`reservePlan: count must be a positive integer, got ${count}`)
+  }
+  const key = `plan:${attemptId}`
+  const existing = state.reservations[key]
+  if (existing !== undefined) {
+    if (existing.length !== count) {
+      throw new Error(`reservePlan: attempt "${key}" already holds ${existing.length} numbers, requested ${count}`)
+    }
+    return { state, numbers: [...existing] }
+  }
+  const numbers = Array.from({ length: count }, (_, i) => state.nextPlanNumber + i)
+  return {
+    state: {
+      ...state,
+      nextPlanNumber: state.nextPlanNumber + count,
+      reservations: { ...state.reservations, [key]: numbers },
     },
     numbers,
   }

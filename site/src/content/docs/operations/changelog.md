@@ -27,6 +27,58 @@ notice built from that path — unbounded, and un-costed until the budget gate r
 - Browser-plane ledger for the eight-project chain (`npm run coverage:e2e`): 79.92 / 64.64 / 76.28 —
   reported, not tuned; the ≥85 gate is the deterministic one.
 
+### 0.1.9 — 2026-10 · plans become directives the agent keeps, searches, and never overwrites
+
+The four deferred questions about plan carriage came back answered, and the answer that
+changed the design was a distinction: **a continuation extends the same stream of work, a fork
+splits one off.** Everything below follows from taking that seriously.
+
+- **Plan mode now survives a continuation.** A child created by `chapters_continue` from a session
+  that was still planning is seeded with its own `plan/mode {active:true}` event, so it genuinely IS
+  in plan mode — gated, not merely told. This was measured before it was built: the installed kernel
+  accepts a two-event seed in the exact production header shape (`0:user/message → 1:plan/mode →
+  2:session/end-seed`, log-only, surface unchanged), and the host's own plan projection folds it to
+  `active: true` where the one-event control does not. It is deliberately NOT seeded for a branch,
+  and NOT seeded after an approval — approving a plan exits plan mode, so that child's job is to
+  implement, not to keep planning. `planSeedMode` (default on) is the switch.
+- **The notice reads the intent.** A continuation gets `## Active plan` — the operative directive, its
+  verdict, its chapter, its artifact and its document — plus `## Previous plans on this path`, explicitly
+  marked as history rather than orders. A branch gets **zero bytes**: its plans are already in the chapters
+  the table of contents cites.
+- **A plan is now a document of a third kind.** Each submission is written as `kind: plan` beside its
+  chapter (`plan-NNN-<slug>.md`), carrying its status, the chapter that cites it, and the blob sha of the
+  same bytes. It sits in `chapters/` on purpose: the pool transport, the mirror rehydrate and the corpus
+  index pick it up unchanged, so `chapters_search` answers *"what did we plan about X"* with the plan
+  itself rather than the transcript that happens to quote it. Its numbering has its own registry counter,
+  so a plan can never consume a chapter number or reorder the TOC, and superseding never overwrites: the
+  v1 document stays, with its history intact.
+- **Directives are never paraphrased.** The enrichment ladder skips `kind: plan` documents — the guard
+  reads the file's own frontmatter, so renaming cannot disarm it. A summary of an order is the drift this
+  store exists to prevent.
+- **The operative plan is carried into every compaction checkpoint**, the way the plot is, bounded and
+  with the truncation announced — because shadowing can hide the chapter that holds it, and a directive
+  that survives only in a file the agent may never open is a directive it drifts from. Session-wide,
+  newest-first: "what am I building" is not a property of the region being condensed.
+- **One named exception to the injection screen.** The harness's own *"The user switched this session to
+  plan mode."* is archived verbatim — it is a fact about this session, not another project's private
+  instruction file. Matched by plugin AND form, so it cannot widen by accident; instruction files, runtime
+  snapshots and skill catalogs still screen, and the strict predicate that drives topic signatures and the
+  `(N msgs)` counts is untouched on purpose.
+- **The browser journey now has two legs**, because a distinction that is only described is not tested:
+  one session plans, approves, then (1) *continues* via `chapters_segment` → `chapters_continue` — that
+  child's single seeded message carries `## Active plan`, the plan's document path, and deliberately **no
+  seeded gate**, since approving a plan exits plan mode and gating that child would block the work it was
+  told to do; then (2) *branches* via the fork button — that child carries **no** directive section at all
+  while still citing the archive. The scripted upstream reads the ceiling from the real tool's own result
+  rather than from a hard-coded number, so the ranges are the tool's.
+- Ledger: **582 deterministic rows, zero skips**, 98.05 / 86.44 / 93.67 against the ≥85 gate; verify.md
+  rows P12–P17; the knowledge record carries the corpus amendment (`Amendment 2026-10-10 — plans are
+  documents of a third kind`), and the design record its §§ 9–13.
+- And one lesson worth its own line, because it is the reason the acceptance layer exists: distilling the
+  journey caught a bug in **our own test reader** — session logs are JSONL, so a payload's quotes arrive
+  escaped and a regex over the raw line silently never matches. An assertion that cannot match is worse
+  than one that fails: it looks like a pass. The spec now parses the event before asserting on it.
+
 ### 0.1.7 — 2026-10 · the plans journey joins the acceptance chain, and the browser corrects three beliefs
 
 0.1.6 shipped session-plan carriage with the browser plane written but never executed. It executes now, as

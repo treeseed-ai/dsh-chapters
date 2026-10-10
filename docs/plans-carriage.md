@@ -301,7 +301,8 @@ Every item below was an assumption the deterministic plane had encoded — and t
 | 4 | `plansSection` in `assembleNotice` + wiring + config register | done — P5/P8/P9 |
 | 5 | Site docs (§9 anatomy, §16 tools, §17 configuration, §18 notice) | done in the same release |
 | — | Seven-segment tape replay | green WITHOUT re-recording (2026-10-09, `npm run test:e2e:replay`, EXIT=0) |
-| — | `plans` browser journey | LANDED as the eighth chain project (2026-10-10): `tests/e2e/plans.spec.ts` passes in 13 s against `tests/fixtures/model-tape/plans/`, and the full eight-project chain is `CHAIN_EXIT=0` / 9 tests. Its tape is scripted-upstream distilled — see § Tapes and `PROVENANCE.md` |
+| — | `plans` browser journey | LANDED as the eighth chain project (2026-10-10) and immediately **extended to two legs** so § 12's continue-vs-branch distinction is tested, not described: a `chapters_segment`→`chapters_continue` continuation (asserts `## Active plan`, the plan's document path, and NO seeded gate because approving a plan exits plan mode) and a fork-button branch (asserts **no** directive section, archive still cited). Replays in 17 s on a committed tape; the eight-project chain re-runs for the 0.1.9 ship. Its tape is scripted-upstream distilled — see § Tapes and `PROVENANCE.md` |
+| 6 | Second-round decisions (§§ 9–13): intent-aware notice, seeded plan mode for continuations, `kind: plan` documents, checkpoint carriage, the one injection-screen exception | built 2026-10-10 — verify.md P12–P17; 580 deterministic rows green, gate 98.05 / 86.44 / 93.67 |
 | — | Follow-up, not blocking | re-record the `plans` tape from the live model — ATTEMPTED TWICE on 2026-10-10 and both times the model container dropped the stream mid-turn (`TRANSPORT`), one after 15 minutes with zero tool calls; `PROVENANCE.md` says what to check first. The carriage evidence does not change, only the claim about model behaviour |
 | — | Browser-plane ledger | `npm run coverage:e2e` over all EIGHT replays: **79.92 stmts / 64.64 branch / 76.28 funcs** — the non-gated plane, reported rather than tuned (the deterministic gate is the enforced one) |
 
@@ -335,12 +336,13 @@ with no tape re-recorded.
 
 ## Deferred (human decisions, not ours)
 
-- **`kind: plan` corpus documents** — makes plans first-class, topic-indexed, `chapters_search`-reachable
-  like rules; costs a chapter number per plan and is a `docs/knowledge-repo.md` amendment.
-- **Seeding `plan/mode`** so a continuation is genuinely *in* plan mode (needs a probe against the
-  seed contract + the header effect, and a policy answer: should children be gated?).
-- **Per-message anchoring** — a plan is the most natural anchor to fork from; `deriveRanges` already
-  supports any anchor, the button still forks at conversation end.
+- ~~`kind: plan` corpus documents~~ **decided and built** (§ 11).
+- ~~Seeding `plan/mode`~~ **decided and built** (§ 10), for continuations only.
+- ~~Whether the mode-switch notice stays screened~~ **decided and built** (§ 13).
+- **Per-message anchoring** — still open, and decision 3 clarified rather than settled it: a fork
+  splits the task, so the interesting anchor is *"branch from THIS plan"*, which `deriveRanges`
+  already supports mechanically but the button still forks at conversation end. Needs the UI
+  affordance and an answer on how the child is told what it did not inherit.
 - Whether the `plan-mode` mode-switch *notice* should stay screened out of chapters (decision 2026-09-21
   says injected context is not conversation; a human-initiated mode flip arguably is). Small text, but
   it is the one place the blanket screen drops something a reader might want.
@@ -352,3 +354,116 @@ with no tape re-recorded.
   chapters, the TOC, and the artifact store; and why the token meter is never exempted.
 ```
 plus a find-fast row `plans in chapters / active plan in TOC → docs/plans-carriage.md (+ site §§ notice, archive anatomy)`.
+
+
+## Decisions taken (second round, 2026-10-10) — all four deferred items resolved
+
+The human answered the deferred list, and #2 came with a distinction the first round
+had not drawn: **a continuation extends the same stream of work; a fork splits it.**
+That single difference decides what each child is told about the operative plan, and
+it is now the axis the whole carriage hangs on.
+
+| # | Decision | What it means in code |
+|---|---|---|
+| 1 | **`kind: plan` documents — yes** | each plan becomes its own indexed document (§ 11) |
+| 2 | **Seed plan mode into children — yes, but only for continuations** | `plan/mode {active:true}` as the child's own second seed event (§ 10), `intent === 'continue'` only |
+| 3 | **Fork = split the task; compaction/continuation = keep it** | `PlanIntent` selects the notice shape: `## Active plan` + `## Previous plans` for a continuation, NOTHING for a branch (§ 12) |
+| 4 | **Targeted exemption for the mode-switch notice — yes** | `isSessionStateNarration` archives it verbatim; the general screen is unchanged (§ 13) |
+
+Plus, from the same message: *"I support anything that is going to keep the agent anchored to
+the current task"* — which is why the operative plan is now carried into every **in-place
+checkpoint** as well, the way the plot is (§ 9).
+
+### 9. The checkpoint carries the operative plan (the plot mechanism, applied to directives)
+
+`extractPlot` proved the pattern: state that must survive a shadowed region travels *inside*
+the checkpoint text, bounded, with its provenance. `carryActivePlan` does the same for plans —
+with one deliberate difference in **scope**: the plot reads the region being condensed, while
+the operative plan is chosen **session-wide, newest submission first**, because "what am I
+building" is not a property of the region being hidden. `planSummarize` prefixes it on both the
+composed and the legacy path.
+
+Two honesty notes recorded rather than smoothed:
+- **No sha is cited in the checkpoint.** At summarize time the chapter does not exist yet, and
+  an unverifiable citation is worse than none — the carry says "the archive chapter holding
+  this plan cites its complete text" instead.
+- **Truncation is announced** (`carried truncated — …`), never silent, even though the
+  bound (`planCheckpointChars`, 1600) is a display economy choice and the archive holds all.
+- The pre-existing asymmetry that `plot` is prefixed only on the legacy path was **left
+  alone**: changing it would rewrite checkpoint bytes for every plot-carrying session, i.e. the
+  committed tapes. Plans are new, so carrying them on both paths costs no re-record.
+
+### 10. Seeding plan mode — measured against the installed kernel, not assumed
+
+The claim needed proof, because invariant 2 pins the seed as *one synthetic event at seq 0*.
+Probed directly against the shipped `Session` (`0.1.5-rc.1`) in the exact production header
+shape (`isSeeded:false`, `inheritedEventCount:0`):
+
+| probe | result |
+|---|---|
+| is `plan/mode` a kernel-known event type? | **yes** — it is in `KNOWN_SESSION_EVENT_TYPES` (56 types) |
+| seed `[notice@0, plan/mode@1]` accepted? | **yes** — log becomes `0:user/message → 1:plan/mode → 2:session/end-seed` |
+| is it surface-visible? | **no** — surface nodes stay `[0]`, matching the host's own log-only `plan/mode` |
+| does the HOST's own projection fold it? | **yes** — `planProjectionDefinition.apply` over the child's log yields `active: true`; the one-event control yields `active: false` |
+
+So the seeded child is genuinely gated, not merely told. The surface validator narrows by type
+rather than whitelisting (`assertSessionEventEnvelope` checks the envelope and continuity),
+which is why this works without touching the kernel. **Invariant 2 is intact in substance**: the
+seeded event is a synthetic fact this plugin authors about the boundary, never a slice of the
+parent's log — the rule's letter ("exactly one event") is amended here and in AGENTS, and the
+amendment is only safe because it was measured.
+
+Seeding is refused — correctly, not defensively — when the fold says inactive, which is the
+normal case after an approval: **approving a plan exits plan mode**, so a continuation whose plan
+was approved gets `## Active plan … APPROVED` as a work order to implement, and no gate.
+
+### 11. Plans as `kind: plan` documents
+
+A plan is now also a file of its own: `<storeRoot>/<rootSession>/chapters/plan-<NNN>-<slug>.md`,
+frontmatter leading with `kind: plan`, then `status`, `planSeq`, the citing `chapter`, `sha256`
+(the blob's hash — the same bytes, so the two handles cannot drift silently), `bodySha256`,
+`tokens`, `topics`. The body is the plan and nothing else: no transcript, no wrapper.
+
+Choices worth their reasons:
+- **In `chapters/`, not a new tree.** The pool transport, the mirror rehydrate (0.1.5) and the
+  corpus index then carry plan documents with zero special casing. `loadCorpus` no longer
+  flattens a file's own kind back to the directory's, so `kind: plan` survives indexing and
+  `chapters_search` can answer *"what did we plan about X"* with the directive itself.
+- **Its own registry counter** (`nextPlanNumber`, allocated through `reservePlan` under a
+  distinct attempt key). A plan never consumes a chapter number or reorders the TOC, and names
+  are still allocated through the registry rather than by scanning a directory — so a
+  concurrent sibling cannot pick the same file. `plan-NNN-` (not `NNN-plan-`) so a listing
+  never reads as two chapters claiming 001.
+- **The blob stays.** Two handles, one purpose each: the content-addressed blob is what a
+  chapter cites without knowing any number, and what `chapters_artifact` takes (it accepts a
+  bare sha); the document is what the index searches and what a human browses. Same bytes, and
+  the record ties them with one sha.
+- **Enrichment skips plan documents.** The ladder annotates narrative; a directive's body is
+  approved text, and paraphrasing an order is precisely the drift this store exists to prevent.
+  Guarded on the frontmatter `kind`, not the filename, so renaming cannot disarm it.
+- **Superseded plans keep both documents.** Evolution is history: the v1 file says
+  `status: superseded` and is never rewritten, the v2 file says `approved`.
+
+### 12. The notice is intent-aware
+
+`buildPlansSection(…, { intent, modeActive, seeded })`:
+- **`continue`** → `## Active plan` (the operative directive, with its verdict, chapter, blob
+  and document paths) and, only when earlier submissions exist, `## Previous plans on this
+  path` marked *history — cited for evolution and status, not directives*. If plan mode was
+  seeded, the block says the directive is live and implementation waits for an approval; if
+  it was not, the child is told plainly that it starts outside plan mode.
+- **`branch`** → **empty string, zero bytes.** A fork splits off a new direction; re-asserting
+  the parent's directive into the branch would be an order nobody gave. The plans are still
+  fully present — in the chapters the TOC already cites, and as searchable `kind: plan`
+  documents.
+
+### 13. The one exception to the injection screen
+
+`isSessionStateNarration` matches `source.kind === 'plugin' && plugin === 'plan-mode' &&
+form === 'notice'` — the harness's own "The user switched this session to plan mode." — and
+`screenConversation` archives it verbatim instead of marking it omitted. Named by plugin AND
+form, so it cannot widen by accident; an instruction file or a runtime snapshot arriving under
+any other shape still screens. `isHumanAuthored` deliberately stays strict, because the topic-
+signature layer is what decides chapter boundaries and the r28 lesson was that injected text
+poisons that signal. The archive gains a fact about the session; the index gains nothing it
+should not have.

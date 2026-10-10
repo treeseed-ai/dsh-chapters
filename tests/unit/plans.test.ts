@@ -184,7 +184,7 @@ test('an approved operative plan calls out the artifact and forbids re-planning 
     chapterNumber: 4, chapterPath: '.dsh-chapters/root/chapters/004-x.md',
     artifactPath: '.dsh-chapters/root/artifacts/8f/8f3a1c9d.txt', sha256: '8f3a1c9d'.repeat(8), estTokens: 4600,
   })])
-  assert.match(text, /^## Plans on this path/m)
+  assert.match(text, /^## Active plan/m)
   assert.match(text, /ACTIVE PLAN: "Carry session plans into chapters" — APPROVED/)
   assert.match(text, /ch\. 4 \.dsh-chapters\/root\/chapters\/004-x\.md/)
   assert.match(text, /full text: \.dsh-chapters\/root\/artifacts\/8f\/8f3a1c9d\.txt/)
@@ -211,7 +211,7 @@ test('superseded submissions list chronologically under the operative one', () =
   ])
   assert.match(text, /ACTIVE PLAN: "Other plan" — REJECTED/)
   assert.equal(text.split('\n').filter((l) => l.startsWith('- ')).length, 3, 'ACTIVE + both earlier rows')
-  assert.match(text, /3 submitted: 1 superseded, 1 approved, 1 rejected/, 'the tally states what the path holds')
+  assert.match(text, /3 plan\(s\) submitted on the path — 1 superseded, 1 approved, 1 rejected/, 'the tally states what the path holds')
 })
 
 test('a supersession of the OPERATIVE title is not repeated as its own line', () => {
@@ -223,10 +223,20 @@ test('a supersession of the OPERATIVE title is not repeated as its own line', ()
   assert.equal(text.split('\n').filter((l) => l.startsWith('- ')).length, 1, 'the operative supersedes its own earlier draft silently')
 })
 
-test('a session archived mid-plan-mode says the child starts outside it (inherited mode is a host no)', () => {
-  const text = buildPlansSection([row({ seq: 5, title: 'x', status: 'pending' })], { modeActive: true })
-  assert.match(text, /Plan mode was ACTIVE at the end of the archived span/)
-  assert.match(text, /this child starts OUTSIDE it/)
+test('archived mid plan mode, NOT seeded: the child is told plainly it starts outside it', () => {
+  const text = buildPlansSection([row({ seq: 5, title: 'x', status: 'pending' })], { modeActive: true, intent: 'continue' })
+  assert.match(text, /this child starts OUTSIDE plan mode/)
+})
+
+test('seeded continuation: the directive is live, and the child says so', () => {
+  const text = buildPlansSection([row({ seq: 5, title: 'x', status: 'pending' })], { modeActive: true, intent: 'continue', seeded: true })
+  assert.match(text, /Plan mode is ACTIVE in this session — the directive above is live, not history/)
+  assert.match(text, /implementation begins only after that approval/)
+  assert.ok(!text.includes('starts OUTSIDE'), 'no contradiction left in the text')
+})
+
+test('a BRANCH gets no plans section at all — its plans are history (decision 2026-10-10)', () => {
+  assert.equal(buildPlansSection([row({ seq: 5, title: 'x', status: 'approved' })], { intent: 'branch' }), '')
 })
 
 test('rows arrive in CAUSAL order and the LAST of them is operative — never re-sorted by seq', () => {
@@ -267,4 +277,19 @@ test('the outline is a bounded index that admits when it truncated', () => {
 
 test('an outline under the cap gains no truncation note', () => {
   assert.deepEqual(planOutlineOf(PLAN).outline, ['Goal', 'Success criteria', 'Details'])
+})
+
+test('carryActivePlan makes the newest submission operative, bounded and honestly cited', async () => {
+  const { carryActivePlan, detectPlans } = await import('../../src/plans.ts')
+  const call = (seq, plan, callId) => ({ type: 'tool/call', seq, data: { callId, name: 'exit_plan_mode', arguments: { plan } } })
+  const answer = (seq, callId) => ({ type: 'tool/result', seq, data: { message: { source: { kind: 'tool', callId }, content: [{ type: 'tool-result', toolCallId: callId, isError: false, content: [{ type: 'text', text: '{"approved":true} Plan approved' }] }] } } })
+  const long = `# First plan\n\n## Goal\n${'detail '.repeat(900)}\n`
+  const newer = '# Newer plan\n\n## Goal\nShort.\n'
+  const plans = detectPlans([call(1, long, 'a'), answer(2, 'a'), call(3, newer, 'b'), answer(4, 'b')]).plans
+  const carry = carryActivePlan(plans, { maxChars: 200 })!
+  assert.match(carry, /^ACTIVE PLAN: "Newer plan" — APPROVED/)
+  assert.ok(!carry.includes('First plan'), 'only the operative plan is carried')
+  const truncated = carryActivePlan([plans[0]!], { maxChars: 120 })!
+  assert.match(truncated, /carried truncated — the archive chapter holding this plan cites its complete text/)
+  assert.ok(truncated.length < 400, `bounded (${truncated.length})`)
 })

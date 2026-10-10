@@ -21,7 +21,7 @@ import { defineDomain, domainTable } from '@deepseek-ai/dsh-storage-domain'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname } from 'node:path'
 import type { ArchiveFs, ChapterRecord, NumberAllocator } from './archive.ts'
-import { appendChapters, freshSession, reserve, type SessionState } from './registry.ts'
+import { appendChapters, freshSession, reserve, reservePlan as reservePlanNumber, type SessionState } from './registry.ts'
 
 // ---------------------------------------------------------------- schemas + spec
 
@@ -60,6 +60,12 @@ const chapterRecordSchema = z.object({
     resultSeq: z.number().int().nonnegative().nullable(),
   })).optional(),
   planMode: z.enum(['active', 'inactive', 'unknown']).optional(),
+  // Where each plan's own `kind: plan` document landed.
+  planDocs: z.array(z.object({
+    seq: z.number().int().nonnegative(),
+    path: z.string().min(1),
+    sha256: z.string().min(16),
+  })).optional(),
 })
 
 const collectionSchema = z.object({
@@ -75,6 +81,9 @@ const sessionStateSchema = z.object({
   parentSession: z.string().nullable(),
   rootSession: z.string().min(1),
   nextChapterNumber: z.number().int().positive(),
+  // Plan-document numbering (plans-carriage § 11). Optional with a default so a
+  // stored row from before the feature parses unchanged.
+  nextPlanNumber: z.number().int().positive().default(1),
   chapters: z.array(chapterRecordSchema),
   reservations: z.record(z.string(), z.array(z.number().int().positive())).default({}),
   plans: z.record(z.string(), z.object({
@@ -233,6 +242,12 @@ export function makeAllocator(store: RegistryStore, sessionId: string): NumberAl
     async reserve(attemptId: string, count: number): Promise<number[]> {
       const state = await store.get(sessionId)
       const next = reserve(state, attemptId, count)
+      await store.put(sessionId, next.state)
+      return next.numbers
+    },
+    async reservePlan(attemptId: string, count: number): Promise<number[]> {
+      const state = await store.get(sessionId)
+      const next = reservePlanNumber(state, attemptId, count)
       await store.put(sessionId, next.state)
       return next.numbers
     },

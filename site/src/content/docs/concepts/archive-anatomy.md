@@ -13,8 +13,17 @@ Three durable layers, in three different places on purpose:
   artifacts/<aa>/<sha256>.txt   # store-root blobs — content-addressed oversized tool results, shared across every session
   <root-session>/
     chapters/001-<slug>.md      # verbatim body + YAML frontmatter (title, seq range, body hash, topics)
+    chapters/plan-001-<slug>.md # a session PLAN as its own document (kind: plan) — searchable as a plan
     artifacts/<aa>/<sha256>.txt # the same content-addressed scheme, one level down: what a CHAPTER defers
 ```
+
+Three kinds of document, one store. Transcript chapters carry the conversation verbatim; **plan
+documents** carry a submitted plan as a first-class, indexed file (`kind: plan`, its status, the
+chapter that cites it, the blob sha holding the same bytes); curated **rules** live apart under
+`rules/` because they are authored, not archived. Plan documents sit in `chapters/` deliberately: the
+pool transport, the mirror rehydrate and the corpus index then carry them with no special casing, and
+`chapters_search` answers *"what did we plan about X"* with the plan itself. Their numbering is its own
+(`plan-NNN-`), so a plan can never consume a chapter number or reorder the table of contents.
 
 Two directories, one citation form. A chapter prints `artifacts/aa/<sha>.txt` whether the blob sits at the
 store root (arrival-time stubbing) or inside its own session tree (archive-time deferral, and every session
@@ -48,7 +57,9 @@ That last line is measured, not obvious: **approving a plan exits plan mode**, a
 The head is bounded; **the artifact is not** — every byte of the plan is stored, always, and the same
 content-addressed dedup that serves oversized results serves it. `pending` (a review nobody answered) is a
 status of its own and never prints as approval, and a `plan/mode` event is read and folded into
-`planMode:` rather than dropped silently. The frontmatter declares what the block claims
+`planMode:` rather than dropped silently. The frontmatter declares what the block claims, and the
+plan's complete text is written twice on purpose — once as the content-addressed blob a chapter can
+cite without knowing any number, once as the `kind: plan` document the index can rank.
 (`plans: [412:approved:8f3a1c9d]`), and the registry record carries the structured facts the child's notice
 is built from. Why the whole design looks like this is in the repo's `docs/plans-carriage.md`.
 

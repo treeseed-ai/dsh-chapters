@@ -15,22 +15,31 @@ Project: <slug> · <projectKey>                       ← only when a knowledge 
 <CORE RULES>                                         ← this machine's approved rules, verbatim; over budget
                                                        the continuation refuses, never clips
 
-## Plans on this path
-(3 submitted: 1 approved, 1 rejected, 1 pending)
+## Active plan
+(this continuation keeps the same stream of work: 3 plan(s) submitted on the path — …)
 - ACTIVE PLAN: "Carry plans into chapters" — APPROVED
   (ch. 4 · full text: .dsh-chapters/<root>/artifacts/8f/8f3….txt · ~4.6K tok)
   Read the full text with chapters_artifact before implementing. Do NOT re-plan from recall.
+
+## Previous plans on this path
+(history — cited for evolution and status, not directives)
 - "Carry plans into chapters" — REJECTED — the user sent it back with feedback (ch. 4 …)
-- "Rollback plan" — PENDING — the review was never answered (NOT ARCHIVED — parent log seq 11 only)
-                                                     ← ONLY when the path holds a plan; a session that never
-                                                       entered plan mode gets ZERO bytes here, so its
-                                                       notice is identical to before this existed. The
-                                                       NEWEST submission is the operative one; superseded
-                                                       drafts stay listed, chronological; and anything that
-                                                       is not APPROVED says so to the child's face — a plan
-                                                       nobody answered must never be implemented. A review
-                                                       still open sits in an unfinished turn, above the
-                                                       archive ceiling: it is named as live and un-stored
+
+- "Rollback plan" — PENDING … (NOT ARCHIVED — parent log seq 11 only)
+                                                     ← the ACTIVE block appears only for a CONTINUATION
+                                                       (`chapters_continue`): same stream of work, so the
+                                                       operative plan stays a live directive and plan mode
+                                                       is SEEDED into the child when the archived span was
+                                                       still planning. A BRANCH (`chapters_fork`, the fork
+                                                       button) splits a new direction, so it gets ZERO bytes
+                                                       here — the plans remain, but as history: in the cited
+                                                       chapters and as searchable `kind: plan` documents.
+                                                       A continuation whose plan was already approved is NOT
+                                                       seeded either — approving a plan exits plan mode, and
+                                                       that child's job is to implement. Anything not
+                                                       APPROVED says so to the child's face; a review left
+                                                       open sits in an unfinished turn, above the archive
+                                                       ceiling, and is named live and un-stored
 
 This session continues an archived conversation. Chapters are verbatim Markdown in the workspace;
 every byte remains retrievable — inline, or at artifact paths cited inside a chapter. Read a chapter
@@ -65,7 +74,9 @@ A plan is the highest-value thing a continuation can inherit, and the one thing 
 `exit_plan_mode` puts the whole design in a tool-call argument, and DSH does not let a created session
 inherit plan mode. So the operative plan's title, verdict, chapter and artifact path ride above the fold —
 ~40 tokens that stand between a child and the two failure modes: implementing something nobody approved, or
-re-planning from recall. Its full bytes stay in the store (see [§9](/concepts/archive-anatomy/)); the notice
+re-planning from recall. Seeding is measured, not assumed — the kernel accepts the two-event seed and the host's
+own plan projection folds it to active, so a seeded child really is gated (see the repo's `docs/plans-carriage.md`
+§ 10 for the probe). Its full bytes stay in the store (see [§9](/concepts/archive-anatomy/)); the notice
 names where they are, the budget counts every one of them, and an over-budget continuation still refuses
 rather than clipping a single line.
 

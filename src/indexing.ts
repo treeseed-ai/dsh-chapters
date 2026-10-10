@@ -15,7 +15,9 @@ export interface IndexEntry {
   path: string
   title: string
   topics: string[]
-  kind: 'chapter' | 'rule'
+  /** `plan` comes from the file's OWN `kind:` frontmatter (plans live beside
+   * chapters in the store), so it is never inferred from the directory. */
+  kind: 'chapter' | 'rule' | 'plan'
   /** P3: rule category (chapters omit). */
   category?: string
   /** Milliseconds; missing → sorts first within its topic shard. */
@@ -144,7 +146,10 @@ export function entryFromChapter(path: string, text: string, mtime?: number): In
     path,
     title: typeof fm.title === 'string' ? fm.title : path,
     topics: Array.isArray(topics) ? topics : [],
-    kind: fm.kind === 'rule' ? 'rule' : 'chapter',
+    // Three document kinds share the one store: transcript chapters, curated rules,
+    // and plan DIRECTIVES (`kind: plan`, docs/plans-carriage.md § 11). A plan document
+    // is searchable AS A PLAN, which is the whole point of giving it a kind.
+    kind: fm.kind === 'rule' ? 'rule' : fm.kind === 'plan' ? 'plan' : 'chapter',
     ...(typeof fm.category === 'string' && fm.category !== '' ? { category: fm.category } : {}),
     ...(mtime !== undefined ? { mtime } : {}),
   }

@@ -20,7 +20,7 @@ import { stitchFragments } from './indexing.ts'
 export interface SearchResult {
   score: number
   date: string
-  kind: 'chapter' | 'rule'
+  kind: 'chapter' | 'rule' | 'plan'
   title: string
   path: string
   /** S5 stitch view: every member file behind a coherented entry. */
@@ -90,7 +90,10 @@ export function loadCorpus(cloneDir: string): { entries: IndexEntry[]; summaries
           const relPath = rel === '' ? e.name : path.join(rel, e.name)
           const text = fs.readFileSync(p, 'utf8')
           const entry = entryFromChapter(path.join(top, relPath), text, fs.statSync(p).mtimeMs)
-          entries.push({ ...entry, kind })
+          // A plan document declares its own kind in frontmatter and lives in the
+          // chapters/ tree — the directory must not flatten it back to 'chapter',
+          // or "search the plans" would be impossible (plans-carriage § 11).
+          entries.push({ ...entry, kind: entry.kind === 'plan' ? 'plan' : kind })
           const fm = /^---[\s\S]*?summary:\s*(.*)$/m.exec(text)
           if (fm !== null) summaries.set(entry.path, fm[1]!.trim().replace(/^"|"$/g, ''))
           // P3: rules carry no summary field — their BODY is the scannable

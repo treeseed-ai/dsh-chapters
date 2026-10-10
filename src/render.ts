@@ -21,9 +21,9 @@ import { createHash } from 'node:crypto'
 import { DEFAULT_REDACTIONS, redactText } from './redact.ts'
 import { omittedMarker, screenConversation, stripReminderSpans } from './injections.ts'
 import { blocksOf, callArgsText, resultCallId, sameCall, textOfBlocks, toolResultText } from './log-shape.ts'
-import { detectPlans, PLAN_TOOL, type PlanFact } from './plans.ts'
+import { detectPlans, planTopicsOf, PLAN_TOOL, type PlanFact } from './plans.ts'
 import type {
-  ArtifactRef, ChapterRange, RenderConfig, RenderedChapter,
+  ArtifactRef, ChapterRange, PlanDocFile, RenderConfig, RenderedChapter,
   SessionEventLike, ToolResultCandidate, ToolResultOverride,
 } from './types.ts'
 
@@ -308,6 +308,7 @@ export function renderChapter(
   // that never entered plan mode gains ZERO extra bytes, which is what keeps the
   // model tapes byte-identical (verify.md P8).
   const planFacts: PlanFact[] = []
+  const planDocs: PlanDocFile[] = []
   const flipsInRange = scan.flips.filter((f) => f.seq >= range.startSeq && f.seq <= range.endSeq)
   if (chapterPlans.length > 0 || flipsInRange.length > 0) {
     body.push('', '---', '', '## Plans in this chapter', '')
@@ -341,6 +342,20 @@ export function renderChapter(
       if (p.status === 'superseded') {
         body.push('- this submission was superseded by a later one of the same plan — the newest is operative')
       }
+      // The plan ALSO becomes a document of its own (docs/plans-carriage.md § 11):
+      // indexed by topic, searchable as a plan, and addressable across sessions —
+      // which is what "how did this plan evolve, and what happened to it" needs.
+      // The artifact stays the content-addressed retrieval handle; the document is
+      // the queryable record. Same bytes, two addressing roles, one write each.
+      planDocs.push({
+        seq: p.seq,
+        title: p.title,
+        status: p.status,
+        body: planBody,
+        sha256: ref.sha256,
+        topics: [...new Set(planTopicsOf(planBody))],
+        estTokens: tokens,
+      })
       body.push('')
     }
     for (const f of flipsInRange) {
@@ -395,6 +410,7 @@ export function renderChapter(
       overTarget: estimatedTokens > config.chapterTokenTarget,
       unrenderedSeqs,
       plans: planFacts,
+      planDocs,
       planMode: modeAtEnd,
       invocationArtifacts,
     },

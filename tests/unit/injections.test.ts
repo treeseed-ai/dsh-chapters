@@ -142,3 +142,23 @@ test('omittedMarker has the one pinned shape (assertions + tests anchor on this 
   assert.ok(m.startsWith('⟦omitted:host-injected '))
   assert.ok(m.includes('12 chars'))
 })
+
+test('the plan-mode narration is the named exception: archived verbatim', async () => {
+  const { screenConversation, isSessionStateNarration, isArchivableConversation } = await import('../../src/injections.ts')
+  const notice = { id: 'n1', role: 'user', source: { kind: 'plugin', plugin: 'plan-mode', form: 'notice', summary: 'x' }, content: [{ type: 'text', text: 'The user switched this session to plan mode.' }] }
+  assert.equal(isSessionStateNarration(notice), true)
+  assert.equal(isHumanAuthored(notice), false, 'still NOT human-authored (signatures must not change)')
+  const r = screenConversation(notice, 'The user switched this session to plan mode.', 'user')
+  assert.equal(r.omittedEvent, false)
+  assert.equal(r.text, 'The user switched this session to plan mode.')
+})
+
+test('the exception is narrow: another plugin notice, or a plan-mode snapshot, still screens', async () => {
+  const { screenConversation } = await import('../../src/injections.ts')
+  const other = { role: 'user', source: { kind: 'plugin', plugin: 'dsh-chapters', form: 'snapshot' } }
+  assert.equal(screenConversation(other, '# Continuation: x', 'user').omittedEvent, true)
+  const wrongForm = { role: 'user', source: { kind: 'plugin', plugin: 'plan-mode', form: 'snapshot' } }
+  assert.equal(screenConversation(wrongForm, 'instructions', 'user').omittedEvent, true)
+  const wrongPlugin = { role: 'user', source: { kind: 'plugin', plugin: 'plan-mode-x', form: 'notice' } }
+  assert.equal(screenConversation(wrongPlugin, 'imposter', 'user').omittedEvent, true)
+})

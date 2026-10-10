@@ -124,11 +124,16 @@ export function buildChaptersTools(
         return { windowTokens, headerBoundTokens }
       },
       newId: () => randomUUID(),
-      createChild: async ({ sessionId, noticeEvent, presetId: mountPreset, title }) => {
+      createChild: async ({ sessionId, noticeEvent, modeEvents, presetId: mountPreset, title }) => {
         const callerOptions = caller.options
+        // The seed is contiguous from seq 0: the notice, then any STATE events this
+        // plugin authors for the child (plan mode). Invariant 2 holds — nothing from
+        // the parent's log is copied; a seeded `plan/mode` is a synthetic fact about
+        // the boundary, and the kernel's own setup events still append after it
+        // (measured: notice@0 → plan/mode@1 → end-seed@2 → permission/sandbox/…).
         const handle = await ctx.agents.create({
           sessionId,
-          seed: [noticeEvent],
+          seed: [noticeEvent, ...modeEvents],
           inheritedEventCount: 0,
           meta: { cwd, isSeeded: false, ...(mountPreset !== undefined && mountPreset !== null ? { agentPreset: mountPreset } : {}) },
           ...(callerOptions.provider !== undefined ? { agentOptions: callerOptions } : {}),
@@ -362,6 +367,9 @@ export function buildChaptersTools(
           callerPreset: (ctx.sessionProjections?.stateOf(caller.session, 'agentPreset') as string | null | undefined) ?? null,
           title: args.title,
           handoffNote: args.handoffNote,
+          // A branch splits a NEW direction off the history: plans are cited, not
+          // re-asserted, and plan mode is not inherited (decision 2026-10-10).
+          intent: 'branch',
           ...(line !== undefined ? { projectLine: line } : {}),
           ...(rs.section !== undefined ? { rulesSection: rs.section } : {}),
         }, config)
@@ -416,6 +424,10 @@ export function buildChaptersTools(
           callerSessionId: agent.session.id,
           callerPreset: (ctx.sessionProjections?.stateOf(agent.session, 'agentPreset') as string | null | undefined) ?? null,
           title,
+          // The button means "branch": same rule as chapters_fork — history, not a
+          // directive, and no seeded mode. The tool `chapters_continue` keeps the
+          // opposite intent because it extends the same stream of work.
+          intent: 'branch' as const,
           toolResultOverrides: [],
           ...(projectLineFor(agent) !== undefined ? { projectLine: projectLineFor(agent) as string } : {}),
           ...(rsCmd.section !== undefined ? { rulesSection: rsCmd.section } : {}),

@@ -36,3 +36,31 @@ test('a tool message in the transcript is the only thing that means the human an
 test('the stub names itself, never impersonates the distilled model', () => {
   assert.equal(STUB_MODEL, 'stub-plan-carriage', 'a tape recorded here must be readable as such')
 })
+
+test('the continuation leg uses the ceiling the real tool reported', async () => {
+  const { decide } = await import('../e2e/stub-model.ts')
+  const segResult = '{"ok":true,"archiveCeiling":37,"eventCount":38,"plans":[],"livePlans":[]}'
+  const d = decide({ messages: [
+    { role: 'system', content: 'tools include chapters_continue' },
+    { role: 'user', content: 'call chapters_segment then chapters_continue' },
+    { role: 'assistant', content: '', tool_calls: [{ function: { name: 'chapters_segment' } }] },
+    { role: 'tool', content: segResult },
+  ] } as never) as { kind: string; toSeq?: number }
+  assert.equal(d.kind, 'continue')
+  assert.equal(d.toSeq, 37, 'ranges come from the real archiveCeiling')
+})
+
+test('segment is asked for exactly once — a measured ceiling is not re-measured', async () => {
+  const { decide } = await import('../e2e/stub-model.ts')
+  const asked = decide({ messages: [
+    { role: 'system', content: 'sys' },
+    { role: 'user', content: 'please run chapters_segment and then chapters_continue' },
+  ] } as never)
+  assert.equal((asked as { kind: string }).kind, 'segment')
+  const after = decide({ messages: [
+    { role: 'system', content: 'sys' },
+    { role: 'user', content: 'please run chapters_segment and then chapters_continue' },
+    { role: 'tool', content: '{"ok":true,"childSessionId":"ch-1","budget":{}}' },
+  ] } as never)
+  assert.equal((after as { kind: string }).kind, 'after-approval', 'the journey closes with text, not another archive')
+})

@@ -53,7 +53,7 @@ const verdict = (seq: number, callId: string, text = APPROVE, isError = false): 
  * A session that planned, was approved, and closed the turn — plus an optional
  * OPEN tail (a second submission with no verdict) living above the ceiling.
  */
-const session = (opts: { liveTailPlan?: boolean; modeFlip?: boolean } = {}): SessionEventLike[] => {
+const session = (opts: { liveTailPlan?: boolean; modeFlip?: boolean; approvedExit?: boolean } = {}): SessionEventLike[] => {
   const evs: SessionEventLike[] = [
     msg(0, 'user', 'design the feature'),
     ...(opts.modeFlip !== false ? [{ type: 'plan/mode', seq: 1, data: { active: true } } as SessionEventLike] : []),
@@ -65,6 +65,7 @@ const session = (opts: { liveTailPlan?: boolean; modeFlip?: boolean } = {}): Ses
     msg(7, 'assistant', 'working'),
     turnEnd(8),
   ]
+  if (opts.approvedExit) evs.push({ type: 'plan/mode', seq: 8.5, data: { active: false } } as SessionEventLike)
   if (opts.liveTailPlan) evs.push(planCall(9, '# Second plan\n\n## Goal\nMore.\n'))
   return evs
 }
@@ -86,7 +87,7 @@ const harness = (opts: {
   const fs = new FakeFs()
   const states = new Map(Object.entries(opts.states ?? {}))
   let idCount = 0
-  const created: Array<{ sessionId: string; noticeEvent: SessionEventLike }> = []
+  const created: Array<{ sessionId: string; noticeEvent: SessionEventLike; modeEvents: SessionEventLike[] }> = []
   const ports: ContinuePorts = {
     readCallerEvents: async () => opts.events ?? session(),
     getState: async (id) => states.get(id) ?? freshSession(id),
@@ -121,7 +122,7 @@ test('an archived plan is called out in the child notice with its chapter and ar
   const result = await continueWith(h.ports)
   assert.ok(result.ok, result.reason)
   const text = h.notice()
-  assert.match(text, /## Plans on this path/)
+  assert.match(text, /^## Active plan$/m)
   assert.match(text, /ACTIVE PLAN: "Carry the plan" — APPROVED/)
   assert.match(text, /ch\. 1 \.dsh-chapters\/call-1\/chapters\//, 'cited to its chapter, numbered like the chapter list')
   assert.match(text, /full text: \.dsh-chapters\/call-1\/artifacts\/[0-9a-f]{2}\/[0-9a-f]{64}\.txt/, 'a path the child can actually open')
@@ -153,7 +154,7 @@ test('a plan still in an open turn is carried as NOT ARCHIVED — and named as u
 test('mode folded from the log: the child is told it starts outside plan mode', async () => {
   const h = harness()
   await continueWith(h.ports)
-  assert.match(h.notice(), /Plan mode was ACTIVE at the end of the archived span/)
+  assert.match(h.notice(), /Plan mode is ACTIVE in this session — the directive above is live/)
 })
 
 test('a session that never planned gets ZERO plan bytes in its notice (verify.md P8)', async () => {
@@ -164,14 +165,14 @@ test('a session that never planned gets ZERO plan bytes in its notice (verify.md
     chapters: [{ title: 'Chat', summary: 's', startSeq: 0, endSeq: 2 }], toolResultOverrides: [],
   }, CONFIG)
   assert.ok(result.ok, result.reason)
-  assert.ok(!h.notice().includes('## Plans'), 'no header')
+  assert.ok(!h.notice().includes('## Active plan'), 'no header')
   assert.ok(!h.notice().includes('ACTIVE PLAN'), 'no call-out')
 })
 
 test('plansInNotice: false turns the block off entirely', async () => {
   const h = harness()
   await continueWith(h.ports, { ...CONFIG, plansInNotice: false })
-  assert.ok(!h.notice().includes('## Plans'), 'the knob is honest: zero bytes, not a stub')
+  assert.ok(!h.notice().includes('## Active plan'), 'the knob is honest: zero bytes, not a stub')
 })
 
 test('chapters_fork carries the same plan facts — a sibling sees the decision too', async () => {
@@ -194,6 +195,46 @@ test('chapters_fork carries the same plan facts — a sibling sees the decision 
 })
 
 // ------------------------------------------------------------------ measurement, never exemption
+
+test('a continuation while plan mode is ACTIVE seeds the child with its own state event', async () => {
+  const h = harness()
+  const r = await continueWith(h.ports)
+  assert.ok(r.ok, r.reason)
+  const created = h.created[0]!
+  assert.equal(created.modeEvents.length, 1, 'one synthetic mode event…')
+  assert.deepEqual(
+    { type: created.modeEvents[0]!.type, seq: created.modeEvents[0]!.seq, active: (created.modeEvents[0]!.data as { active: boolean }).active },
+    { type: 'plan/mode', seq: 1, active: true },
+    '…at seq 1, contiguous after the notice@0 (the shape the kernel was measured to accept)')
+})
+
+test('an APPROVED plan leaves plan mode, so nothing is seeded — the child implements', async () => {
+  // Parent's log: mode on, plan, approval (which the host records as mode off) →
+  // fold says inactive → no seed, and the notice never claims the gate is on.
+  const events = session({ modeFlip: false, approvedExit: true })
+  const h = harness({ events })
+  const r = await continueWith(h.ports, CONFIG, events)
+  assert.ok(r.ok, r.reason)
+  assert.equal(h.created[0]!.modeEvents.length, 0, 'no seed for a session that already left plan mode')
+})
+
+test('a BRANCH never seeds plan mode, however active the parent was', async () => {
+  const h = harness()
+  const r = await runFork(h.ports, {
+    callerSessionId: 'call-1', callerPreset: 'chapters', title: 'Branch', handoffNote: 'go', intent: 'branch',
+  }, CONFIG)
+  assert.ok(r.ok, r.reason)
+  assert.equal(h.created[0]!.modeEvents.length, 0)
+  assert.ok(!h.notice().includes('## Active plan'), 'and it gets no call-out either')
+})
+
+test('planSeedMode: false turns seeding off without touching the call-out', async () => {
+  const h = harness()
+  const r = await continueWith(h.ports, { ...CONFIG, planSeedMode: false })
+  assert.ok(r.ok, r.reason)
+  assert.equal(h.created[0]!.modeEvents.length, 0)
+  assert.match(h.notice(), /ACTIVE PLAN:/, 'the directive still travels as text')
+})
 
 test('the plans block is COUNTED by the budget gate — no measurement exemption (verify.md P5)', async () => {
   // Measure both variants of the SAME archive, then set the allowance between them:
