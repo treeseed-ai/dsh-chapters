@@ -8,7 +8,7 @@ from the live Local model. Read this before trusting what the tape proves.
 | Journey | `tests/e2e/plans.spec.ts` — plan mode entered with `/plan <message>`, a real `exit_plan_mode` tool call, the host's plan-review card opened and answered by a real click, then `/chapters-fork` |
 | Served by | `node tests/e2e/stub-model.ts` (OpenAI-compatible SSE on :8081), started with `E2E_UPSTREAM=http://127.0.0.1:8081` |
 | `model` field in the JSON | `qwen3.8-flash-next` — the proxy records the REQUEST's route name, so this field says nothing about what answered. The provenance is this file |
-| Why not the live model | the box's local server at :8080 closed the stream mid-turn (`turn/end reason {kind:"error", code:"TRANSPORT"}`) while this journey was being distilled; the scripted upstream made the browser plane reproducible the same day |
+| Why not the live model | the local model server dropped the stream mid-turn, on both attempts — see "Attempted live, twice" below; the scripted upstream made the browser plane reproducible the same day |
 
 ## What this tape proves, and what it does not
 
@@ -24,6 +24,16 @@ distillation: approving a plan leaves plan mode (so the folded `planMode:` is
 
 **Does not prove** that a trained model would choose to submit that plan. The
 scripted upstream decided that, and it decided it on every turn.
+
+## Attempted live, twice, on 2026-10-10
+
+Both attempts failed identically, so nobody re-tries this blind: the model container
+(`qwen-flash-next`, reporting *healthy*) accepted the request and then **dropped the stream mid-turn** —
+the session log ends `turn/end {reason:{kind:"error", error:{message:"terminated", code:"TRANSPORT"}}}` —
+once after ~50 s on an 8-token probe, and once after **15 minutes** with no tool call emitted and zero
+tape entries recorded. A `/v1/models` answer is therefore NOT evidence the server can finish a turn: get a
+real completion through `curl /v1/chat/completions` with a header the size the journey actually sends
+(~17K tokens) before scheduling a re-record.
 
 ## Re-recording from the live model
 

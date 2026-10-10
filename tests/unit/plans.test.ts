@@ -242,3 +242,29 @@ test('rows arrive in CAUSAL order and the LAST of them is operative — never re
   const rows = text.split('\n').filter((l) => l.startsWith('- '))
   assert.match(rows[1]!, /Root plan/, 'chronological listing keeps reading order')
 })
+
+test('a pathological H1 is bounded in display and whole in the artifact', () => {
+  const monster = `# ${'very long heading '.repeat(60)}\n\n## Goal\nReal bytes.\n`
+  const doc = detectPlans([call(1, 'a', monster), result(2, 'a', APPROVE_TEXT)]).plans[0]!
+  assert.ok(doc.title.length <= 121, `display title capped, got ${doc.title.length}`)
+  assert.ok(doc.title.endsWith('…'), 'and visibly truncated')
+  assert.ok(doc.text.includes('very long heading '.repeat(60)), 'the PLAN TEXT keeps the whole heading')
+})
+
+test('a closed ATX heading loses its trailing hashes in the title only', () => {
+  assert.equal(planTitleOf('# The plan ##\nbody'), 'The plan')
+})
+
+test('the outline is a bounded index that admits when it truncated', () => {
+  const many = `# Big plan\n\n${Array.from({ length: 40 }, (_, i) => `## Heading number ${'x'.repeat(300)} ${i}\n\nbody\n`).join('\n')}`
+  const { outline, levels } = planOutlineOf(many)
+  assert.equal(outline.length, 13, 'twelve headings plus one honest "more" line')
+  assert.equal(levels.length, 12, 'the note is not a heading')
+  assert.ok(outline[11]!.startsWith('Heading number'), 'entries are present')
+  assert.ok(outline[11]!.endsWith('…'), 'each entry is bounded')
+  assert.match(outline[12]!, /chapters_artifact 'toc'/, 'and the reader is pointed at the complete map')
+})
+
+test('an outline under the cap gains no truncation note', () => {
+  assert.deepEqual(planOutlineOf(PLAN).outline, ['Goal', 'Success criteria', 'Details'])
+})

@@ -75,23 +75,43 @@ const RE_APPROVED = /(?:\{\s*"?approved"?\s*:\s*true)|(?:plan approved\b)/i
 const RE_DISMISSED = /dismissed the plan review|to speak instead/i
 const RE_KEEP_PLANNING = /keep planning/i
 
-/** The first markdown heading at any level, or '' when the payload has none. */
+/**
+ * The first markdown heading at any level, or '' when the payload has none. The
+ * DISPLAY title is bounded: a plan whose H1 is a 4KB paragraph would otherwise be
+ * printed in full in every chapter that carries it and again in every child notice
+ * built from that path. Bounded here, not at the call sites — and the artifact keeps
+ * the untouched heading, because the artifact keeps every byte.
+ */
+export const PLAN_TITLE_MAX = 120
+
 export function planTitleOf(text: string): string {
   for (const line of text.split('\n')) {
     const m = /^#{1,6}\s+(.+?)\s*$/.exec(line)
-    if (m !== null) return m[1]!
+    if (m === null) continue
+    const title = m[1]!.replace(/\s+#+\s*$/, '') // closed ATX heading: "# Title #"
+    return title.length > PLAN_TITLE_MAX ? `${title.slice(0, PLAN_TITLE_MAX - 1).trimEnd()}…` : title
   }
   return ''
 }
 
+/** Outline budget: entries × chars. An outline is an INDEX, not the document — the
+ * full heading map with line numbers is one `chapters_artifact toc` call away, so
+ * printing 24 unbounded headings per plan (a 4 KB H2 is a real thing people write)
+ * would repeat the 0.1.8 mistake at a smaller scale. */
+export const PLAN_OUTLINE_MAX_ENTRIES = 12
+export const PLAN_OUTLINE_TITLE_MAX = 60
+
 /**
  * The plan's own table of contents: H2/H3 headings in document order, with fenced
  * blocks excluded so a `# comment` inside a code sample never poses as a heading
- * (the same discipline `artifact-query.buildToc` applies to stored blobs).
+ * (the same discipline `artifact-query.buildToc` applies to stored blobs). Each
+ * entry is bounded; when entries are dropped a trailing `+N more` says so — a
+ * silently shortened index is the lie this codebase exists to avoid.
  */
-export function planOutlineOf(text: string, maxEntries = 24): { outline: string[]; levels: number[] } {
+export function planOutlineOf(text: string, maxEntries = PLAN_OUTLINE_MAX_ENTRIES): { outline: string[]; levels: number[] } {
   const outline: string[] = []
   const levels: number[] = []
+  let truncated = false
   let inFence = false
   let fenceChar = ''
   for (const line of text.split('\n')) {
@@ -105,10 +125,12 @@ export function planOutlineOf(text: string, maxEntries = 24): { outline: string[
     if (inFence) continue
     const m = /^(#{2,3})\s+(.+?)\s*$/.exec(line)
     if (m === null) continue
-    if (outline.length >= maxEntries) break
-    outline.push(m[2]!)
+    if (outline.length >= maxEntries) { truncated = true; break }
+    const heading = m[2]!.replace(/\s+#+\s*$/, '')
+    outline.push(heading.length > PLAN_OUTLINE_TITLE_MAX ? `${heading.slice(0, PLAN_OUTLINE_TITLE_MAX - 1).trimEnd()}…` : heading)
     levels.push(m[1]!.length)
   }
+  if (truncated) outline.push(`+more (chapters_artifact 'toc' lists every heading)` )
   return { outline, levels }
 }
 

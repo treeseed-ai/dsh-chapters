@@ -6,6 +6,27 @@ lastUpdated: true
 
 Releases publish automatically from a bare-semver tag via **npm trusted publishing (OIDC)**. The publish itself is gated on the full deterministic suite under the coverage gate; the eight-segment tape-replay acceptance chain runs in CI on every push to `main`, so a release is always cut from a green acceptance run. Each CI-published version carries a provenance attestation tying it back to this repo, that workflow run, and that commit — 0.1.0, the one manual ship, predates attestation.
 
+### 0.1.8 — 2026-10 · a plan's heading stops being allowed to be unbounded
+
+Found by reading 0.1.7's own carriage for what a hostile input does to it: a plan whose `# heading` is a
+4 KB paragraph was printed **in full** in every chapter that carries the plan *and* again in every child
+notice built from that path — unbounded, and un-costed until the budget gate refused the continuation.
+
+- `PLAN_TITLE_MAX` (120 chars, `src/plans.ts`): the **display** title is bounded; the artifact keeps the
+  heading whole, which is the same distinction `planInlineChars` draws for the body. Closed ATX headings
+  (`# Title #`) lose their trailing hashes in the title only, never in the bytes. Two unit rows pin both.
+- Same class, one scale down: the outline line is now a bounded **index** — twelve headings at 60 chars
+  each, with a trailing `+more (chapters_artifact 'toc' lists every heading)` when entries are dropped. An
+  outline that silently stops listing would be the exact lie this store exists to avoid, so shortening is
+  always announced, and the complete map is one query away. Four unit rows pin the cap, the note, and the
+  no-note-when-under-cap case.
+- The `plans` tape's PROVENANCE.md now records the two live re-record attempts that failed — the local
+  model container reported *healthy* and dropped the stream mid-turn, once after 15 minutes with no tool
+  call and no tape entries — so the next person checks with a real ~17K-header completion instead of
+  `/v1/models`, which answers even when the server cannot finish a turn.
+- Browser-plane ledger for the eight-project chain (`npm run coverage:e2e`): 79.92 / 64.64 / 76.28 —
+  reported, not tuned; the ≥85 gate is the deterministic one.
+
 ### 0.1.7 — 2026-10 · the plans journey joins the acceptance chain, and the browser corrects three beliefs
 
 0.1.6 shipped session-plan carriage with the browser plane written but never executed. It executes now, as

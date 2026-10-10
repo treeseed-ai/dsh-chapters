@@ -114,6 +114,19 @@ here. So the machine-readable home for the full facts is the **chapter record** 
 zod-validated in the registry, `src/store.ts`), which is what the notice builder consumes; the
 frontmatter line is the human-visible claim of the same fact, and the prose lives in the body block.
 
+Display bounds, added at 0.1.8 (two of them — the second is the same mistake one scale down):
+
+- the OUTLINE line is an index, not the document: `PLAN_OUTLINE_MAX_ENTRIES` (12) at
+  `PLAN_OUTLINE_TITLE_MAX` (60) chars each, and when entries are dropped the block says
+  `+more (chapters_artifact 'toc' lists every heading)`. A silently shortened index is the lie this store
+  exists to avoid, so truncation is always announced and the full map is one query away.
+- the TITLE is printed at most 120 characters
+(`PLAN_TITLE_MAX`, `src/plans.ts`) — a 4 KB H1 would otherwise have been repeated in every chapter carrying it
+AND in every child notice built from that path, unbounded and un-costed until the budget gate refused the
+continuation. The artifact keeps the heading whole; only the display is bounded, which is the same
+distinction `planInlineChars` draws for the body. Closed ATX headings (`# Title #`) lose their trailing
+hashes in the title, not in the bytes.
+
 The sha256 anchor convention must hash what `parseChapterFile`
 returns — body **including** the trailing newline (`src/engine-core.ts:297-302`; the T9 lesson: a
 mismatch silently blocked enrichment for an era).
@@ -289,7 +302,8 @@ Every item below was an assumption the deterministic plane had encoded — and t
 | 5 | Site docs (§9 anatomy, §16 tools, §17 configuration, §18 notice) | done in the same release |
 | — | Seven-segment tape replay | green WITHOUT re-recording (2026-10-09, `npm run test:e2e:replay`, EXIT=0) |
 | — | `plans` browser journey | LANDED as the eighth chain project (2026-10-10): `tests/e2e/plans.spec.ts` passes in 13 s against `tests/fixtures/model-tape/plans/`, and the full eight-project chain is `CHAIN_EXIT=0` / 9 tests. Its tape is scripted-upstream distilled — see § Tapes and `PROVENANCE.md` |
-| — | Follow-up, not blocking | re-record the `plans` tape from the live model on the GPU box (command in `PROVENANCE.md`); the carriage evidence does not change, only the claim about model behaviour |
+| — | Follow-up, not blocking | re-record the `plans` tape from the live model — ATTEMPTED TWICE on 2026-10-10 and both times the model container dropped the stream mid-turn (`TRANSPORT`), one after 15 minutes with zero tool calls; `PROVENANCE.md` says what to check first. The carriage evidence does not change, only the claim about model behaviour |
+| — | Browser-plane ledger | `npm run coverage:e2e` over all EIGHT replays: **79.92 stmts / 64.64 branch / 76.28 funcs** — the non-gated plane, reported rather than tuned (the deterministic gate is the enforced one) |
 
 Deterministic ledger at landing: **549 unit+integration rows, zero failures** with the TreeDX container
 up (80 of them new, across `plans`, `render-plans`, `continue-plans`, `plans-segmentation`, `plans-tools`,
