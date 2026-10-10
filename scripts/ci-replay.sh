@@ -65,5 +65,22 @@ PLAYWRIGHT_BROWSERS_PATH="$PWD/var/ms-playwright" npx playwright install chromiu
 # Strict tape replay across all EIGHT projects (seven model-distilled + the plans
 # carriage, whose tape is scripted-upstream distilled — tests/fixtures/model-tape/plans/
 # PROVENANCE.md); any miss fails the chain.
-E2E_MODEL=replay npm run test:e2e
+#
+# A red chain has to name its project (the lesson of the 0.1.9 ship): playwright's
+# diagnosis goes to stdout, the job's other artifact is behind a token, and "Process
+# completed with exit code 1" is not a bug report. The proxy journals every miss with
+# the prefixes it compared — that journal is the thing a maintainer needs.
+STATUS=0
+E2E_MODEL=replay npm run test:e2e 2>&1 | tee var/ci-replay.log || STATUS=${PIPESTATUS[0]}
+if [[ "$STATUS" -ne 0 ]]; then
+  echo "::error::ci-replay: tape replay exited $STATUS"
+  grep -E "✘|failed|No tests found|503" var/ci-replay.log | head -24 | while read -r line; do
+    echo "::error::ci-replay ${line:0:300}"
+  done
+  if [[ -s var/e2e-tape-misses.log ]]; then
+    echo "::error::ci-replay: tape-miss journal tail (what the proxy could not match)"
+    tail -12 var/e2e-tape-misses.log | while read -r line; do echo "::error::ci-replay ${line:0:300}"; done
+  fi
+  exit "$STATUS"
+fi
 echo "ci-replay: PASS — eight browser projects replayed green on committed tapes, no LLM present."
