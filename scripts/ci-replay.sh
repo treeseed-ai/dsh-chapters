@@ -80,7 +80,19 @@ if [[ "$STATUS" -ne 0 ]]; then
   grep -E "^\[e2e\] boot pins" var/ci-replay.log | head -10 | while read -r line; do
     echo "::error::ci-replay ${line:0:300}"
   done
-  grep -E "✘|failed|No tests found|503" var/ci-replay.log | head -24 | while read -r line; do
+  # Playwright's error TEXT is the part that matters, and it is indented — the old
+  # grep caught the ✘ line and dropped every `Error:` beneath it, which is why the
+  # 0.1.12 run could say "plans failed in 14.9s" and nothing about the assertion.
+  grep -E "✘|Error:|expect\(|Received:|Expected:|failed|No tests found|503" var/ci-replay.log | head -30 | while read -r line; do
+    echo "::error::ci-replay ${line:0:300}"
+  done
+  # And playwright's own saved context per failure, which carries the snippet + the
+  # page snapshot: the difference between "an assertion failed" and why.
+  for f in $(ls -1 test-results/*/error-context.md 2>/dev/null | head -3); do
+    echo "::error::ci-replay — $f"
+    head -12 "$f" | while read -r line; do echo "::error::ci-replay ${line:0:280}"; done
+  done
+  grep -E "IGNORED-PATTERN" var/ci-replay.log | head -1 | while read -r line; do
     echo "::error::ci-replay ${line:0:300}"
   done
   if [[ -s var/e2e-tape-misses.log ]]; then
