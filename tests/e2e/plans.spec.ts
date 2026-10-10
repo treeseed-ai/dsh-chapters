@@ -194,7 +194,15 @@ test('an approved plan is archived whole, and a branch inherits it as history no
   // Compared with markdown emphasis stripped from BOTH sides: the card renders the
   // plan, so `**bold**` on disk is `bold` on screen — a literal substring test
   // would fail for a reason that has nothing to do with carriage.
-  const stripMd = (t: string): string => t.replace(/[*_`>]+/g, '').replace(/\s+/g, ' ').trim()
+  // Stripped on BOTH sides: the card renders markdown, so emphasis markers exist on
+  // disk and not on screen — and so do list bullets, which cost a live run: a real
+  // model plan ending in "- Nothing was read…" was compared against a screen showing
+  // "Nothing was read…" and the assertion failed on the marker, not the carriage.
+  const stripMd = (t: string): string => t
+    .replace(/[*_`>]+/g, '')
+    .replace(/(^|\n)\s*(?:[-*+]|\d+\.)\s+/g, '$1')
+    .replace(/\s+/g, ' ')
+    .trim()
   const bodyLine = (submitted.split('\n').map((l) => l.trim())
     .filter((l) => stripMd(l).length > 24 && !l.startsWith('#')).pop() ?? '')
   expect(bodyLine.length, 'the submission has body text to check').toBeGreaterThan(24)
