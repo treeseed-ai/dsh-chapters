@@ -96,3 +96,11 @@ re-distilled set: 6 scripted-upstream entries — title, the `exit_plan_mode` ca
 acknowledgement, `chapters_segment`, `chapters_continue` with the ceiling read back out of the real tool's
 own result, and the closing turn. Strict replay of the whole project passes in ~17 s with no LLM present,
 and the full eight-project chain runs it on every push.
+
+## Threshold pin (0.1.10) — why this project does not use the stress regime's 0.9
+
+The first hosted run of this tape MISSED on a plot-elicitation request: the runner crossed
+`0.9 × 32000` mid-journey and compacted, while every local run stayed under it. The project now pins
+`E2E_THRESHOLD=0.99` and the spec asserts no `compaction/*` event appears, so a future change that brings
+pressure into this journey fails locally instead of surprising a machine nobody can see. If you re-record
+from the live model, keep the pin — the tape is only valid for the regime it was distilled under.

@@ -37,6 +37,10 @@ export default defineConfig({
     // stream mid-journey — read tests/fixtures/model-tape/plans/PROVENANCE.md for
     // what that does and does not prove, and how to re-record from the live model.
     // Own boot, own port, own tape, like every other project (one journey, one boot).
+    // Its threshold is pinned to 0.99 (not the 0.9 stress regime) on purpose: this
+    // journey must never be interrupted by pressure compaction. The hosted runner
+    // measured its header a little differently and fired a plot-elicitation call the
+    // tape had never seen — a MISS that was real, and entirely avoidable (0.1.10).
     { name: 'plans', testMatch: ['**/plans.spec.ts'] },
     // cache-trajectory measures PHYSICAL prefix caching — live mode only, never
     // in the replay chain (tapes record usage bytes; they cannot show a warm cache).

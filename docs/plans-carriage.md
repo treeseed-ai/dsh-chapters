@@ -239,6 +239,14 @@ Registry note: **do not** use `state.plans` — that name is the compaction mani
   `tests/fixtures/model-tape/plans/PROVENANCE.md` states what that proves (the whole carriage, in a real
   browser, against the real review channel) and what it does not (a model choosing to plan), and carries
   the re-record command that retires the stub.
+- **The threshold is pinned to 0.99 for this project (0.1.10), and the journey asserts its own
+  precondition.** At the stress regime's 0.9 the hosted runner crossed the compaction trigger and issued
+  a plot-elicitation call that no locally-distilled tape had ever seen — a MISS that only CI could
+  produce, after three local greens. So this journey pins its own determinism: no compaction may interrupt
+  it, and the spec fails if `compaction/*` appears, with the reason written where the assertion lives.
+  Determinism that only holds on the machine that recorded the tape is not determinism.
+- **The replay chain reports its own failure** (`scripts/ci-replay.sh`): project + failing tests, the
+  proxy's tape-miss journal tail, and the engine diagnostics tail that every boot already writes.
 
 ### What the browser plane corrected (this is why it exists)
 
@@ -302,7 +310,8 @@ Every item below was an assumption the deterministic plane had encoded — and t
 | 5 | Site docs (§9 anatomy, §16 tools, §17 configuration, §18 notice) | done in the same release |
 | — | Seven-segment tape replay | green WITHOUT re-recording (2026-10-09, `npm run test:e2e:replay`, EXIT=0) |
 | — | `plans` browser journey | LANDED as the eighth chain project (2026-10-10) and immediately **extended to two legs** so § 12's continue-vs-branch distinction is tested, not described: a `chapters_segment`→`chapters_continue` continuation (asserts `## Active plan`, the plan's document path, and NO seeded gate because approving a plan exits plan mode) and a fork-button branch (asserts **no** directive section, archive still cited). Replays in 17 s on a committed tape; the eight-project chain re-runs for the 0.1.9 ship. Its tape is scripted-upstream distilled — see § Tapes and `PROVENANCE.md` |
-| 6 | Second-round decisions (§§ 9–13): intent-aware notice, seeded plan mode for continuations, `kind: plan` documents, checkpoint carriage, the one injection-screen exception | built 2026-10-10 — verify.md P12–P17; 580 deterministic rows green, gate 98.05 / 86.44 / 93.67 |
+| 7 | Journey made hardware-independent (0.1.10): 0.99 threshold pin + `compaction/*`-absent guard; replay chain annotates its own failure and ships the engine diagnostics | built — tape re-distilled under the pin, eight-project chain `CHAIN_EXIT=0` locally, hosted acceptance green at the 0.1.10 tag |
+| 6 | Second-round decisions (§§ 9–13): intent-aware notice, seeded plan mode for continuations, `kind: plan` documents, checkpoint carriage, the one injection-screen exception | built 2026-10-10 — verify.md P12–P17; 582 deterministic rows green, gate 98.05 / 86.44 / 93.67 |
 | — | Follow-up, not blocking | re-record the `plans` tape from the live model — ATTEMPTED TWICE on 2026-10-10 and both times the model container dropped the stream mid-turn (`TRANSPORT`), one after 15 minutes with zero tool calls; `PROVENANCE.md` says what to check first. The carriage evidence does not change, only the claim about model behaviour |
 | — | Browser-plane ledger | `npm run coverage:e2e` over all EIGHT replays: **79.92 stmts / 64.64 branch / 76.28 funcs** — the non-gated plane, reported rather than tuned (the deterministic gate is the enforced one) |
 

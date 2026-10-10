@@ -81,6 +81,14 @@ if [[ "$STATUS" -ne 0 ]]; then
     echo "::error::ci-replay: tape-miss journal tail (what the proxy could not match)"
     tail -12 var/e2e-tape-misses.log | while read -r line; do echo "::error::ci-replay ${line:0:300}"; done
   fi
+  # The engine's own diagnostics ride along too: boot.ts points
+  # DSH_CHAPTERS_ENGINE_ERRORS at this file on EVERY boot, and it has already
+  # been the difference between guessing and knowing (plot elicitation,
+  # finalization deferral). Without it a tape miss says only "unmatched".
+  if [[ -s var/e2e-engine-errors.log ]]; then
+    echo "::error::ci-replay: engine diagnostics tail"
+    tail -8 var/e2e-engine-errors.log | while read -r line; do echo "::error::ci-replay ${line:0:300}"; done
+  fi
   exit "$STATUS"
 fi
 echo "ci-replay: PASS — eight browser projects replayed green on committed tapes, no LLM present."

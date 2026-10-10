@@ -211,6 +211,15 @@ test('an approved plan is archived whole and called out in the child that contin
   }, { timeout: 900_000, intervals: [3000] }, 'the approved review and turn/end are durable in the log').toBe(true)
 
   const parentLog = sessionLogTextById(sid)
+  // Determinism GUARD, learned the hard way: the hosted runner measured this
+  // session's header a little differently, crossed 0.9 × the pinned 32K window,
+  // and fired a plot-elicitation call that no tape had ever seen — a MISS that
+  // only a CI machine could produce. Silence about it is not acceptable twice, so
+  // the journey now asserts its own precondition: nothing compacted here. If a
+  // future change makes pressure arrive mid-journey, this fails HERE, in words,
+  // instead of surfacing as an unmatchable request on someone else's hardware.
+  const compacted = logEvents(parentLog).filter((e) => e.type.startsWith('compaction/'))
+  expect(compacted.length, 'this journey must never trigger compaction — its tape has no such turn').toBe(0)
   expect(parentLog).toContain('"exit_plan_mode"', 'the submission is in the durable log')
   expect(parentLog).toContain('"plan/mode"', 'and the mode flip is a durable event of its own')
 

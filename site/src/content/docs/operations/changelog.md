@@ -27,6 +27,28 @@ notice built from that path — unbounded, and un-costed until the budget gate r
 - Browser-plane ledger for the eight-project chain (`npm run coverage:e2e`): 79.92 / 64.64 / 76.28 —
   reported, not tuned; the ≥85 gate is the deterministic one.
 
+### 0.1.10 — 2026-10 · a tape that only passes on the machine that made it stops being acceptable
+
+0.1.9 shipped with a red hosted acceptance chain: `[plans]` missed a tape entry that replayed green on
+every local run. The annotations finally said why — the miss was a **plot-elicitation** request, meaning
+the runner had crossed `0.9 × the pinned 32K window` and compacted mid-journey while this machine never
+did. Two truths follow, and both are now enforced:
+
+- **The plans journey pins its own precondition.** Its threshold is `0.99`, so pressure compaction cannot
+  interrupt it on any hardware; and the spec now *asserts* that nothing compacted
+  (`compaction/*` events = 0, with the reason written where the assertion lives). If a future change makes
+  pressure arrive mid-journey, the journey fails locally, in words — not as an unmatchable request on
+  someone else's machine. The tape was re-distilled under the pin; the eight-project chain replays green.
+- **The acceptance chain reports like the gate.** `scripts/ci-replay.sh` tees the run and, on failure,
+  emits `::error::` annotations naming the failing project and tests, the tail of the proxy's tape-miss
+  journal (the prefixes it compared), and the tail of `var/e2e-engine-errors.log` — the engine's own
+  diagnostics, which every boot already writes. Before this, a red chain left a maintainer with
+  "Process completed with exit code 1" and a 5 MB artifact behind a token; that cost three CI cycles on
+  0.1.9 and it is not a cost worth repeating.
+
+No plugin behaviour changed in this release; what changed is the guarantee that the acceptance plane
+means the same thing everywhere it runs.
+
 ### 0.1.9 — 2026-10 · plans become directives the agent keeps, searches, and never overwrites
 
 The four deferred questions about plan carriage came back answered, and the answer that
