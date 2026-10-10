@@ -169,7 +169,12 @@ ship; `0.1.0` itself carries no attestation.
 
 - **`ci.yml`** — two jobs. `test`: `npm ci` (all deps public on
   registry.npmjs.org — **no install secret**), typecheck, build,
-  `coverage:ci` (the 85/85/85/85 gate). `e2e-replay`: installs the pinned
+  `bash scripts/ci-gate.sh` (the 85/85/85/85 gate — since 0.1.6 the gate
+  ANNOTATES its own failure: metric lines, the pass/fail tally, up to 24
+  failing-test lines and c8's threshold verdicts as `::error::`, because on the
+  0.1.6 tag a red gate left nothing behind but "exit code 1" while every local
+  reproduction of the same SHA was green; the summary step now runs
+  `if: always()`). `e2e-replay`: installs the pinned
   host (`npm i -g @deepseek-ai/dsh@0.1.5-rc.1` — the SAME version as the
   gate line in `scripts/ci-replay.sh`, which fails loudly on mismatch) plus
   chromium's apt libs, then `scripts/ci-replay.sh` — seven browser segments

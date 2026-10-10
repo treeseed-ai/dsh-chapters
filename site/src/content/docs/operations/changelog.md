@@ -41,6 +41,14 @@ the archive (design record: `docs/plans-carriage.md` in the repo).
   writes) rather than at the store root (where arrival stubs write) — so every deferred result since 0.1.0
   pointed at a path its own reader could not open. The resolver now searches store root → session trees →
   pool mirror, and the refusal text names all three.
+- **Ship note, kept honest:** the `0.1.6` tag published (Release job green — it runs the same
+  deterministic gate) and Pages deployed, while the parallel `CI` job on that commit went red at
+  `coverage:ci` with no surviving diagnosis: stdout only, the summary step skipped on failure, the one
+  artifact behind a token. Every local reproduction of the pushed SHA — a fresh `git clone` + `npm ci`,
+  TreeDX env removed so the live rows skip exactly as they do on the runner — came back
+  544 pass / 5 skip / exit 0, and the very next commit `50453c9` is green on both hosted jobs. So the
+  0.1.6 red run was a flake we could not name, and the pipeline got fixed for that instead:
+  `scripts/ci-gate.sh` annotates metrics, tallies and failing tests, and the summary now always runs.
 - Tests: 80 new rows across `plans`, `render-plans`, `continue-plans`, `plans-segmentation`,
   `plans-tools`, `plans-engine`, `log-shape` (unit) and `plans-carriage` (integration, real fs + real
   registry + the `chapters_artifact` retrieval loop), verify.md rows P1–P11. The browser journey is
