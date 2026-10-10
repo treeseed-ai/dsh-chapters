@@ -33,7 +33,12 @@ jobs:
       # 85% on statements, branches, functions (and lines). Current ledger:
       # 97.98 / 85.61 / 93.62. Reports land in var/coverage for the artifact.
       - name: unit + integration with coverage gate
-        run: npm run coverage:ci
+        # scripts/ci-gate.sh = the gate + ::error:: annotations naming the metric
+        # and the failing tests. A red gate used to leave only "Process completed
+        # with exit code 1" behind (the summary step below the gate never ran, and
+        # the coverage artifact sits behind a token) — measured on the 0.1.6 ship,
+        # where every local reproduction of the same commit was green.
+        run: bash scripts/ci-gate.sh
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -44,6 +49,7 @@ jobs:
       # The TreeDX transport is still proven in CI against the in-process
       # stub: treedx-{provider,sync,link,provider-branches}.test.ts.
       - name: test summary
+        if: always()
         run: |
           node -e "const s=require('./var/coverage/coverage-summary.json').total;
             console.log('| metric | covered | total | pct |');
