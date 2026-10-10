@@ -246,6 +246,47 @@ test('an approved plan is archived whole, and a branch inherits it as history no
   await expect(fork, 'the chapters fork action survives a plan turn').toBeVisible({ timeout: 120_000 })
   await fork.click()
 
+  // ===================== LEG 1 (LIVE MODELS ONLY): a CONTINUATION ================
+  // The guard is honest rather than a dodge: what breaks is the TAPE, not the
+  // journey — a recorded request freezes the ranges the model authored, and those
+  // numbers belong to the machine that distilled them. Against a live model there is
+  // no frozen number: the segment tool reports a ceiling, the model reads it, the
+  // archive uses it. So the browser coverage of `## Active plan` and the seeded gate
+  // runs where it can be true, and CI runs the part that is portable.
+  if ((process.env.E2E_MODEL ?? 'live') !== 'replay') {
+    const beforeContinue = logEvents(sessionLogTextById(sid)).length
+    await typeComposer(page, 'Continue this work in a fresh session: call chapters_segment, then call chapters_continue with exactly the ranges it reports.')
+    await expect.poll(() => {
+      const evs = logEvents(sessionLogTextById(sid))
+      return evs.length > beforeContinue && evs.some((e) => e.type === 'turn/end' && e.seq > beforeContinue)
+    }, { timeout: 900_000, intervals: [3000] }, 'the continuation turn closed').toBe(true)
+
+    const continuedId = (() => {
+      for (const e of logEvents(sessionLogTextById(sid)).reverse()) {
+        if (e.type !== 'tool/result') continue
+        const m = /"childSessionId"\s*:\s*"(ch-[^"]+)"/.exec(eventText(e.raw))
+        if (m !== null) return m[1]
+      }
+      return ''
+    })()
+    if (continuedId === '') {
+      const why = (() => {
+        for (const e of logEvents(sessionLogTextById(sid)).reverse()) {
+          if (e.type !== 'tool/result') continue
+          const m = /"ok"\s*:\s*false[^]{0,40}"reason"\s*:\s*"((?:\\.|[^"\\]){0,300})/.exec(eventText(e.raw))
+          if (m !== null) return `the tool refused: ${m[1]}`
+        }
+        return 'the model never called chapters_continue'
+      })()
+      throw new Error(`continuation leg: no child created — ${why}`)
+    }
+    const continuedSeed = planNoticeText(continuedId)
+    expect(continuedSeed).toContain('## Active plan', 'a continuation gets the directive section')
+    expect(continuedSeed).toContain(`ACTIVE PLAN: "${planTitle}" — APPROVED`)
+    expect(continuedSeed, 'an approved plan left plan mode, so this child is not gated').not.toMatch(/Plan mode is ACTIVE in this session/)
+    expect(continuedSeed).toContain('plan document:', 'and it points at the searchable document')
+  }
+
   // A branch must carry NO plan directive — its plans are history (decision 3).
   // The switch to the branch is async (the same race fork-button.spec.ts documents),
   // so the id AND its seed are polled together instead of read once.
