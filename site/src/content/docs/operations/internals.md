@@ -18,7 +18,7 @@ The plugin is small because the rules are strict. One glance at the module map:
 | `src/indexing.ts` / `src/search.ts` / `src/vocabulary.ts` / `src/enrich-wire.ts` / `src/rules.ts` | the knowledge layer: derived index, ranked search, shadow vocabulary, enrichment ladder, per-machine rule ledger |
 | `src/client/` | browser plane: the fork action on assistant rows |
 | `tests/unit` + `tests/integration` | 464 deterministic tests (zero skips when services are up — skips are treated as defects) |
-| `tests/e2e` + `tests/fixtures/model-tape/` | seven browser journeys replayed from committed model tapes; misses are loud failures |
+| `tests/e2e` + `tests/fixtures/model-tape/` | eight browser journeys replayed from committed model tapes; misses are loud failures |
 
 Deep prose lives in the repo docs: `docs/architecture.md` (mechanics & decisions), `docs/knowledge-repo.md` (the governing design record with amendments), `docs/provider.md` (transport truth table), `docs/host-compaction-seam.md` (the harness integration surface), `docs/verify.md` (every claim's verification procedure). The archive's rule applies to this site too: **links over paraphrases.**
 

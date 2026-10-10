@@ -31,12 +31,13 @@ export default defineConfig({
     // artifact API past any cap) — so it runs ON DEMAND only, never in the CI
     // chain (2026-09-25): npx playwright test --project=explore-dev
     { name: 'explore-dev', testMatch: ['**/explore.spec.ts'], use: { baseURL: undefined } },
-    // plans-dev: the session-plan carriage journey (docs/plans-carriage.md). It
-    // needs a LIVE submission — the tapes hold no exit_plan_mode turn (measured
-    // 2026-10-09), so on replay it self-skips until someone records the tape on
-    // the GPU box: E2E_MODEL=record npx playwright test --project=plans-dev
-    // (whole-project recording rules apply). Never in the CI chain until then.
-    { name: 'plans-dev', testMatch: ['**/plans.spec.ts'] },
+    // plans: the session-plan carriage journey (docs/plans-carriage.md), IN THE
+    // CHAIN since 2026-10-10. Its tape was distilled from the scripted upstream
+    // (tests/e2e/stub-model.ts) because the box's :8080 model server dropped the
+    // stream mid-journey — read tests/fixtures/model-tape/plans/PROVENANCE.md for
+    // what that does and does not prove, and how to re-record from the live model.
+    // Own boot, own port, own tape, like every other project (one journey, one boot).
+    { name: 'plans', testMatch: ['**/plans.spec.ts'] },
     // cache-trajectory measures PHYSICAL prefix caching — live mode only, never
     // in the replay chain (tapes record usage bytes; they cannot show a warm cache).
     { name: 'cache', testMatch: ['**/cache-trajectory.spec.ts'], timeout: 900_000 },

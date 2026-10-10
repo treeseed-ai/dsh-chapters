@@ -25,7 +25,7 @@ Restart the harness. Expect on boot: engine-constructed lines in the server log,
 
 - every CI-published version carries an **npm provenance attestation** (SLSA v1, via OIDC trusted publishing — no long-lived tokens) linking the tarball to the exact repo, workflow, commit, and CI run that built it;
 - `npm audit signatures` on an installed tree verifies it;
-- releases publish from a green `main`: the release workflow itself blocks on the **full deterministic suite — 464 tests — under the ≥85% coverage gate**, and CI runs the **seven-segment browser acceptance chain replayed from committed model tapes** on every push to `main`, so a release is always cut from a green acceptance run — no LLM, no GPU, no key, and a *loud* failure (503 on tape miss) rather than a skip.
+- releases publish from a green `main`: the release workflow itself blocks on the **full deterministic suite — 464 tests — under the ≥85% coverage gate**, and CI runs the **eight-segment browser acceptance chain replayed from committed model tapes** on every push to `main`, so a release is always cut from a green acceptance run — no LLM, no GPU, no key, and a *loud* failure (503 on tape miss) rather than a skip.
 
 ## Versioning & the changelog
 

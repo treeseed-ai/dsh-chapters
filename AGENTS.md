@@ -298,7 +298,7 @@ artifacting — tool results ≥ `toolResultArtifactTokens` never enter the surf
 content-addressed artifact, queried via `chapters_artifact` toc/search/read; measured: 373KB
 book, zero blob prefills, cacheRead monotone across the stub) — and plot carriage (persona
 `PLOT:` discipline carried through in-place checkpoints; bounded elicited fallback behind
-`elicitedPlot`). e2e is now TEN specs in SEVEN replay projects, each with its own boot (suite = knowledge-loop +
+`elicitedPlot`). e2e is now ELEVEN specs in EIGHT replay projects, each with its own boot (suite = knowledge-loop +
 discovery @ 0.75 of the pinned 32K/15K stress regime; heavy @ 0.5 with the arrival floor OFF —
 measured: a floor below the chunk size arrival-stubs the surface and silently prevents
 compaction from ever being needed; arrival @ production 0.9 + floor 500; fanout @ 0.75 — the
@@ -357,8 +357,7 @@ seven tapes still replay WITHOUT re-recording, verified 2026-10-09), and a plan 
 sits in an unfinished turn above the archive ceiling, so it is carried as live and un-stored. Fixed on the
 way: chapter `artifacts/…` citations pointed at paths `chapters_artifact` could not resolve at all
 (`writeArchive` writes inside the session tree; the resolver only looked at the store root) — true for
-every deferred blob since arrival-stubbing shipped, now pinned (verify.md P10). Outstanding here: the
-`plans` browser journey awaits its tape on the GPU box (project `plans-dev`, self-skipping).
+every deferred blob since arrival-stubbing shipped, now pinned (verify.md P10). The browser plane is IN the chain (project `plans`, verified 2026-10-10) — but its tape was distilled from the SCRIPTED upstream `tests/e2e/stub-model.ts` because the box's model server dropped the stream; read `tests/fixtures/model-tape/plans/PROVENANCE.md` before quoting what it proves (the carriage yes, a model's choice to plan no), and re-record it from the live model on the GPU box.
 **Outstanding: the human verification rows (live `/compact` in a real browser, readability
 judgment), per-message anchoring (the button forks at the conversation's end today; `deriveRanges`
 already supports any anchor), and the default-preset shipping policy (opt-in menu vs profile

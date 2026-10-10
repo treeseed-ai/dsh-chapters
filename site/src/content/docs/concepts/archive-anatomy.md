@@ -37,8 +37,13 @@ so the transcript stays exactly what the log said:
 - full text: `artifacts/8f/8f3a1c9d….txt` (18.4 KB ≈ 4.6K tok) — chapters_artifact 'toc' | 'search' | 'read'
 - outline: Goal · Success criteria · Changes by subsystem · Tests · Assumptions
 - head (first 900 chars, verbatim):
-- plan mode ACTIVE from seq 118 (log event plan/mode) · at chapter end: active
+- plan mode ACTIVE from seq 118 (log event plan/mode)
+- plan mode inactive from seq 141 (log event plan/mode) · at chapter end: inactive
 ```
+
+That last line is measured, not obvious: **approving a plan exits plan mode**, and the host appends the
+`inactive` flip inside the same turn — so a chapter ending after an approval correctly reports
+`planMode: inactive`. The fold takes the last logged value, exactly like the harness's own projection.
 
 The head is bounded; **the artifact is not** — every byte of the plan is stored, always, and the same
 content-addressed dedup that serves oversized results serves it. `pending` (a review nobody answered) is a

@@ -4,7 +4,50 @@ description: Every version, what it fixed, and the incidents that found them —
 lastUpdated: true
 ---
 
-Releases publish automatically from a bare-semver tag via **npm trusted publishing (OIDC)**. The publish itself is gated on the full deterministic suite under the coverage gate; the seven-segment tape-replay acceptance chain runs in CI on every push to `main`, so a release is always cut from a green acceptance run. Each CI-published version carries a provenance attestation tying it back to this repo, that workflow run, and that commit — 0.1.0, the one manual ship, predates attestation.
+Releases publish automatically from a bare-semver tag via **npm trusted publishing (OIDC)**. The publish itself is gated on the full deterministic suite under the coverage gate; the eight-segment tape-replay acceptance chain runs in CI on every push to `main`, so a release is always cut from a green acceptance run. Each CI-published version carries a provenance attestation tying it back to this repo, that workflow run, and that commit — 0.1.0, the one manual ship, predates attestation.
+
+### 0.1.7 — 2026-10 · the plans journey joins the acceptance chain, and the browser corrects three beliefs
+
+0.1.6 shipped session-plan carriage with the browser plane written but never executed. It executes now, as
+**the eighth project in the tape-replay chain** (`tests/e2e/plans.spec.ts`, project `plans`, ~13 s in
+replay): `/plan <message>` → a real `exit_plan_mode` tool call → the host's plan-review card opened and
+answered by a real click → fork → the child's single seeded event calling the plan out, with the plan's
+full bytes on disk. The eight-project chain passes end to end (`CHAIN_EXIT=0`, 9 tests) on committed tapes,
+no LLM present.
+
+**Provenance, stated plainly:** the box's local model server dropped the stream mid-journey
+(`turn/end` `code:"TRANSPORT"`), so this tape was distilled through `tests/e2e/stub-model.ts` — a scripted
+OpenAI-compatible upstream whose SSE shape is copied form-for-form from recorded llama.cpp traffic. What
+that proves is everything on our side of the seam in a real browser against the real review channel; what
+it does NOT prove is a model choosing to plan. `tests/fixtures/model-tape/plans/PROVENANCE.md` says so in
+the directory itself (the recorded `model` field names the request's route, so it cannot carry
+provenance) and carries the command that retires the stub.
+
+**What running it corrected** — the reason the layer exists, and every one of these was a belief the
+deterministic plane had encoded:
+
+- approving a plan **exits** plan mode, so a chapter's folded `planMode:` after an approval is `inactive`,
+  not `active`; both flips print and the fold takes the last logged value. The archived chapter was right,
+  my assertion wrong.
+- the toolbar chip is an **exit-only** control (`plan.pending ? !plan.active : plan.active`); the entry door
+  is the `/plan` command. Worth a 40-minute timeout to learn.
+- the review question is a **region's accessible name**, not matchable element text — `text=…` hangs,
+  `getByRole('region', …)` finds it.
+- a seeded event read back out of the zstd log is **JSON-escaped**: parse the event and assert on its
+  text, never on the raw line.
+- a scripted upstream that string-matches its own message array **lies confidently** — `exit_plan_mode`
+  and `approved` both appear in the system prompt, so the first version never opened a review. The honest
+  signal is the transcript's shape (a `role:'tool'` message exists only once a tool has run); the stub's
+  turn policy now has its own rows (`tests/unit/stub-model.test.ts`), because a wrong stub records a tape
+  of a session that never planned.
+- acceptance assertions are scoped to **the session tree the run created** — scanning the whole store lets
+  a previous run satisfy the next one.
+
+Also in this ship: the plan blob's publication leg is pinned (a chapter's plan must be planned for the
+pool, not just written locally), the site's anatomy page states the mode-fold truth instead of guessing it,
+and a red deterministic gate now annotates its own diagnosis (`scripts/ci-gate.sh`, since the 0.1.6 run
+that failed with nothing readable left behind). Deterministic ledger: **557 rows, zero skips**, coverage
+98.11 / 86.44 / 93.8 against the ≥85 gate.
 
 ### 0.1.6 — 2026-10 · session plans survive the continuation
 

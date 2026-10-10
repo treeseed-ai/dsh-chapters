@@ -69,8 +69,8 @@ scripts/bootstrap-dev-profile.sh --with-probe   # scripted rounds only (probe se
 | unit | `npm test` (`tests/unit`) | node --test, no build, no network | pure core: registry, render, archive, notice, engine-core, tools, commands |
 | integration | (today: probe rounds — see spikes/probe/README pattern) | boots real hosts in scratch homes | host wiring, realm mounts, provider economics |
 | e2e (tape — the default loop) | `npm run test:e2e:replay` | same boots with `E2E_MODEL=replay`; model turns answered from `tests/fixtures/model-tape/<project>` via the record/replay proxy (`tests/e2e/model-proxy.ts`) — seconds, deterministic |
-| e2e (distillation — occasional) | `npm run test:e2e:record` | `E2E_MODEL=record`: forwards every exchange to the real Local model and appends the tape. Run once per scenario; wipe `var/model-tape` first for a clean corpus; tapes are isolated per project (seven: suite/heavy/arrival/fanout/enrich/rules/fork); re-record when scenarios, prompts, or thresholds change. The GPU model is the DISTILLER, never the test oracle (user directive 2026-09-19) |
-| e2e | `npm run test:e2e` (`tests/e2e`, SEVEN projects: suite/heavy/arrival/fanout/enrich/rules/fork) | Playwright + workspace-cached chromium vs a throwaway `var/e2e-home-<port>` rebuilt per boot (port-keyed so no boot can stomp another's state) (isolated from live agents — see FINDINGS 2026-09-19) | the browser: identity, fork button + switch, knowledge loop end-to-end, the oversized turn (mid-turn compactions), the subagent fan-out, arrival-time artifacting (low-floor project) |
+| e2e (distillation — occasional) | `npm run test:e2e:record` | `E2E_MODEL=record`: forwards every exchange to the real Local model and appends the tape. Run once per scenario; wipe `var/model-tape` first for a clean corpus; tapes are isolated per project (eight: suite/heavy/arrival/fanout/enrich/rules/fork/plans); re-record when scenarios, prompts, or thresholds change. The GPU model is the DISTILLER, never the test oracle (user directive 2026-09-19) |
+| e2e | `npm run test:e2e` (`tests/e2e`, EIGHT projects: suite/heavy/arrival/fanout/enrich/rules/fork/plans) | Playwright + workspace-cached chromium vs a throwaway `var/e2e-home-<port>` rebuilt per boot (port-keyed so no boot can stomp another's state) (isolated from live agents — see FINDINGS 2026-09-19) | the browser: identity, fork button + switch, knowledge loop end-to-end, the oversized turn (mid-turn compactions), the subagent fan-out, arrival-time artifacting (low-floor project) |
 
 The e2e layer exists because client-plane facts were being GUESSED (services, methods, tooltips,
 switching) and every guess cost the user a browser round-trip. Playwright answers those in seconds
@@ -134,7 +134,7 @@ Re-record discipline (learned the hard way 2026-09-22/23):
   sweep files rather than by lowering the bar.
 - `npm run coverage` — the same deterministic suite under node's native
   `--experimental-test-coverage` (a quick second opinion; no gate).
-- `npm run coverage:e2e` — replays the seven browser segments with
+- `npm run coverage:e2e` — replays the eight browser segments with
   `E2E_COVERAGE=1`, which makes every boot write NODE_V8_COVERAGE profiles
   under `var/e2e-cov/<port>` (flushed on the boot's clean exit), then runs
   `scripts/e2e-coverage.mjs` → **c8 with real source maps** (tsconfig
@@ -177,7 +177,7 @@ ship; `0.1.0` itself carries no attestation.
   `if: always()`). `e2e-replay`: installs the pinned
   host (`npm i -g @deepseek-ai/dsh@0.1.5-rc.1` — the SAME version as the
   gate line in `scripts/ci-replay.sh`, which fails loudly on mismatch) plus
-  chromium's apt libs, then `scripts/ci-replay.sh` — seven browser segments
+  chromium's apt libs, then `scripts/ci-replay.sh` — eight browser segments
   served entirely from the committed tapes. **No LLM, no key, no GPU:** in
   replay mode `localModelUp()` short-circuits to true (specs RUN, they do not
   skip) and a tape miss is a loud proxy 503, so a scenario that legitimately

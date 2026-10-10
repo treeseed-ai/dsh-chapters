@@ -218,8 +218,43 @@ Registry note: **do not** use `state.plans` — that name is the compaction mani
   product prompt *is* edited (personas, tool descriptions, notice text), the rule stands: re-record
   **whole projects**, never one spec of a shared boot.
 - New e2e project `plans` (own boot, own `E2E_PORT`, throwaway home `var/e2e-home-<port>`, one journey =
-  one boot — the fork- and fanout-carve-out lesson), recorded once with `npm run test:e2e:record`, then
-  replayed. Prompts must be tool-free **in words the model obeys** (the RR2 OOM lesson).
+  one boot — the fork- and fanout-carve-out lesson), recorded once then replayed. Prompts must be
+  tool-free **in words the model obeys** (the RR2 OOM lesson). **LANDED 2026-10-10 as the eighth chain
+  project** — but NOT from the live model: the box's `:8080` server closed the stream mid-turn
+  (`turn/end` `reason {kind:"error", code:"TRANSPORT"}`), so the tape was distilled through the scripted
+  upstream `tests/e2e/stub-model.ts` (wire format copied form-for-form from recorded llama.cpp traffic).
+  `tests/fixtures/model-tape/plans/PROVENANCE.md` states what that proves (the whole carriage, in a real
+  browser, against the real review channel) and what it does not (a model choosing to plan), and carries
+  the re-record command that retires the stub.
+
+### What the browser plane corrected (this is why it exists)
+
+Every item below was an assumption the deterministic plane had encoded — and the live run said otherwise:
+
+- **`planMode:` at a plan's chapter end is `inactive`, not `active`.** Approving a plan EXITS plan mode,
+  and the host appends that flip at the next accepted pre-step — inside the same turn, before
+  `turn/end`. My expectation said `active`; the archived chapter said `inactive`, and both mode flips
+  printed. The fold was right; my belief was wrong.
+- **The toolbar chip is an EXIT control only.** `PlanModeControl` renders when
+  `plan.pending ? !plan.active : plan.active` (`dsh-client-ui-plan/lib/client.js:39-41`), so there is no
+  "press to turn plan mode ON". Entry is `/plan <message>` in the composer, which appends
+  `plan/mode {active:true}` before the turn and steers the text as one real user message. Learning that
+  cost one 40-minute timeout on a locator that could never appear.
+- **`text=Approve this plan…` hangs; `getByRole('region', {name: /Approve this plan/})` does not.** The
+  question is the review REGION's accessible name, not matchable element text — read off the failure
+  snapshot, which is the only honest way to find this out.
+- **A seeded event read out of the session log is JSON-escaped.** `expect(raw).toMatch(/ACTIVE PLAN: "x"/)`
+  can pass as a substring and fail as a regex; parse the event and assert on `data.content[0].text`.
+- **`expect.poll(..., {intervals: 3000})` throws a TypeError** — intervals is an array. Trivial, but it
+  killed the first two recording runs.
+- **A scripted upstream that string-matches the message array lies confidently.** The stub's first
+  `decide()` searched all messages for `exit_plan_mode`/`approved` — both words live in the SYSTEM PROMPT
+  (tool catalog + plan policy), so every turn answered as if the review were done and the review card
+  never opened. The honest signal is the transcript's SHAPE (`role:'tool'` exists only once a tool ran).
+  Pinned by `tests/unit/stub-model.test.ts`, because a stub that answers wrongly records a tape of a
+  session that never planned.
+- **Acceptance assertions must be scoped to the session tree the run created.** Scanning the whole store
+  lets a previous run's plan satisfy the next run — a green that proves nothing.
 - Coverage: `npm run coverage:ci` gate (≥85 all four) must stay green; `src/plans.ts` is pure and gets a
   full-branch row like the other planners, and the new `render.ts` arms need the success/refusal
   surface covered the way the 2026-09-23 sweep did it.
@@ -253,7 +288,8 @@ Registry note: **do not** use `state.plans` — that name is the compaction mani
 | 4 | `plansSection` in `assembleNotice` + wiring + config register | done — P5/P8/P9 |
 | 5 | Site docs (§9 anatomy, §16 tools, §17 configuration, §18 notice) | done in the same release |
 | — | Seven-segment tape replay | green WITHOUT re-recording (2026-10-09, `npm run test:e2e:replay`, EXIT=0) |
-| — | `plans` browser journey | spec written as the `plans-dev` project; **awaits its tape** (no live Local model on this box — it self-skips, and is deliberately outside the CI chain until recorded) |
+| — | `plans` browser journey | LANDED as the eighth chain project (2026-10-10): `tests/e2e/plans.spec.ts` passes in 13 s against `tests/fixtures/model-tape/plans/`, and the full eight-project chain is `CHAIN_EXIT=0` / 9 tests. Its tape is scripted-upstream distilled — see § Tapes and `PROVENANCE.md` |
+| — | Follow-up, not blocking | re-record the `plans` tape from the live model on the GPU box (command in `PROVENANCE.md`); the carriage evidence does not change, only the claim about model behaviour |
 
 Deterministic ledger at landing: **549 unit+integration rows, zero failures** with the TreeDX container
 up (80 of them new, across `plans`, `render-plans`, `continue-plans`, `plans-segmentation`, `plans-tools`,

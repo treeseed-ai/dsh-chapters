@@ -27,7 +27,7 @@ import { makeDomainStore } from '../../src/store.ts'
 import { resolveArtifactWithMirror, buildToc, searchArtifact } from '../../src/artifact-query.ts'
 import { entryFromChapter } from '../../src/indexing.ts'
 import { searchKnowledge } from '../../src/search.ts'
-import { DEFAULT_CLONE_DIR } from '../../src/sync.ts'
+import { DEFAULT_CLONE_DIR, planStoreToRepo } from '../../src/sync.ts'
 import { sha256 } from '../../src/render.ts'
 
 type Ev = { seq: number; type: string; data: Record<string, unknown> }
@@ -175,6 +175,30 @@ test('an approved plan is archived verbatim and retrievable as an artifact (veri
     `chapters_search finds the plan through its citing chapter; got ${JSON.stringify(found.results.map((x) => x.path))}`)
   assert.equal(resolveArtifactWithMirror(path.join(w.tmp, '.dsh-chapters'), plans[0]!.artifactPath, path.join(cloneDir, 'artifacts')) !== null, true,
     'the session-tree artifact path resolves through the SAME reader chapters_artifact uses')
+  fs.rmSync(w.tmp, { recursive: true, force: true })
+})
+
+test('the plan blob is PLANNED for publication — another machine can resolve the citation', async () => {
+  // The guarantee "every byte remains retrievable" is cross-machine or it is
+  // nothing: a chapter on machine B cites an artifacts/… path that only exists
+  // where it was written unless the publisher walks the session tree. The
+  // 0.1.4 audit fixed the store-root leg; the plans-carriage audit (P10) found
+  // the tree leg unreadable by the reader. This row pins the writer side.
+  const w = world(ARCHIVED)
+  const r = await w.built.chaptersContinue.execute({
+    title: 'Carriage', handoffNote: 'continue', chapters: RANGES, toolResultOverrides: [],
+  } as never, w.exec)
+  assert.equal((r as { ok: boolean }).ok, true, JSON.stringify(r))
+  const storeDir = path.join(w.tmp, '.dsh-chapters')
+  const planned = planStoreToRepo(storeDir, 'PK')
+  const state = await w.store.get('sess-archive')
+  const fact = state.chapters[0]!.plans![0]!
+  const entry = planned.find((p) => p.rel === path.join('artifacts', 'PK', 'ab', `${fact.sha256}.txt`).replace(/\\/g, '/'))
+    ?? planned.find((p) => p.rel.endsWith(`${fact.sha256}.txt`))
+  assert.ok(entry, `the plan blob must be published; planned: ${planned.map((p) => p.rel).join(', ')}`)
+  assert.ok(fs.readFileSync(entry!.abs, 'utf8').includes('# Carry session plans into chapters'), 'and it is the real bytes')
+  // the citing chapter travels too, with its Plans block intact
+  assert.ok(planned.some((p) => p.rel.startsWith('chapters/PK/') && p.rel.endsWith('.md')))
   fs.rmSync(w.tmp, { recursive: true, force: true })
 })
 
