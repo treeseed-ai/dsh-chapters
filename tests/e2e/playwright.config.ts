@@ -17,7 +17,7 @@ export default defineConfig({
   use: { headless: true, viewport: { width: 1360, height: 900 } },
   globalSetup: './globalSetup.ts',
   projects: [
-    { name: 'suite', testIgnore: ['**/artifact-arrival.spec.ts', '**/oversized-turn.spec.ts', '**/enrich.spec.ts', '**/rules.spec.ts', '**/subagent-fanout.spec.ts', '**/explore.spec.ts', '**/fork-button.spec.ts', '**/cache-trajectory.spec.ts'] },
+    { name: 'suite', testIgnore: ['**/artifact-arrival.spec.ts', '**/oversized-turn.spec.ts', '**/enrich.spec.ts', '**/rules.spec.ts', '**/subagent-fanout.spec.ts', '**/explore.spec.ts', '**/fork-button.spec.ts', '**/cache-trajectory.spec.ts', '**/plans.spec.ts'] },
     // fork-button rides its OWN boot (2026-09-25, the fanout lesson applied
     // again): knowledge's fork child becomes the workspace's restore target,
     // so a shared boot records/replays whoever ran first's shape — the fork
@@ -31,6 +31,12 @@ export default defineConfig({
     // artifact API past any cap) — so it runs ON DEMAND only, never in the CI
     // chain (2026-09-25): npx playwright test --project=explore-dev
     { name: 'explore-dev', testMatch: ['**/explore.spec.ts'], use: { baseURL: undefined } },
+    // plans-dev: the session-plan carriage journey (docs/plans-carriage.md). It
+    // needs a LIVE submission — the tapes hold no exit_plan_mode turn (measured
+    // 2026-10-09), so on replay it self-skips until someone records the tape on
+    // the GPU box: E2E_MODEL=record npx playwright test --project=plans-dev
+    // (whole-project recording rules apply). Never in the CI chain until then.
+    { name: 'plans-dev', testMatch: ['**/plans.spec.ts'] },
     // cache-trajectory measures PHYSICAL prefix caching — live mode only, never
     // in the replay chain (tapes record usage bytes; they cannot show a warm cache).
     { name: 'cache', testMatch: ['**/cache-trajectory.spec.ts'], timeout: 900_000 },

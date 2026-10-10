@@ -79,3 +79,40 @@ test('resolveArtifactWithMirror: store first, mirror second, sha-form too, trave
   assert.equal(resolveArtifactWithMirror(store, 'artifacts/ff/deadbeef.txt', mirror), null, 'missing everywhere is null, never a guess')
   assert.equal(resolveArtifactWithMirror(store, 'artifacts/cd/../../escape.txt', mirror), null, 'traversal can never escape the mirror root')
 })
+
+test('resolveArtifactWithMirror: a chapter citation resolves inside the ANCESTRY TREE (verify.md P10)', () => {
+  // Measured 2026-10-09 while implementing plans-carriage: archive.writeArchive writes
+  // deferred results — and every plan's full text — to <storeRoot>/<rootSession>/artifacts/…,
+  // while the arrival stubber writes to <storeRoot>/artifacts/…. Both print the SAME
+  // citation form (`artifacts/aa/<sha>.txt`), so a reader that only checks the store root
+  // calls a stored byte missing. That is the gap this row keeps closed.
+  const base = fs.mkdtempSync(path.join(os.tmpdir(), 'art-tree-'))
+  const store = path.join(base, '.dsh-chapters')
+  const mirror = path.join(base, '.dsh-knowledge')
+  const sha = 'ab' + 'f'.repeat(62)
+  const tree = path.join(store, 'sess-root-1', 'artifacts', 'ab', `${sha}.txt`)
+  fs.mkdirSync(path.dirname(tree), { recursive: true })
+  fs.writeFileSync(tree, 'TREE')
+  assert.equal(resolveArtifactWithMirror(store, `artifacts/ab/${sha}.txt`, mirror), tree, 'the tree dir answers a store-root miss')
+  const sha2 = '9d' + 'e'.repeat(62)
+  const tree2 = path.join(store, 'sess-root-2', 'artifacts', '9d', `${sha2}.txt`)
+  fs.mkdirSync(path.dirname(tree2), { recursive: true })
+  fs.writeFileSync(tree2, 'TREE2')
+  assert.equal(resolveArtifactWithMirror(store, sha2, mirror), tree2, 'a bare sha resolves through the trees as well')
+
+  // The store root still WINS when both hold the blob: local ground truth first.
+  const sha3 = '00' + '1'.repeat(62)
+  fs.mkdirSync(path.join(store, 'sess-root-3', 'artifacts', '00'), { recursive: true })
+  fs.writeFileSync(path.join(store, 'sess-root-3', 'artifacts', '00', `${sha3}.txt`), 'TREE')
+  fs.mkdirSync(path.join(store, 'artifacts', '00'), { recursive: true })
+  fs.writeFileSync(path.join(store, 'artifacts', '00', `${sha3}.txt`), 'ROOT')
+  assert.equal(resolveArtifactWithMirror(store, `artifacts/00/${sha3}.txt`, mirror), path.join(store, 'artifacts', '00', `${sha3}.txt`))
+
+  // Dot-dirs are never walked, and a traversal reference still cannot leave the store.
+  const sha4 = '77' + '2'.repeat(62)
+  fs.mkdirSync(path.join(store, '.hidden', 'artifacts', '77'), { recursive: true })
+  fs.writeFileSync(path.join(store, '.hidden', 'artifacts', '77', `${sha4}.txt`), 'HIDDEN')
+  assert.equal(resolveArtifactWithMirror(store, `artifacts/77/${sha4}.txt`, mirror), null, 'a hidden tree is not part of the archive')
+  assert.equal(resolveArtifactWithMirror(store, `artifacts/88/${'3'.repeat(64)}.txt`, mirror), null, 'nothing there is a clean null, never a guess')
+  fs.rmSync(base, { recursive: true, force: true })
+})

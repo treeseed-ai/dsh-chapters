@@ -56,6 +56,13 @@ export interface EngineConfig {
    * tool results at/above this many estimated tokens are stored as artifacts
    * and replaced by reference stubs BEFORE the next request is composed. */
   toolResultArtifactTokens: number
+  /** Verbatim plan characters printed in a chapter's Plans block (plans-carriage § 2).
+   * The full plan is ALWAYS artifact-backed, so this is display economy, not data. */
+  planInlineChars: number
+  /** Above this many estimated tokens a tool-call ARGUMENT is artifact-backed and the
+   * inline text is a bounded head. 0 = off (default): enabling it changes chapter
+   * bytes, hence the model tapes — a deployment opts in deliberately. */
+  callArgArtifactTokens: number
   /** Elicit a plot note with one bounded call when the model wrote none. */
   elicitedPlot: boolean
 }
@@ -68,6 +75,8 @@ export const ENGINE_CONFIG_DEFAULTS: EngineConfig = {
   chapterLimit: 8000,
 
   toolResultArtifactTokens: 8000,
+  planInlineChars: 900,
+  callArgArtifactTokens: 0,
   elicitedPlot: true,}
 
 // ---------------------------------------------------------------- input/output vocabulary
@@ -248,7 +257,18 @@ export interface SummarizePlan {
 const HARNESS_PROSE = /^\s*(<system-reminder>|system reminder\b|current runtime context\.|\[workspace instructions?\b|this session is running under)/i
 
 /** Deterministic title/summary from region content. Never model-authored (invariant 4 — the model is absent). */
-export function deriveIdentity(messages: readonly EngineMessage[], hasCheckpoint: boolean): { title: string; summary: string } {
+export function deriveIdentity(
+  messages: readonly EngineMessage[],
+  hasCheckpoint: boolean,
+  /**
+   * A plan submitted inside this span, when there is one (docs/plans-carriage.md
+   * § 6): the submission IS the identity of a planning chapter, and it beats the
+   * first prose line the same way a file's own header beats a guess about it.
+   * Callers that hold events pass it; the summarize path, which sees provider
+   * messages only, passes nothing and keeps the old derivation.
+   */
+  planTitle?: string,
+): { title: string; summary: string } {
   // Title source: the first USER message that is actual human/agent prose.
   // Harness injections (system reminders, runtime-context snapshots) ride as
   // user messages too — an earlier fork titled a chapter "System reminder 1"
@@ -259,7 +279,9 @@ export function deriveIdentity(messages: readonly EngineMessage[], hasCheckpoint
     && !HARNESS_PROSE.test(messageText(m).trimStart()))
   const userCount = messages.filter((m) => m.role === 'user').length
   const assistantCount = messages.filter((m) => m.role === 'assistant').length
-  const headLine = firstUser === undefined ? '' : messageText(firstUser).split('\n')[0]!.trim()
+  const headLine = planTitle !== undefined && planTitle.trim() !== ''
+    ? planTitle.trim()
+    : firstUser === undefined ? '' : messageText(firstUser).split('\n')[0]!.trim()
   const title = headLine.length > 0
     ? headLine.length > 72 ? `${headLine.slice(0, 72)}…` : headLine
     : hasCheckpoint ? 'Earlier history' : 'Conversation span'
@@ -488,6 +510,8 @@ export function buildFinalizedChapter(
   }, {
     chapterTokenTarget: config.chapterTokenTarget,
     toolResultDeferFloorTokens: config.toolResultDeferFloorTokens,
+    planInlineChars: config.planInlineChars,
+    callArgArtifactTokens: config.callArgArtifactTokens,
   }, [], chapterTopics(events, lo, hi))
 }
 
@@ -522,13 +546,19 @@ export function buildFinalizedChapters(
   const renderCfg = {
     chapterTokenTarget: config.chapterTokenTarget,
     toolResultDeferFloorTokens: config.toolResultDeferFloorTokens,
+    planInlineChars: config.planInlineChars,
+    callArgArtifactTokens: config.callArgArtifactTokens,
   }
   return composed.map((ch) => {
     const inRange = events.filter((e) => e.seq >= ch.startSeq && e.seq <= ch.endSeq)
     if (inRange.length === 0) {
       throw new Error(`buildFinalizedChapters: chapter ${ch.number} [${ch.startSeq}..${ch.endSeq}] holds no shadowed events`)
     }
-    return renderChapter(inRange, {
+    // The WHOLE shadowed list goes in, not just this chapter's events: a plan
+    // verdict can land past a composed boundary, and pairing inside one range
+    // only would print an approved plan as pending (plans-carriage § 1).
+    // renderChapter filters to the range itself.
+    return renderChapter(events, {
       title: ch.title,
       summary: ch.summary,
       startSeq: Math.min(...inRange.map((e) => e.seq)),
@@ -552,6 +582,8 @@ export function engineRecord(plan: SummarizePlan, shadowedSeqs: readonly number[
     sha256: sha256hex,
     estimatedTokens: rendered.stats.estimatedTokens,
     artifacts: rendered.artifacts.map((a) => ({ path: a.path, sha256: a.sha256, bytes: a.bytes })),
+    ...(rendered.stats.plans !== undefined && rendered.stats.plans.length > 0 ? { plans: rendered.stats.plans } : {}),
+    ...(rendered.stats.planMode !== undefined && rendered.stats.planMode !== 'unknown' ? { planMode: rendered.stats.planMode } : {}),
   }
 }
 

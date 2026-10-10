@@ -48,6 +48,15 @@ export interface ChapterRecord {
   sha256: string
   estimatedTokens: number
   artifacts: Array<{ path: string; sha256: string; bytes: number }>
+  /**
+   * Plans this chapter carries (docs/plans-carriage.md § 2/§ 8): the durable,
+   * machine-readable half of the Plans block. Absent on records written before
+   * the feature — the notice reads `undefined` as "no plans here", never as a
+   * lie. The full bytes live in the cited artifact; the prose lives in the file.
+   */
+  plans?: import('./types.ts').PlanFact[] | undefined
+  /** Folded plan-mode state at the chapter's end ('unknown' when the log never said). */
+  planMode?: 'active' | 'inactive' | 'unknown' | undefined
 }
 
 export interface WriteResult {
@@ -163,6 +172,11 @@ export async function writeArchive(input: WriteInput): Promise<WriteResult> {
       sha256: bodyHash,
       estimatedTokens: chapter.stats.estimatedTokens,
       artifacts: chapter.artifacts.map((a: ArtifactRef) => ({ path: join(treeDir, a.path), sha256: a.sha256, bytes: a.bytes })),
+      // Plans ride along ONLY when the chapter has them: an absent field means
+      // "no plans here" for a pre-feature record, and an empty array here would
+      // be read as a fact by the notice builder.
+      ...(chapter.stats.plans !== undefined && chapter.stats.plans.length > 0 ? { plans: chapter.stats.plans } : {}),
+      ...(chapter.stats.planMode !== undefined && chapter.stats.planMode !== 'unknown' ? { planMode: chapter.stats.planMode } : {}),
     })
   }
 

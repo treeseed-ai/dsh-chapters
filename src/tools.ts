@@ -9,7 +9,8 @@ import type { ToolRunContext } from '@deepseek-ai/dsh-tools'
 import { randomUUID } from 'node:crypto'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
-import { toolResultCandidates } from './render.ts'
+import { estimateTokens, toolResultCandidates } from './render.ts'
+import { detectPlans } from './plans.ts'
 import { buildRulesSection } from './rules.ts'
 import { rulesCommand } from './rules-commands.ts'
 import { DEFAULT_CLONE_DIR } from './sync.ts'
@@ -189,10 +190,38 @@ export function buildChaptersTools(
       const ceiling = lastTurnEnd.seq
       const below = events.filter((e) => e.seq <= ceiling)
       const callerState: SessionState = await store.get(caller.session.id)
+      // Plans over the WHOLE log, with the ceiling as the archived/live split: a
+      // submission below the ceiling can already hold its verdict above it (the
+      // review is answered in the turn still open), and an approved plan must not
+      // be re-reported as pending because the range filter hid the result
+      // (docs/plans-carriage.md § 1).
+      const planScan = detectPlans(events, { ceiling })
+      const planRow = (p: (typeof planScan.plans)[number]) => ({
+        seq: p.seq,
+        title: p.title,
+        status: p.status,
+        resultSeq: p.resultSeq,
+        bytes: p.bytes,
+        estimatedTokens: estimateTokens(p.text),
+        outline: p.outline,
+        verdict: p.verdict === null ? null : p.verdict.slice(0, 200),
+      })
       return {
         ok: true,
         archiveCeiling: ceiling,
         eventCount: below.length,
+        // Plans this session submitted and their verdicts as the log states them.
+        // Facts only — the model still chooses ranges, and the plugin renders the
+        // text (invariant 4). A plan's artifact path appears in the chapter after
+        // chapters_continue writes it, never promised here.
+        plans: planScan.plans.filter((p) => p.archived).map(planRow),
+        // Above the ceiling: an unfinished turn, so NOTHING can archive it yet and
+        // no artifact exists. Say so plainly rather than let the child guess.
+        livePlans: planScan.plans.filter((p) => !p.archived).map(planRow),
+        modeActive: planScan.modeActive,
+        ...(planScan.plans.length === 0
+          ? {}
+          : { planHint: 'a submitted plan is a topic boundary: the chapter that carries it ENDS there, and its title becomes the chapter title' }),
         // fresh literals, not the ToolResultCandidate interface: anonymous
         // object types carry the implicit index signature JsonValue needs.
         toolResults: toolResultCandidates(below, { title: '', summary: '', startSeq: 0, endSeq: ceiling })
@@ -535,7 +564,7 @@ export function buildChaptersTools(
       let abs: string | null
       try { abs = resolveArtifactWithMirror(storeDir, args.path, path.join(cwd, DEFAULT_CLONE_DIR)) }
       catch (error) { return { ok: false as const, error: String((error as Error)?.message ?? error) } }
-      if (abs === null) return { ok: false as const, error: `no artifact at ${args.path} — searched the store (${storeDir}) and the knowledge mirror (${path.join(cwd, DEFAULT_CLONE_DIR)}/artifacts/<projectKey>/); the blob was never written here or its pool has not published/pulled it yet (/chapters-status shows the transport state)` }
+      if (abs === null) return { ok: false as const, error: `no artifact at ${args.path} — searched the store root, every session tree under it (${storeDir}/*/artifacts/) and the knowledge mirror (${path.join(cwd, DEFAULT_CLONE_DIR)}/artifacts/<projectKey>/); the blob was never written here or its pool has not published/pulled it yet (/chapters-status shows the transport state)` }
       const text = fs.readFileSync(abs, 'utf8')
       const action = args.action.toLowerCase()
       if (action === 'toc') {

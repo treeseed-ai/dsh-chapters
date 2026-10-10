@@ -12,6 +12,7 @@ Knowledge pool, providers, search, rules, enrichment mechanics → `docs/knowled
 site Part III. Host API facts incl. exact file:line → `docs/contract.md`. Compaction seam →
 `docs/host-compaction-seam.md`. Build/test loop + tape system → `docs/development.md` + site §24.
 Claims & verification procedures → `docs/verify.md`. Transport truth table → `docs/provider.md`.
+Session plans in chapters / the ACTIVE PLAN line → `docs/plans-carriage.md`.
 Numbers from real runs (compaction, cache, retrievals) → site Part V (field study §20, cache §21).
 Releases/incidents → site §26 + git log. Benchmarks → `benchmarks/README.md` + site §19.
 
@@ -27,6 +28,9 @@ archived); the test-time rule keeping it out of tape matching is AGENTS-BLIND ma
 - `docs/architecture.md` — how a continuation is created, chapter rendering and the artifact store,
   budgets, ancestry, atomicity, integrity, phases
 - `docs/development.md` — the build/test loop that does not restart the harness you are editing from
+- `docs/plans-carriage.md` — **read before writing code in that area**: how a session plan
+  (`exit_plan_mode`) reaches the chapters, the TOC and the artifact store; the verdict classes; and why
+  the token meter is never exempted
 - `docs/host-compaction-seam.md` — **read before writing code**: the harness already ships pressure
   compaction, overflow recovery, and a `summarize()` subclass hook. This is our real integration surface and
   it deletes most of what an earlier plan assumed we would build.
@@ -340,6 +344,21 @@ run|model|report`; shadow-by-default emergent vocabulary writing git-visible `to
 curation + derived `topics/vocabulary.json`; and index-level fragment stitching (adjacent
 legacy fragments cohere into ONE search entry citing all members — nothing merged on disk). Two-machine exit criterion proven — catching r37 on the way: stageAllAndCommit compared the workdir against itself, making modifications to tracked files permanently invisible to commits (additive P1 hid it; enrichment would never have traveled). **P3 is BUILT (2026-09-20, §15 amendment: approval = per-machine curation fact, never a file rewrite)**: write-once proposed rule files, /chapters-rule add|list|approve|revoke, chapters_rule_propose tool, verbatim core block in the continuation notice (byte-identical ABSENT, golden-tested), refuse-with-numbers overflow budget, category-aware search with a per-machine core bonus, and the rules lifecycle proven transport-grade over a real pool with three machines. §7.4 auto-inclusion stays P3b.
 **Knowledge transport is now a provider seam (2026-09-21, record §15: "transport is pluggable; git is one provider" + "host-injected context is not conversation")**: `src/provider.ts`'s six verbs carry every sync path; `kind:'git'` (default, every pre-existing record — zero behavior change) or `kind:'treedx'` (`/chapters-link treedx+<url>/<repo> <token>`, `src/treedx/`: workspace-create → overlay-write → commit transport, `.treedx-state.json` mirror memory). Search/rules/index/notice layers read the materialized mirror unchanged — §3.1 survives both backends; divergence routes through rebuild-from-the-store in both; TreeDX lease contention maps to the existing rejected→pull-retry, moved head to diverged. Contract + truth table in `docs/provider.md`; TreeDX API facts (doc-reads vs live-measured, with corrections) in `spikes/treedx/FINDINGS.md`; dev loop `scripts/treedx-local.sh` + `dev/treedx.compose.yaml` (the cloned repo's own compose is platform-bound and will not boot standalone — measured). Transport-grade proof: 24 tests over an in-process stub (`treedx-{provider,sync,link}.test.ts`); the real-container exit criterion (`treedx-live.test.ts`) ran and PASSED 2026-09-21 (5/5 against a booted dev-auth service; full suite 286/286 zero skips — the live run caught three parser shapes, the born-with-`.treedxkeep` phantom-deletion trap, the lease-survives-TTL close requirement, and a swallowed auth detail, all fixed and pinned). **Re-verification 2026-09-23 caught one more, in the wild:** `paths/list` PAGINATES (limit 100, base64 offset cursor in `page.nextCursor`) — reading one page silently truncated the corpus once the shared dev repo grew past 100 paths (machine B reported 'up to date' while missing real files). `corpusPaths` now follows the cursor to the end; the paginating stub + a 150-file row pin it (T12), and the live container proves it at the real service. **The same round landed the injection screen** (`src/injections.ts`): host-injected context (instruction files, runtime snapshots, skill catalogs, our own TOC notice — event-level and `<system-reminder>` spans inside human messages) is marked-and-counted, never archived; the conversation-bytes guarantee and TOC `(N msgs)` now say what is actually true, and the knowledge corpus carries no project's instruction bytes (H1 rows in `docs/verify.md`).
+**Session-plan carriage is BUILT (2026-10-09, `docs/plans-carriage.md`)**: `src/plans.ts` pairs an
+`exit_plan_mode` call with the `tool/result` that carries the human verdict (approved / rejected /
+dismissed / pending / superseded / failed — the fifth class is the review never opening, which is not a
+verdict); chapters carry a `## Plans in this chapter` block AFTER the verbatim transcript with the plan's
+outline, bounded head and content-addressed full text; `plan/mode` folds last-value-wins into `planMode:`
+instead of falling into `unrenderedSeqs`; the child's notice carries `## Plans on this path` with the
+operative plan called out (and a pending one marked unapproved); plans are forced chapter boundaries in
+both segmenters and title the chapter they conclude. Two truths worth keeping: the token meter is NEVER
+exempted (the block is counted by `preflight`, and a plan-less path renders zero bytes — which is why all
+seven tapes still replay WITHOUT re-recording, verified 2026-10-09), and a plan whose review is still open
+sits in an unfinished turn above the archive ceiling, so it is carried as live and un-stored. Fixed on the
+way: chapter `artifacts/…` citations pointed at paths `chapters_artifact` could not resolve at all
+(`writeArchive` writes inside the session tree; the resolver only looked at the store root) — true for
+every deferred blob since arrival-stubbing shipped, now pinned (verify.md P10). Outstanding here: the
+`plans` browser journey awaits its tape on the GPU box (project `plans-dev`, self-skipping).
 **Outstanding: the human verification rows (live `/compact` in a real browser, readability
 judgment), per-message anchoring (the button forks at the conversation's end today; `deriveRanges`
 already supports any anchor), and the default-preset shipping policy (opt-in menu vs profile

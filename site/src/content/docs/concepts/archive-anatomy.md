@@ -13,7 +13,39 @@ Three durable layers, in three different places on purpose:
   artifacts/<aa>/<sha256>.txt   # store-root blobs — content-addressed oversized tool results, shared across every session
   <root-session>/
     chapters/001-<slug>.md      # verbatim body + YAML frontmatter (title, seq range, body hash, topics)
+    artifacts/<aa>/<sha256>.txt # the same content-addressed scheme, one level down: what a CHAPTER defers
 ```
+
+Two directories, one citation form. A chapter prints `artifacts/aa/<sha>.txt` whether the blob sits at the
+store root (arrival-time stubbing) or inside its own session tree (archive-time deferral, and every session
+plan), and `chapters_artifact` searches both before it searches the pool mirror — measured 2026-10-09,
+because the reader used to look in one place only and a deferred plan was unreachable on the machine that
+wrote it.
+
+### What a chapter's Plans block looks like
+
+A session plan is one `tool/call` argument (`exit_plan_mode`'s `plan` field) answered by one `tool/result`
+that carries the human verdict. The renderer puts both in a labeled block **after** the verbatim transcript,
+so the transcript stays exactly what the log said:
+
+```markdown
+## Plans in this chapter
+
+### Plan — "Carry session plans into chapters" — APPROVED
+
+- verdict: submitted seq 412 → answered seq 419: `{"approved":true} Plan approved — …`
+- full text: `artifacts/8f/8f3a1c9d….txt` (18.4 KB ≈ 4.6K tok) — chapters_artifact 'toc' | 'search' | 'read'
+- outline: Goal · Success criteria · Changes by subsystem · Tests · Assumptions
+- head (first 900 chars, verbatim):
+- plan mode ACTIVE from seq 118 (log event plan/mode) · at chapter end: active
+```
+
+The head is bounded; **the artifact is not** — every byte of the plan is stored, always, and the same
+content-addressed dedup that serves oversized results serves it. `pending` (a review nobody answered) is a
+status of its own and never prints as approval, and a `plan/mode` event is read and folded into
+`planMode:` rather than dropped silently. The frontmatter declares what the block claims
+(`plans: [412:approved:8f3a1c9d]`), and the registry record carries the structured facts the child's notice
+is built from. Why the whole design looks like this is in the repo's `docs/plans-carriage.md`.
 
 Why the workspace: the model reloads chapters with its ordinary `read` tool, so the text must live where `read` reaches — a `$HOME` path can be reachable-but-not-writable or writable-but-not-readable; the workspace is the one place both guarantees hold. Content-addressing applies to the artifacts: identical tool results anywhere in the archive are stored **once**, at the store root — and since 0.1.4 they publish to the pool too, so a teammate's `chapters_artifact` read resolves the blob from the shared mirror when the local store doesn't hold it. Chapter bodies need no dedup — each is one validated, non-overlapping range of the log, so the same text never appears in two chapters.
 

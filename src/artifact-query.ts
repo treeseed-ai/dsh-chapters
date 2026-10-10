@@ -141,6 +141,23 @@ export function resolveArtifactWithMirror(storeDir: string, ref: string, mirrorD
         return m?.[1] ?? null
       })()
   if (tail === null || tail.split(/[\\/]/).includes('..')) return null
+  // Session trees FIRST (measured 2026-10-09, plans-carriage): a chapter defers a
+  // result — or a plan's full text — to `artifacts/<aa>/<sha>.txt`, and
+  // archive.writeArchive writes it under the ANCESTRY TREE directory
+  // (<storeRoot>/<rootSession>/artifacts/…), not the store root where arrival
+  // stubs live. Before this, every such citation pointed at a path
+  // chapters_artifact could not resolve, so 'every byte remains retrievable'
+  // held only on the machine and directory layout that happened to match.
+  if (fs.existsSync(storeDir)) {
+    for (const entry of fs.readdirSync(storeDir, { withFileTypes: true })) {
+      if (!entry.isDirectory() || entry.name.startsWith('.')) continue
+      const cand = path.join(storeDir, entry.name, 'artifacts', tail)
+      const root = path.resolve(storeDir)
+      const resolved = path.resolve(cand)
+      if (resolved !== root && !resolved.startsWith(root + path.sep)) continue
+      if (fs.existsSync(cand)) return cand
+    }
+  }
   const artRoot = path.join(mirrorDir, 'artifacts')
   if (!fs.existsSync(artRoot)) return null
   for (const key of fs.readdirSync(artRoot, { withFileTypes: true })) {

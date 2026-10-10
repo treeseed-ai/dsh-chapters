@@ -1,0 +1,304 @@
+# Plans in the Archive — design record
+
+Written 2026-10-09. **Read before writing code.** Human decisions for this feature are recorded at
+§ Decisions Taken and are binding; anything marked *deferred* is a human call, not ours.
+
+DSh ships plan mode (`@deepseek-ai/dsh-plan-mode`) and our own preset mounts it
+(`presets/chapters/agent.cordis.yml:109-133`). Today a session plan survives an archive only as the
+first 400 characters of a tool-call line. That is the worst possible outcome for the one artifact in a
+conversation that is *deliberately* decision-complete — and the reason the plugin exists at all: a
+continuation that cannot see the approved plan either re-plans from recall (lossy) or implements
+something nobody approved (worse).
+
+## Facts to re-verify on any DSH upgrade
+
+| Fact | Where | Consequence for us |
+|---|---|---|
+| The plan is a **tool-call argument**, field `plan`, type string, required | `dsh-plan-mode/lib/index.js:230-236` | Detection is one predicate: `tool/call && name === 'exit_plan_mode'`. There is no plan document event. |
+| The host validates `/^#\s+\S/` on the plan text | `index.js:256` | We can rely on a leading `#` H1 for the title. |
+| Approval result is the canonical `{ approved: true }` + fixed render text | `index.js:237-251` | Verdict is derivable from the paired result, not from prose. |
+| Rejection = failed call carrying review feedback; dismissal = failed call naming the takeover | `index.js` execute arm + package README § Model Experience | Three distinct non-approval shapes to classify, plus a fourth we must not invent. |
+| State is one log-only whole-value event `plan/mode { active }`, appended at the next **accepted in-turn pre-step** | `index.js:374, 389` | An approved exit may not have its mode event yet at archive time → the *result* is the primary signal, the mode event secondary. |
+| Mode state is recovered by **folding the log** (projection `apply`, `stateVersion: 3`) | `index.js:83-94` | Last logged value wins; we mirror that rule, we do not cache a verdict. |
+| The mode-switch notice rides as `source.kind 'plugin'`, `plugin: 'plan-mode'`, `form: 'notice'` | `index.js:392-410` | Our injection screen already omits it (`src/injections.ts:38-41, 94-102`). Deliberate — see § Non-Goals. |
+| `/plan <message>` steers a real user message, `source.kind 'user'`; bare `/plan`, `/plan off` and their terminal results stay outside model history | `index.js:220` + README § Human Command | The instruction a human typed under plan guidance **is** conversation and is archived verbatim today. Nothing to change. |
+| Freshly created agents begin plan mode **inactive**; `plan/mode` is per-session and not inheritable | README § Known Limitations | A `chapters_continue` / `chapters_fork` child cannot know it was mid-plan unless we carry that text. |
+| `tool/call` data shape is `data.{callId, name, arguments}`, `arguments` an object **or** a JSON string | `src/types.ts:8`, precedent `src/render.ts:253` | The extractor must accept both, exactly as the renderer already does. |
+
+## What the pipeline loses today
+
+| Loss | Line | Fix below |
+|---|---|---|
+| Full plan bytes never reach the store (400-char head only) | `src/render.ts:250-257` | § 2 + § 3 |
+| Artifacts are written for `tool/result` payloads only | `src/render.ts:258-277`, `:126-156` | § 3 |
+| `plan/mode` events fall to `default:` → `unrenderedSeqs` (a disclosed hole, no prose) | `src/render.ts:284-285` | § 2 |
+| Nothing in the TOC names a plan or its verdict | `src/continue-core.ts:111-141` | § 4 |
+| `chapters_search` resolves chapters + rules; artifacts travel (`src/sync.ts:160-215`) but are not index entries | `src/search.ts:76, 104-105` | § 8 |
+| A plan in an **open** turn is above the archive ceiling (completed turns only, `src/tools.ts:186-189`) and is never archived | `src/tools.ts:194-198` | § 5 `livePlans` |
+
+## Decisions taken (human, 2026-10-09)
+
+1. **Home for plan bytes: artifact pointer + chapter block.** The verbatim plan goes to the
+   content-addressed artifact store; the chapter carries status, outline, a bounded head, and the path.
+   *Not* a first-class `kind: plan` corpus document — that stays deferred (§ Deferred), because it
+   widens the corpus and needs a `docs/knowledge-repo.md` amendment.
+2. **Mode carriage: notice-only.** The child is *told* about the active plan. We do not seed a synthetic
+   `plan/mode` event into the seed: the seed contract is pinned as one event at `seq 0`
+   (AGENTS.md invariant 2, `spikes/probe/FINDINGS.md`), and flipping the child's mode also changes the
+   composed `plan:policy` header section. Both belong to a measured spike, not to this feature.
+3. **Record before code.** This file is the reviewable artifact; implementation starts after it lands.
+
+## Design
+
+### 1. `src/plans.ts` — pure detector (no cordis, no fs, L0-testable)
+
+```ts
+export type PlanStatus = 'approved' | 'rejected' | 'dismissed' | 'pending' | 'superseded' | 'failed'
+export interface PlanDoc {
+  seq: number; resultSeq: number | null; callId: string
+  title: string; status: PlanStatus; text: string
+  sha256: string; bytes: number; estTokens: number
+  outline: string[]           // H2/H3 headings, in order, verbatim
+  artifactPath: string        // artifacts/<aa>/<sha>.txt
+  archived: boolean           // false when seq > archiveCeiling
+}
+export function detectPlans(events, ceiling, opts): { plans: PlanDoc[]; modeActiveAt: (seq: number) => boolean }
+```
+
+*Status-vocabulary amendment (2026-10-09, at implementation).* A fifth class appeared in the host's own
+`execute` arm and is not a human verdict at all: the review could never open (no user-questions channel;
+the plan-mode service reloaded mid-review; the call ran outside plan mode; the markdown had no `#`
+heading). Labelling those `rejected` would credit the user with a decision they never made, so the union
+carries `failed` and prints the host's own text as the verdict line. The four shapes the record named are
+all still there.
+
+Rules, each pinned by a unit row:
+
+- **Pair by callId** using the existing `sameCall` logic (`src/render.ts:158-164`) — extract it, do not
+  duplicate it.
+- **Verdict precedence**: paired `tool/result` first (`{approved:true}` → approved; `isError` +
+  "Keep planning" feedback → rejected; failed call naming takeover → dismissed); **no result event →
+  `pending`**, which must never be rendered as approval. The `plan/mode` fold is secondary evidence and
+  only breaks a tie.
+- **`superseded`**: same H1 title, different sha256, later seq ⇒ newest is operative, earlier ones are
+  `superseded`. Deterministic; no model judgement.
+- **Screen the body**: run `stripReminderSpans` over the plan text. A plan is model-authored bytes, but
+  an injected span riding inside it is host state (same reasoning as `src/injections.ts:62-70`).
+- **Redaction rides for free**: build the doc through `artifactRef`, so the `render → redact → write`
+  chokepoint applies (`src/render.ts:179-182`). Never write an unredacted plan blob.
+- Title = the first heading, H1 preferred; keep the 72-char cap that `deriveIdentity` already uses
+  (`src/engine-core.ts:251-262`).
+
+### 2. Chapter body: a labeled section **after** the transcript
+
+`renderChapter` appends one block, after the verbatim transcript and before the closing of the body —
+never interleaved, so the transcript stays exactly what the log said:
+
+```
+## Plans in this chapter
+
+### Plan — "Carry session plans into chapters" — APPROVED (call seq 412, result seq 419)
+- full text: `artifacts/8f/8f3a1c….txt` (18.4 KB ≈ 4.6K tok) — chapters_artifact 'toc' | 'search' | 'read'
+- outline: Goal · Success criteria · Changes by subsystem · Tests · Assumptions · Rollback
+- head (first 900 chars, verbatim): `# Carry session plans into chapters …`
+- mode: plan mode ACTIVE from seq 118 (log event plan/mode, seq 118)
+- superseded by the same-titled plan at seq 455 — that one is operative
+```
+
+Frontmatter gains `plans: [412:approved:8f3a1c9d]` — one `seq:status:sha8` triple per plan — and
+`planMode: active|inactive|unknown`, BOTH emitted only when the chapter really carries a plan or a mode
+flip. *Why the compact triple instead of the nested list this record first specified:* the only reader of
+frontmatter is `indexing.parseFrontmatter`, which understands `key: value` and flat `key: [a, b]`. Nested
+YAML maps parse as nothing at all — an index that looks populated and reads empty, the worst kind of lie
+here. So the machine-readable home for the full facts is the **chapter record** (`ChapterRecord.plans`,
+zod-validated in the registry, `src/store.ts`), which is what the notice builder consumes; the
+frontmatter line is the human-visible claim of the same fact, and the prose lives in the body block.
+
+The sha256 anchor convention must hash what `parseChapterFile`
+returns — body **including** the trailing newline (`src/engine-core.ts:297-302`; the T9 lesson: a
+mismatch silently blocked enrichment for an era).
+
+`plan/mode` gets an explicit `case` so its handling is *stated* rather than a silent skip: it renders as
+the `mode:` line above and does not enter `unrenderedSeqs`.
+
+### 3. Invocation artifacts, generally (the honest fix for "always inline")
+
+Any `tool/call` whose serialized arguments exceed `callArgArtifactTokens` gets the same treatment:
+full blob to the artifact store, bounded head + path inline. Plans are simply the case that earns the
+mechanism. In the same commit, correct `docs/architecture.md:73` and `:97`, which claim invocations and
+arguments "always stay inline" while the code caps at 400 (`src/render.ts:255`). The real rule:
+
+> Invocations are always inline; a bounded head is always artifact-backed. Every byte of an
+> invocation and its result remains retrievable.
+
+### 4. The notice: `plansSection`, built exactly like `rulesSection`
+
+`assembleNotice` takes an optional `plansSection: string` (`src/continue-core.ts:111-141` precedent).
+Empty or absent ⇒ **zero injected bytes**, which is what keeps this tape-safe (§ Tapes). Placement:
+between the project line and the preamble, so it is above the fold:
+
+```
+## Plans on this path (3: 1 approved, 1 rejected, 1 pending)
+- ACTIVE PLAN: "Carry session plans into chapters" — APPROVED (ch. 4, seq 412, sha 8f3a1c…, ~4.6K tok)
+  full text: .dsh-chapters/artifacts/8f/8f3a1c….txt — read it with chapters_artifact before implementing;
+  do NOT re-plan from recall.
+- REJECTED v1 "…" (ch. 4, seq 388) — user feedback is archived in that chapter
+- pending "…" (seq 501) — the review was never answered. NOT approved; do not implement it.
+```
+
+Cost is counted, never exempted: the section is part of `noticeTokens` and flows through the same
+`preflight` (`src/continue-core.ts:146-162`) — `tocTokens + handoffNoteTokens ≤ ratio × (window − header)`.
+Over budget ⇒ refuse with numbers. **Do not "remove the token measurement" for plans.** The measurement
+is the only thing that keeps the refuse-with-numbers rule true; exempting a multi-K-token prose form
+would make the 8K chapter target and the child's cold head meaningless on exactly the 32K hardware this
+project targets. Economy comes from *carriage* (artifact + bounded head), not from blinding the meter.
+
+### 5. `chapters_segment` reports the facts
+
+Add to the output (`src/tools.ts:186-205`): `plans: [...]` (every field a model needs to choose ranges,
+minus the text), `modeActive`, and `livePlans` — plans whose `seq > archiveCeiling` (an open turn:
+precisely the mid-review case), explicitly labelled *not archived, parent log only*. Ranges stay the
+model's call and chapter text stays the plugin's (invariant 4); the model never guesses a verdict again.
+
+### 6. Composition and titles
+
+- Forced split points: an `exit_plan_mode` call seq is a topic boundary — feed them to
+  `composeChapters` (`src/compose.ts:78`) so a plan is never buried mid-chapter.
+- `deriveIdentity` prefers the plan H1 when a span opens with a submission (`src/engine-core.ts:251`);
+  `HARNESS_PROSE` (`:248`) stays as-is — a plan is not harness prose.
+
+### 7. Config register (Schemastery `Config`, `src/index.ts:53-110`) — no hardcoded tunables
+
+| Key | Default | Meaning |
+|---|---|---|
+| `planInlineChars` | 900 | Verbatim head in the chapter block. The artifact holds the rest. 0 = pointer only. |
+| `callArgArtifactTokens` | **0 (off)** | Above this, a tool-call argument is artifact-backed. |
+| `plansInNotice` | true | Renders zero bytes when the path holds no plans. |
+
+*Two amendments, both made by measurement rather than taste.*
+
+- **`planModeEvents` was cut.** A `plan/mode` event is either printed in the Plans block or it is a
+  silently dropped byte, and silently dropped bytes are the one thing this store does not do. There is no
+  honest second value for that knob, so the rule is unconditional: the flip prints, and the folded state
+  lands in `planMode:`.
+- **`callArgArtifactTokens` ships at 0, not 600.** Turning it on changes chapter bytes wherever a `write`
+  call carried a whole file — and the recorded model tapes are full of such turns (§ Tapes). Plans are
+  unaffected: their carriage is unconditional and named. A deployment that wants argument blobs opts in
+  deliberately, knowing it owes a re-record.
+
+### 8. Search, and why no new index
+
+A plan is discoverable through the **chapter that cites it**: the chapter's `topics` frontmatter is
+already the index unit (`src/indexing.ts:140-152`, `src/search.ts:104`), so `chapters_search` returns
+the chapter, whose body hands over the artifact path, and `chapters_artifact` (toc / search / read) does
+the recursive descent — a Markdown plan has headings, so `action:'toc'` yields a line-numbered map for
+free. **No second index** (hard rule; the TOC is the only index). Making plans corpus documents
+(`kind: plan`, indexed like rules — the `sync.ts:203` "rules are chapters of a different kind, same
+transport" precedent) stays deferred to § Deferred.
+
+Registry note: **do not** use `state.plans` — that name is the compaction manifest
+(`src/registry.ts:37`, `src/store.ts:67`). If a cross-session lookup is ever needed, name it
+`submittedPlans`.
+
+## Invariant audit
+
+| Invariant | This design |
+|---|---|
+| 1 — never rewrite the durable log | Read-only over the log; artifacts and chapters are appends. Original plan events stay in the parent forever. |
+| 2 — never seed from parent events | Unchanged: still one synthetic notice event at `seq 0` (decision 2 — no `plan/mode` seed). |
+| 3 — never contribute a system-prompt section | The plans section is per-continuation notice text, not a header contribution. We only *read* plan mode's contribution. |
+| 4 — never let the model author chapter bodies | The plan text is copied from the log by the plugin; the model supplies ranges and gets facts back. |
+| Hard rules | No new index; no renumbering (plan blobs are content-addressed, chapters untouched); ranges still validated (`validateRanges`, `src/render.ts:96-123`); never truncate to fit — the head cap is a *display* choice with the full bytes retrievable, and the budget still refuses. |
+
+## Tapes and e2e impact (measured, not assumed)
+
+- `grep -rlo "exit_plan_mode\|plan mode\|plan-mode" tests/fixtures/` → **no hits** (2026-10-09). No
+  recorded scenario submits a plan, so a conditional plans section renders zero bytes in every replay:
+  **no re-record required** for the notice or renderer changes. Re-confirm after implementation — if a
+  product prompt *is* edited (personas, tool descriptions, notice text), the rule stands: re-record
+  **whole projects**, never one spec of a shared boot.
+- New e2e project `plans` (own boot, own `E2E_PORT`, throwaway home `var/e2e-home-<port>`, one journey =
+  one boot — the fork- and fanout-carve-out lesson), recorded once with `npm run test:e2e:record`, then
+  replayed. Prompts must be tool-free **in words the model obeys** (the RR2 OOM lesson).
+- Coverage: `npm run coverage:ci` gate (≥85 all four) must stay green; `src/plans.ts` is pure and gets a
+  full-branch row like the other planners, and the new `render.ts` arms need the success/refusal
+  surface covered the way the 2026-09-23 sweep did it.
+
+## Verification rows to add to `docs/verify.md`
+
+| # | Claim | Evidence |
+|---|---|---|
+| P1 | Verdict classification is right for all four shapes + superseded | `tests/unit/plans.test.ts` over host-shaped fixtures (mirror the real nesting the way `tests/unit/render.test.ts:18-22` mirrors tool-result shape) |
+| P2 | A plan with no result is `pending`, and `pending` never renders as approval | unit + a notice golden test |
+| P3 | Full plan bytes are retrievable: archive → artifact exists → `chapters_artifact` read returns them byte-identical (modulo redaction) | integration, same style as `corpus-hygiene.test.ts` |
+| P4 | `plan/mode` no longer lands in `unrenderedSeqs`, and no other event type silently vanishes | `tests/unit/render.test.ts` rows (the `mystery/event` row at `:124-129` must stay) |
+| P5 | The plans section is counted by `preflight` and an over-budget archive refuses **with numbers** | unit on `preflight` + integration on `runContinue` |
+| P6 | A plan above the ceiling is reported as `livePlans` and carried, marked not-archived | integration on `chapters_segment` |
+| P7 | Injected spans inside a plan body are screened; a plan quoting `AGENTS.md` in prose survives verbatim | `injections.test.ts` rows (H1 family) |
+| P8 | Zero bytes when the path has no plans (tape neutrality) | notice golden test, both directions |
+| P9 | Both carriage paths agree (continuation AND in-place engine compaction) | `tests/unit/plans-engine.test.ts` |
+| P10 | A chapter's `artifacts/…` citation resolves whether the blob sits at the store root or inside the ancestry tree | `tests/unit/artifact-query.test.ts` + the integration row |
+| P11 | The browser journey, once its tape is recorded | `tests/e2e/plans.spec.ts` (project `plans-dev`, self-skips without the live model) |
+
+`docs/verify.md` § Plans Carriage is the ledger; this table is the design's own list of what it claims.
+
+## Landing stages
+
+| Stage | Deliverable | Status (2026-10-09) |
+|---|---|---|
+| 0 | This record lands; no code | done — reviewed, decisions 1–3 held |
+| 1 | `src/plans.ts` + `src/log-shape.ts` (the shared pairing readers) + unit rows | done — P1/P2/P7 |
+| 2 | `render.ts` Plans block + frontmatter + invocation artifacts; `docs/architecture.md` wording fix | done — P3/P4/P8 |
+| 3 | `chapters_segment` facts + composer split points + `deriveIdentity` preference | done — P6 |
+| 4 | `plansSection` in `assembleNotice` + wiring + config register | done — P5/P8/P9 |
+| 5 | Site docs (§9 anatomy, §16 tools, §17 configuration, §18 notice) | done in the same release |
+| — | Seven-segment tape replay | green WITHOUT re-recording (2026-10-09, `npm run test:e2e:replay`, EXIT=0) |
+| — | `plans` browser journey | spec written as the `plans-dev` project; **awaits its tape** (no live Local model on this box — it self-skips, and is deliberately outside the CI chain until recorded) |
+
+Deterministic ledger at landing: **549 unit+integration rows, zero failures** with the TreeDX container
+up (80 of them new, across `plans`, `render-plans`, `continue-plans`, `plans-segmentation`, `plans-tools`,
+`plans-engine`, `log-shape` and the `plans-carriage` integration), `npm run coverage:ci` **98.11 % stmts /
+86.44 % branch / 93.8 % funcs** — the gate (≥85 on all four) green, branches *up* from the 85.61 % the
+record started at. The seven-segment tape replay then ran against the BUILT artifacts: EXIT=0, 8 tests,
+with no tape re-recorded.
+
+### Two things the implementation found that the record had not predicted
+
+- **`renderChapter` cannot pair a verdict inside its own range.** A composed chapter boundary can fall
+  between an `exit_plan_mode` call and the `tool/result` that answers it, so a range-local scan printed
+  APPROVED plans as PENDING — the exact inversion this feature exists to prevent. The scan therefore runs
+  over the whole event list the caller passes (`buildFinalizedChapters` now hands it the full shadowed
+  span instead of one chapter's slice) and only the *display* is range-filtered. Pinned by P9.
+- **An ancestor path's plans cannot be ordered by `seq`.** Every session numbers its own events from zero,
+  so a root chapter's seq 40 and a child chapter's seq 3 are incomparable numbers, and sorting the notice
+  rows by seq would crown the wrong plan as operative — the exact failure mode the block exists to remove.
+  The rows therefore travel in **causal order**: the registry walk's root-first chapter sequence, plans
+  within a chapter by seq, then the caller's unarchived tail, and `buildPlansSection` prints that order and
+  takes the last row as operative without re-sorting. (This is the same flattening rule the chapter list
+  already follows — reading order IS causal order — applied to a new record type; pinned by a unit row.)
+- **Deferred artifacts were already unreachable, for every blob, not just plans.** `writeArchive` writes
+  to `<storeRoot>/<rootSession>/artifacts/…`, the arrival stubber writes to `<storeRoot>/artifacts/…`, and
+  `resolveArtifactWithMirror` looked only at the second place plus the mirror — so a chapter's own
+  `artifacts/aa/<sha>.txt` citation, the standard form the body prints, could 404 on the machine that
+  wrote it. The resolver now walks the session trees between the store root and the mirror (P10), which
+  is what makes "every byte remains retrievable" true rather than intended.
+
+## Deferred (human decisions, not ours)
+
+- **`kind: plan` corpus documents** — makes plans first-class, topic-indexed, `chapters_search`-reachable
+  like rules; costs a chapter number per plan and is a `docs/knowledge-repo.md` amendment.
+- **Seeding `plan/mode`** so a continuation is genuinely *in* plan mode (needs a probe against the
+  seed contract + the header effect, and a policy answer: should children be gated?).
+- **Per-message anchoring** — a plan is the most natural anchor to fork from; `deriveRanges` already
+  supports any anchor, the button still forks at conversation end.
+- Whether the `plan-mode` mode-switch *notice* should stay screened out of chapters (decision 2026-09-21
+  says injected context is not conversation; a human-initiated mode flip arguably is). Small text, but
+  it is the one place the blanket screen drops something a reader might want.
+
+## Proposed AGENTS.md lines (deliberately NOT applied yet — it is the unimplemented-feature rule)
+
+```
+- `docs/plans-carriage.md` — **read before writing code in this area**: how a session plan reaches the
+  chapters, the TOC, and the artifact store; and why the token meter is never exempted.
+```
+plus a find-fast row `plans in chapters / active plan in TOC → docs/plans-carriage.md (+ site §§ notice, archive anatomy)`.

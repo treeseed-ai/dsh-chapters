@@ -17,6 +17,7 @@
  * relabel later, never re-chapter (append-only, §4.4).
  */
 import { deriveIdentity, type EngineMessage } from './engine-core.ts'
+import { detectPlans } from './plans.ts'
 import type { CollectionSignature } from './signature.ts'
 import type { ChapterRange } from './types.ts'
 import type { SessionEventLike } from './types.ts'
@@ -121,17 +122,43 @@ export function composeChapters(
   const primaryMatch = (c: CollectionSignature, r: Running): boolean =>
     primaryEq(primaryOf(c), primaryOf(r.first)) || primaryEq(primaryOf(c), primaryOf(r.last))
 
+  // A plan submission is the strongest topic boundary a log contains: the
+  // planning work CONCLUDES with it (docs/plans-carriage.md § 6), so the
+  // collection that carries one closes its chapter and the implementation that
+  // follows opens the next. Deterministic, collection-granular, no model call.
+  const planSeqs = detectPlans(events.filter((e) => e.seq >= spanStart && e.seq <= spanEnd)).plans
+    .map((p) => p.seq)
+  const holdsPlan = (lo: number, hi: number): boolean => planSeqs.some((sq) => sq >= lo && sq <= hi)
+  const firstPlanTitleIn = (lo: number, hi: number): string | undefined => {
+    const hit = detectPlans(events.filter((e) => e.seq >= lo && e.seq <= hi)).plans[0]
+    return hit !== undefined && hit.title !== '' ? hit.title : undefined
+  }
+
   const chapters: ChapterRange[] = []
   let running = runningOf(usable[0]!)
+  // True after a plan closed the chapter: the NEXT collection opens the next
+  // chapter, it is never merged backwards (and never re-added — a duplicate
+  // range would archive the same text twice, which validateRanges refuses).
+  let closedAtPlan = false
   for (const c of usable.slice(1)) {
+    if (closedAtPlan) {
+      running = runningOf(c)
+      closedAtPlan = false
+      if (holdsPlan(running.startSeq, running.endSeq)) { close(); closedAtPlan = true }
+      continue
+    }
     // r28 (first live topic test): overlap Jaccard ALONE never reaches τ on
     // real research turns — a same-topic pair touching 5–6 files each scores
     // ~0.08 because one shared path dilutes in a union of ~10. The signal
     // that actually separates is the PRIMARY path (paths[0]: the first file
     // the turn touched): identical across the render pair, distinct at every
     // topic change. Merge on (score ≥ τ) OR (primary match).
+    // A chapter that already holds a plan is CLOSED: the submission concludes the
+    // planning, so the next turn opens the next chapter even when the topic
+    // overlaps. (Merging into a plan-bearing chapter would bury the decision.)
     const merge = (scoreAgainst(c, running) >= config.mergeThreshold || primaryMatch(c, running))
       && running.size + c.size <= config.chapterLimit
+      && !holdsPlan(running.startSeq, running.endSeq)
     if (merge) {
       for (const p of c.paths) running.paths.add(p)
       for (const q of c.commands) running.commands.add(q)
@@ -143,13 +170,15 @@ export function composeChapters(
       close()
       running = runningOf(c)
     }
+    // The chapter that carries a plan ENDS there (docs/plans-carriage.md § 6).
+    if (holdsPlan(running.startSeq, running.endSeq)) { close(); closedAtPlan = true }
   }
-  close()
+  if (!closedAtPlan) close()
 
   function close(): void {
     const lo = running.startSeq
     const hi = running.endSeq
-    const identity = deriveIdentity(messagesOf(events, lo, hi), false)
+    const identity = deriveIdentity(messagesOf(events, lo, hi), false, firstPlanTitleIn(lo, hi))
     const pathsHint = [...running.paths].slice(0, 3).join(', ')
     chapters.push({
       title: identity.title,

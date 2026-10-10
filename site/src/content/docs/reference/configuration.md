@@ -26,6 +26,9 @@ No hardcoded tunables anywhere the harness can configure them. The table below i
 | `continuationBudgetRatio` | 0.25 | TOC + note share of the window *remaining after the header* |
 | `chapterTokenTarget` / `chapterLimit` | 8000 / 8000 | soft per-chapter size / hard split |
 | `mergeThreshold` | 0.3 | turn→chapter topic-merge τ (archive-time only) |
+| `planInlineChars` | 900 | verbatim plan characters printed in a chapter's Plans block — the plan's **full** text is always an artifact, so this is display economy, never a data decision (`0` = pointer only) |
+| `plansInNotice` | true | carry `## Plans on this path` into the child's notice; renders **zero bytes** when the path holds no plan, so tape neutrality is the default |
+| `callArgArtifactTokens` | 0 (off) | above this, a tool-call *argument* is artifact-backed and the inline text is a bounded head. Off by default on purpose: switching it on changes chapter bytes wherever a `write` carried a whole file, which means your model tapes need re-recording |
 | `toolResultDeferFloorTokens` | 200 | archive-time inline/defer floor (realm `toolResultArtifactTokens` is the *arrival* floor — keep it **above** your chunk size: below it, stubs hide compaction and thresholds silently stop firing — measured) |
 | `artifactStoreRoot` | `.dsh-chapters` | workspace store (must be `read`-reachable) |
 | `installChaptersPreset` | true | copy preset into `.agent-presets/` at boot (never clobbers your edits) |

@@ -47,6 +47,19 @@ const chapterRecordSchema = z.object({
     sha256: z.string().min(16),
     bytes: z.number().int().nonnegative(),
   })),
+  // Plans this chapter carries (docs/plans-carriage.md § 2). Optional: a stored row
+  // from before the feature simply has no field, which reads as "no plans here".
+  plans: z.array(z.object({
+    seq: z.number().int().nonnegative(),
+    status: z.enum(['approved', 'rejected', 'dismissed', 'pending', 'superseded', 'failed']),
+    title: z.string(),
+    sha256: z.string().min(16),
+    artifactPath: z.string().min(1),
+    bytes: z.number().int().nonnegative(),
+    estTokens: z.number().int().nonnegative(),
+    resultSeq: z.number().int().nonnegative().nullable(),
+  })).optional(),
+  planMode: z.enum(['active', 'inactive', 'unknown']).optional(),
 })
 
 const collectionSchema = z.object({

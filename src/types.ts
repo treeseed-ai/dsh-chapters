@@ -36,11 +36,62 @@ export interface ToolResultOverride {
   inline: boolean
 }
 
+/**
+ * A session plan's verdict, as the log states it (`src/plans.ts`). `failed` is the
+ * family where the host threw without a human verdict (no review channel, service
+ * reloaded mid-review, the call ran outside plan mode, the markdown had no heading)
+ * — labelling those `rejected` would invent a decision nobody made.
+ */
+export type PlanStatus = 'approved' | 'rejected' | 'dismissed' | 'pending' | 'superseded' | 'failed'
+
+/** One plan's machine facts, carried in the chapter record and the registry row. */
+export interface PlanFact {
+  seq: number
+  status: PlanStatus
+  title: string
+  sha256: string
+  artifactPath: string
+  bytes: number
+  estTokens: number
+  resultSeq: number | null
+}
+
+/**
+ * The notice's flat plan row (archived facts and live, unarchived docs unify here).
+ * Rows travel in CAUSAL order — chapters root-first, plans within a chapter by seq,
+ * then the caller's unarchived tail. Every session numbers its own events from zero,
+ * so a `seq` in one session is NOT comparable with a `seq` in another: the builder's
+ * order is the chronology, and nothing downstream may re-sort by `seq`
+ * (docs/plans-carriage.md § 4).
+ */
+export interface NoticePlan {
+  title: string
+  status: PlanStatus
+  seq: number
+  chapterNumber?: number
+  chapterPath?: string
+  artifactPath?: string
+  sha256?: string
+  estTokens?: number
+}
+
 export interface RenderConfig {
   /** Below this estimated token count a tool result stays inline without needing a model override. */
   toolResultDeferFloorTokens: number
   /** Chapter sizes past this are flagged for a split at the next boundary. Never truncated. */
   chapterTokenTarget: number
+  /**
+   * Verbatim plan characters printed inline under a plan's reference. The full text is
+   * ALWAYS artifact-backed, so this is a display budget, never a data decision.
+   * 0 = pointer only (the artifact line and outline still print).
+   */
+  planInlineChars?: number
+  /**
+   * Above this estimated token count a tool-call ARGUMENT is artifact-backed and the
+   * inline text is a bounded head. 0 = off: every argument keeps the plain head rule,
+   * so a deployment opts in deliberately (it changes chapter bytes, hence tapes).
+   */
+  callArgArtifactTokens?: number
   /**
    * Credential redaction patterns applied at the render chokepoint (record §9).
    * Absent → the built-in conservative set. Extensible per deployment.
@@ -83,6 +134,14 @@ export interface RenderedChapter {
     overTarget: boolean
     /** Events in the range that produced no rendered output, so a silent hole is visible. */
     unrenderedSeqs: number[]
+    /** Plans submitted inside this range, with the artifact that carries their full
+     * text. Absent (not an empty list) on chapters rendered before this feature —
+     * the same "never a lying zero" rule `messages` follows. */
+    plans?: PlanFact[] | undefined
+    /** Folded `plan/mode` state at the range's end; 'unknown' when the log never said. */
+    planMode?: 'active' | 'inactive' | 'unknown' | undefined
+    /** Tool-call arguments artifact-backed by the `callArgArtifactTokens` rule. */
+    invocationArtifacts?: number | undefined
   }
 }
 

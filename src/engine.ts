@@ -52,6 +52,10 @@ export interface ChaptersRowConfig extends BasicCompactionConfig {
   chapterLimit?: number
   syncDebounceMs?: number
   toolResultArtifactTokens?: number
+  /** Plans (docs/plans-carriage.md § 7): verbatim plan chars in a chapter's Plans
+   * block, and the tool-call-argument artifact floor (0 = off). */
+  planInlineChars?: number
+  callArgArtifactTokens?: number
   elicitedPlot?: boolean
   // P2 enrichment (record §6): the realm plane owns the AUTO triggers.
   enrichmentEnabled?: boolean
@@ -206,6 +210,7 @@ export class ChaptersCompactionEngine extends BasicCompactionEngine {
     const {
       artifactStoreRoot, chapterTokenTarget, toolResultDeferFloorTokens,
       mergeThreshold, chapterLimit, syncDebounceMs, toolResultArtifactTokens, elicitedPlot,
+      planInlineChars, callArgArtifactTokens,
       enrichmentEnabled, enrichmentModel, enrichmentTrigger, enrichmentIdleMs, enrichmentBatchCap,
       vocabApply, vocabCoMin, vocabOverlapMin,
       treedxFetchTimeoutMs, treedxWorkspaceTtlSeconds, treedxLeaseRetries, treedxLeaseRetryDelayMs,
@@ -229,6 +234,8 @@ export class ChaptersCompactionEngine extends BasicCompactionEngine {
       mergeThreshold: mergeThreshold ?? 0.3,
       chapterLimit: chapterLimit ?? 8000,
       toolResultArtifactTokens: toolResultArtifactTokens ?? 8000,
+      planInlineChars: planInlineChars ?? 900,
+      callArgArtifactTokens: callArgArtifactTokens ?? 0,
       elicitedPlot: elicitedPlot ?? true,
     }
     this.syncDebounceMs = syncDebounceMs ?? 30000

@@ -70,7 +70,8 @@ The model supplies ranges; the plugin renders. Within a range:
 | Event content | Handling |
 |---|---|
 | user / assistant text | inline, verbatim, attributed |
-| tool **invocation** (name + arguments) | always inline — this is the input side worth re-reading |
+| tool **invocation** (name + arguments) | inline as a bounded head (400 chars) — the "what was attempted" half of the record; above `callArgArtifactTokens` the full arguments are **artifact-backed** like any deferred blob (0 = off by default) |
+| session **plan** (`exit_plan_mode` call + its verdict result) | full text always artifact-backed + a labeled `## Plans in this chapter` block after the transcript (docs/plans-carriage.md) |
 | tool **result** judged **not worth keeping** | deferred to `artifacts/`, replaced by a reference line |
 | tool **result** judged worth keeping, ≤ floor | inline, verbatim, no model input needed |
 | tool **result** judged worth keeping, > floor | inline by model override **and** still written to `artifacts/` |
@@ -94,8 +95,13 @@ Division of labour:
 - **Model submits exceptions only**: `toolResultOverrides: [{seq, inline}]`. Usually empty or one entry, so
   the judgment costs almost no output tokens — which is why this is affordable where "the model writes the
   chapter bodies" was not.
-- **Invocations and arguments always stay inline.** Plugin rule, not a choice; it is the "what was
-  attempted" half of the record and the thing a successor most needs.
+- **Invocations stay inline as a bounded head.** Plugin rule, not a choice; it is the "what was
+  attempted" half of the record and the thing a successor most needs. The head is 400 characters, so
+  a large argument (`write` carrying a whole file, a plan carrying a whole design) is *also* written to
+  `artifacts/` whenever `callArgArtifactTokens` is above zero — the inline text is then a head with a
+  resolution, never the only copy. Session plans get this treatment unconditionally and by name: the
+  plan's own bytes are always an artifact, cited with its outline and verdict
+  (docs/plans-carriage.md § 2/§ 3).
 - **The artifact is written either way.** Inlining is a convenience copy *alongside* its reference. So a
   wrong call is a context-economy miss, never data loss — that asymmetry is what makes delegating this
   judgment to the model safe.

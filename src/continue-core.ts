@@ -16,7 +16,7 @@
  * `headerBoundTokens: null` and the allowance conservatively assumes a zero
  * header only because a session with no requests cannot have a large TOC.
  */
-import type { ChapterRange, RenderConfig, SessionEventLike, ToolResultOverride } from './types.ts'
+import type { ChapterRange, NoticePlan, RenderConfig, SessionEventLike, ToolResultOverride } from './types.ts'
 import { chapterTopics } from './signature.ts'
 import { estimateTokens, renderChapter, validateRanges } from './render.ts'
 import { attemptKey, coverage, verifyChapter, writeArchive } from './archive.ts'
@@ -25,6 +25,7 @@ import { appendChapters, freshSession, linkChild, reserve } from './registry.ts'
 import type { SessionState } from './registry.ts'
 import { buildTocNotice } from './notice.ts'
 import { deriveIdentity } from './engine-core.ts'
+import { buildPlansSection, detectPlans } from './plans.ts'
 
 export interface ContinueArgs {
   callerSessionId: string
@@ -52,6 +53,13 @@ export interface ContinueConfig extends RenderConfig {
   mergeThreshold: number
   /** Estimated-token cap per composed chapter. */
   chapterLimit: number
+  /**
+   * Carry the `## Plans on this path` block into the child's notice
+   * (docs/plans-carriage.md § 4). Renders ZERO bytes when the path holds no
+   * plan, so a session that never entered plan mode is bit-identical to before
+   * this existed — which is what keeps the model tapes matching.
+   */
+  plansInNotice?: boolean | undefined
 }
 
 export interface BudgetProbe {
@@ -119,11 +127,21 @@ export function assembleNotice(input: {
   /** P3 §7.3: CORE RULES + category index, composed by the adapter from this
    * machine's own approvals. Absent/empty => zero injected bytes (tape-safe). */
   rulesSection?: string
+  /**
+   * docs/plans-carriage.md § 4: the flat `## Plans on this path` block, in CAUSAL order
+   * block, built by buildPlansSection from the ancestor path's chapter records
+   * plus whatever plans the caller's live tail still holds. Placed ABOVE the
+   * fold because the operative plan is the one fact a continuation must not
+   * re-derive — a child that cannot see it either implements something nobody
+   * approved or re-plans from recall. Absent/empty => zero injected bytes.
+   */
+  plansSection?: string
 }): string {
   const lines = [
     `# Continuation: ${input.title}`,
     ...(input.projectLine !== undefined && input.projectLine !== '' ? ['', input.projectLine] : []),
     ...(input.rulesSection !== undefined && input.rulesSection !== '' ? ['', input.rulesSection] : []),
+    ...(input.plansSection !== undefined && input.plansSection !== '' ? ['', input.plansSection] : []),
     '',
     'This session continues an archived conversation. Chapters are verbatim Markdown in the workspace;',
     'every byte remains retrievable — inline, or at artifact paths cited inside a chapter. Read a chapter',
@@ -202,6 +220,8 @@ export async function runContinue(
   const renderConfig: RenderConfig = {
     toolResultDeferFloorTokens: config.toolResultDeferFloorTokens,
     chapterTokenTarget: config.chapterTokenTarget,
+    ...(config.planInlineChars !== undefined ? { planInlineChars: config.planInlineChars } : {}),
+    ...(config.callArgArtifactTokens !== undefined ? { callArgArtifactTokens: config.callArgArtifactTokens } : {}),
   }
   const rendered = args.chapters.map((range) => renderChapter(below, range, renderConfig, args.toolResultOverrides, chapterTopics(below, range.startSeq, range.endSeq)))
   warnings.push(...rendered
@@ -226,10 +246,10 @@ export async function runContinue(
   warnings.push(...wrote.warnings)
 
   // ---- 3. Cumulative flat index over the ancestor path, integrity-verified.
-  const entries = await collectEntries(ports, args.callerSessionId, wrote.records, warnings)
+  const bundle = await collectEntries(ports, args.callerSessionId, wrote.records, warnings)
 
   // ---- 4/5. Notice + budget gate, create the child, commit.
-  return await finishChild(ports, config, args, callerState, entries, warnings, wrote.records)
+  return await finishChild(ports, config, args, callerState, bundle, warnings, wrote.records)
 }
 
 /** Ancestors' committed records (root-first) plus fresh records; verified, numbered for display. */
@@ -238,7 +258,7 @@ async function collectEntries(
   callerSessionId: string,
   freshRecords: readonly ChapterRecord[],
   warnings: string[],
-): Promise<NoticeEntry[]> {
+): Promise<{ entries: NoticeEntry[]; records: ChapterRecord[] }> {
   const fs = ports.fs()
   const pathIds = await ancestryPath(ports, callerSessionId)
   const priorRecords: ChapterRecord[] = []
@@ -256,13 +276,59 @@ async function collectEntries(
     cited.push(record)
   }
   const entries: NoticeEntry[] = []
+  const citedRecords: ChapterRecord[] = []
   for (const record of cited) {
     const status = await verifyChapter(fs, record)
     if (status !== 'ok') warnings.push(`${record.path}: ${status} since archived — marked in the TOC, not silently trusted`)
     entries.push({ number: entries.length + 1, path: record.path, title: record.title, summary: record.summary, status, ...(record.messages !== undefined ? { messages: record.messages } : {}) })
+    citedRecords.push(record)
   }
-  return entries
+  return { entries, records: citedRecords }
 }
+
+/**
+ * The notice's plan rows: every plan the ARCHIVE carries, cited to the chapter
+ * that holds it, in the same display numbering as the chapter list (docs/
+ * plans-carriage.md § 4 — flat, in causal order, because the model never
+ * traverses; sessions have independent seq spaces, so the caller's order IS the
+ * chronology). Artifact paths come from the record (fully workspace-qualified),
+ * not from the fact (store-relative), so the child's `read` hits the file.
+ */
+export function archivedPlanRows(records: readonly ChapterRecord[], entries: readonly NoticeEntry[]): NoticePlan[] {
+  const rows: NoticePlan[] = []
+  for (const record of records) {
+    const display = entries.find((e) => e.path === record.path)
+    for (const fact of record.plans ?? []) {
+      const written = record.artifacts.find((a) => a.sha256 === fact.sha256)
+      rows.push({
+        title: fact.title,
+        status: fact.status,
+        seq: fact.seq,
+        ...(display !== undefined ? { chapterNumber: display.number, chapterPath: display.path } : {}),
+        artifactPath: written?.path ?? fact.artifactPath,
+        sha256: fact.sha256,
+        estTokens: fact.estTokens,
+      })
+    }
+  }
+  return rows
+}
+
+/**
+ * Plans the caller still holds UNARCHIVED — a plan whose review is open sits in an
+ * unfinished turn, and the archive ceiling is completed turns only, so it is in no
+ * chapter and no artifact (docs/plans-carriage.md § 5). The child must still be
+ * told it exists, and told plainly that it was never approved.
+ */
+export function livePlanRows(events: readonly SessionEventLike[], watermark: number): NoticePlan[] {
+  return detectPlans(events, { ceiling: watermark }).plans
+    .filter((p) => !p.archived)
+    .map((p) => ({ title: p.title, status: p.status, seq: p.seq }))
+}
+
+/** The highest seq any cited chapter covers — the boundary between stored and live. */
+export const archiveWatermark = (records: readonly ChapterRecord[]): number =>
+  records.reduce((m, r) => Math.max(m, r.endSeq), 0)
 
 /** Fields both continue and fork need to create the child. */
 export type FinishArgs = Pick<ContinueArgs, 'callerSessionId' | 'callerPreset' | 'title' | 'handoffNote' | 'projectLine' | 'rulesSection'>
@@ -273,20 +339,33 @@ async function finishChild(
   config: ContinueConfig,
   args: FinishArgs,
   callerState: SessionState,
-  entries: readonly NoticeEntry[],
+  bundle: { entries: readonly NoticeEntry[]; records: readonly ChapterRecord[] },
   warnings: string[],
   commitRecords: readonly ChapterRecord[],
 ): Promise<ContinueResult> {
+  // ---- The plans block: stored facts + whatever the caller's live tail holds.
+  // Empty list ⇒ '' ⇒ zero injected bytes (the tape-safety property, verify.md P8).
+  let plansSection = ''
+  if (config.plansInNotice !== false) {
+    const watermark = archiveWatermark(bundle.records)
+    const callerEvents = await ports.readCallerEvents()
+    plansSection = buildPlansSection(
+      [...archivedPlanRows(bundle.records, bundle.entries), ...livePlanRows(callerEvents, watermark)],
+      { modeActive: detectPlans(callerEvents).modeActive },
+    )
+  }
+
   // ---- Notice text, then the budget gate (measure the WHOLE notice).
   const noticeText = assembleNotice({
     title: args.title,
     handoffNote: args.handoffNote,
-    entries,
+    entries: bundle.entries,
     rootSession: callerState.rootSession,
     parentSession: args.callerSessionId,
     storeRoot: config.artifactStoreRoot,
     ...(args.projectLine !== undefined ? { projectLine: args.projectLine } : {}),
     ...(args.rulesSection !== undefined ? { rulesSection: args.rulesSection } : {}),
+    ...(plansSection !== '' ? { plansSection } : {}),
   })
   const budget = preflight({
     noticeTokens: estimateTokens(noticeText),
@@ -345,8 +424,8 @@ export async function runFork(
 ): Promise<ContinueResult> {
   const warnings: string[] = []
   const callerState = await ports.getState(args.callerSessionId)
-  const entries = await collectEntries(ports, args.callerSessionId, [], warnings)
-  return await finishChild(ports, config, args, callerState, entries, warnings, [])
+  const bundle = await collectEntries(ports, args.callerSessionId, [], warnings)
+  return await finishChild(ports, config, args, callerState, bundle, warnings, [])
 }
 
 /**
@@ -379,12 +458,19 @@ export function deriveRanges(
     .filter((e) => e.seq >= lo && e.seq <= hi)
     .reduce((n, e) => n + Math.ceil(JSON.stringify(e.data ?? {}).length / 4), 0)
 
+  // A plan submission ENDS the chapter that carries it (docs/plans-carriage.md § 6);
+  // cuts still land only on turn/end boundaries, so the chapter closes at the FIRST
+  // boundary at or after the submission.
+  const planSeqs = detectPlans(upto.filter((e) => e.seq >= fromSeq)).plans.map((p) => p.seq)
+  const planIn = (lo: number, hi: number): number | undefined => planSeqs.find((sq) => sq >= lo && sq <= hi)
+
   const chapters: ChapterRange[] = []
   const cut = Math.max(1, Math.floor(chapterTokenTarget * 0.9))
   let start = fromSeq
   for (const b of boundaries) {
     const isLast = b === last
-    if (isLast || tokensBetween(start, b) >= cut) {
+    const planHere = planIn(start, b)
+    if (isLast || planHere !== undefined || tokensBetween(start, b) >= cut) {
       const seg = upto.filter((e) => e.seq >= start && e.seq <= b)
       const msgs: EngineMessageView[] = seg
         .filter((e) => e.type === 'user/message' || e.type === 'assistant/message')
@@ -392,7 +478,14 @@ export function deriveRanges(
           const d = e.data as { content?: { type: string; text?: string }[] } | undefined
           return { role: e.type === 'assistant/message' ? 'assistant' : 'user', content: d?.content ?? [] }
         })
-      const identity = deriveIdentity(msgs, seg.some((e) => JSON.stringify(e.data ?? '').includes('<compacted-summary>')))
+      const identity = deriveIdentity(
+        msgs,
+        seg.some((e) => JSON.stringify(e.data ?? '').includes('<compacted-summary>')),
+        // The plan's own H1 titles the chapter it concludes.
+        planHere !== undefined
+          ? (detectPlans(seg).plans.find((p) => p.seq === planHere)?.title ?? undefined)
+          : undefined,
+      )
       chapters.push({
         title: `${identity.title} (${chapters.length + 1})`,
         summary: `events ${start}-${b}; ${identity.summary}`,

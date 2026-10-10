@@ -6,6 +6,47 @@ lastUpdated: true
 
 Releases publish automatically from a bare-semver tag via **npm trusted publishing (OIDC)**. The publish itself is gated on the full deterministic suite under the coverage gate; the seven-segment tape-replay acceptance chain runs in CI on every push to `main`, so a release is always cut from a green acceptance run. Each CI-published version carries a provenance attestation tying it back to this repo, that workflow run, and that commit — 0.1.0, the one manual ship, predates attestation.
 
+### 0.1.6 — 2026-10 · session plans survive the continuation
+
+A plan submitted through DSH's plan mode lived in the archive as the first 400 characters of a tool-call
+line, and a created child cannot inherit plan mode — so the continuation of a planned session either
+implemented something nobody approved or re-planned from recall. Now the plan is a first-class citizen of
+the archive (design record: `docs/plans-carriage.md` in the repo).
+
+- **Every plan's full text is artifact-backed, always.** A chapter carries a `## Plans in this chapter`
+  block AFTER the verbatim transcript — verdict, outline, bounded head (`planInlineChars`, default 900),
+  and the content-addressed path — and the bytes are queryable with `chapters_artifact` `toc | search |
+  read`, the same recursive drill-down that serves oversized results. The chapter's frontmatter declares
+  `plans: [seq:status:sha8]` and the folded `planMode:`; the registry record carries the structured facts.
+- **Six statuses, read the way the host writes them.** `approved` (`{approved:true}`), `rejected` (the
+  "keep planning" feedback survives), `dismissed` (the user took the wheel), `pending` (no verdict event —
+  printed as never-approved, and the notice tells the child not to implement it), `superseded` (same H1,
+  later submission), `failed` (the review never opened — not a human verdict, so not labelled as one).
+  Redelivered results keep the LAST copy. `plan/mode` events stopped being silently-unrendered holes.
+- **The child's notice calls the operative plan out** under `## Plans on this path`, cited to its chapter
+  and its artifact, with superseded drafts listed chronologically underneath. A plan whose review is still
+  open sits in an unfinished turn — above the archive ceiling, in no chapter, in no artifact — and is
+  carried marked `NOT ARCHIVED — parent log seq N` rather than dropped.
+- **A plan is a chapter boundary.** Both segmenters close the chapter that carries a submission at the
+  next turn boundary, and the plan's own H1 titles it. `chapters_segment` returns `plans`, `livePlans` and
+  `modeActive` so the model places ranges on facts instead of guessing what the review said.
+- **Nothing is exempted from the meter.** The block is counted by the same `preflight` as the rest of the
+  notice, and over-budget still refuses with numbers. The economy is carriage, not blindness.
+- **Tape-neutral by construction:** every piece above renders ZERO bytes for a path with no plans —
+  verified, not assumed: the seven-segment replay chain passed unchanged (no re-record), and no fixture
+  contains an `exit_plan_mode` turn. New knob `callArgArtifactTokens` therefore ships OFF (0) because
+  turning it on *would* change chapter bytes for sessions with large `write` arguments.
+- **Fixed on the way, and it was never about plans:** a chapter's `artifacts/aa/<sha>.txt` citation could
+  not be resolved by `chapters_artifact` when the blob sat in the ancestry tree (where `writeArchive`
+  writes) rather than at the store root (where arrival stubs write) — so every deferred result since 0.1.0
+  pointed at a path its own reader could not open. The resolver now searches store root → session trees →
+  pool mirror, and the refusal text names all three.
+- Tests: 80 new rows across `plans`, `render-plans`, `continue-plans`, `plans-segmentation`,
+  `plans-tools`, `plans-engine`, `log-shape` (unit) and `plans-carriage` (integration, real fs + real
+  registry + the `chapters_artifact` retrieval loop), verify.md rows P1–P11. The browser journey is
+  written (`tests/e2e/plans.spec.ts`, project `plans-dev`) and self-skips without a live model — it awaits
+  its tape on the GPU box.
+
 ### 0.1.5 — 2026-10 · the store heals: sync rehydrates deleted chapters from the pool
 
 A user deleting the workspace's `.dsh-chapters/` (a natural instinct when testing a re-link) exposed a real hole: the registry and continuation TOCs keep citing store paths, the pool keeps every byte, but nothing flowed back — 56 of 57 chapter references dangling silently, and `read` on an archived chapter would simply miss. Worse, migrating to a *new* pool sources from the store, so relinking after such a wipe published nothing while looking idle.

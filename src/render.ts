@@ -20,10 +20,17 @@
 import { createHash } from 'node:crypto'
 import { DEFAULT_REDACTIONS, redactText } from './redact.ts'
 import { omittedMarker, screenConversation, stripReminderSpans } from './injections.ts'
+import { blocksOf, callArgsText, resultCallId, sameCall, textOfBlocks, toolResultText } from './log-shape.ts'
+import { detectPlans, PLAN_TOOL, type PlanFact } from './plans.ts'
 import type {
-  ArtifactRef, ChapterRange, ContentBlock, RenderConfig, RenderedChapter,
+  ArtifactRef, ChapterRange, RenderConfig, RenderedChapter,
   SessionEventLike, ToolResultCandidate, ToolResultOverride,
 } from './types.ts'
+
+/** The invocation-argument head printed in the transcript when no artifact is written. */
+const CALL_HEAD_CHARS = 400
+/** The plan head printed inline under the Plans block when the full text is a reference. */
+const PLAN_HEAD_FALLBACK_CHARS = 900
 
 /** chars/4 until the host tokenMeter is wired in. Labelled an estimate everywhere it surfaces. */
 export const estimateTokens = (text: string): number => Math.ceil(text.length / 4)
@@ -65,29 +72,12 @@ export function artifactRef(
   }
 }
 
-const blocksOf = (value: unknown): ContentBlock[] =>
-  Array.isArray(value) ? value as ContentBlock[] : []
-
-const textOf = (value: unknown): string =>
-  blocksOf(value)
-    .filter((b) => b.type === 'text')
-    .map((b) => (b as { text?: string }).text ?? '')
-    .join('\n')
-
-/** Flatten a tool-result payload, which nests a content array inside a tool-result block. */
-function toolResultText(data: Record<string, unknown>): string {
-  const message = data.message as Record<string, unknown> | undefined
-  const inner = blocksOf(message?.content ?? data.content)
-  const parts: string[] = []
-  for (const block of inner) {
-    if (block.type === 'text') parts.push((block as { text?: string }).text ?? '')
-    else if (block.type === 'tool-result') {
-      const nested = (block as { content?: unknown }).content
-      parts.push(typeof nested === 'string' ? nested : textOf(nested))
-    }
-  }
-  return parts.filter((p) => p.length > 0).join('\n')
-}
+/**
+ * `textOf` kept as the local name the renderer's call sites already use; the
+ * implementation moved to log-shape.ts so the plan detector reads a payload
+ * exactly the way the transcript does (docs/plans-carriage.md § 1).
+ */
+const textOf = textOfBlocks
 
 /**
  * Validate model-supplied ranges. Never trust them (hard rule): an overlap duplicates archived text and a
@@ -155,18 +145,15 @@ export function toolResultCandidates(
   return out
 }
 
-function sameCall(call: SessionEventLike, result: SessionEventLike): boolean {
-  const callId = (call.data as Record<string, unknown> | undefined)?.callId
-  const message = (result.data as Record<string, unknown> | undefined)?.message as Record<string, unknown> | undefined
-  const source = message?.source as Record<string, unknown> | undefined
-  const resultCallId = source?.callId ?? (result.data as Record<string, unknown> | undefined)?.callId
-  return callId !== undefined && resultCallId !== undefined && String(callId) === String(resultCallId)
-}
-
 /**
  * Render one chapter. `overrides` is the model's sparse exception list; anything not named follows the
  * default rule (small results inline, large ones deferred). Either way the artifact is written, so a wrong
  * call costs a `read` and never loses data.
+ *
+ * Plans (docs/plans-carriage.md § 2) are read over the WHOLE `events` list, not just the range: a
+ * submission and its verdict can straddle a chapter boundary, and pairing them inside one range only
+ * would report an approved plan as `pending`. The plans block is appended AFTER the verbatim
+ * transcript, so the transcript stays exactly what the log said.
  */
 export function renderChapter(
   events: SessionEventLike[],
@@ -188,17 +175,20 @@ export function renderChapter(
   // tool/result events for one callId — read x17, chapters_artifact x3,
   // web_fetch x2): keep only the LAST result per callId, else the verbatim
   // body inflates with the same text twice and counts double.
-  const callIdOf = (ev: SessionEventLike): string | undefined => {
-    const msg = (ev.data as Record<string, unknown> | undefined)?.message as Record<string, unknown> | undefined
-    const src = msg?.source as Record<string, unknown> | undefined
-    return typeof src?.callId === 'string' ? src.callId : undefined
-  }
   const lastResultSeq = new Map<string, number>()
   for (const ev of inRange) {
     if (ev.type !== 'tool/result') continue
-    const cid = callIdOf(ev)
+    const cid = resultCallId(ev)
     if (cid !== undefined) lastResultSeq.set(cid, ev.seq)
   }
+  // Plans are scanned over the WHOLE event list, not just this range: a verdict
+  // can land past a chapter boundary, and pairing inside one range only would
+  // report an APPROVED plan as pending (docs/plans-carriage.md § 1).
+  const scan = detectPlans(events, { ceiling: range.endSeq })
+  const chapterPlans = scan.plans.filter((p) => p.seq >= range.startSeq && p.seq <= range.endSeq)
+  const flipsTo = scan.flips.filter((f) => f.seq <= range.endSeq)
+  const modeAtEnd: 'active' | 'inactive' | 'unknown' =
+    flipsTo.length === 0 ? 'unknown' : flipsTo[flipsTo.length - 1]!.active ? 'active' : 'inactive'
   const body: string[] = [`# ${range.title}`, '', `> ${range.summary}`, '']
   const artifacts: ArtifactRef[] = []
   const unrenderedSeqs: number[] = []
@@ -206,6 +196,7 @@ export function renderChapter(
   let inlinedCount = 0
   let deferredCount = 0
   let conversationMessages = 0
+  let invocationArtifacts = 0
 
   for (const ev of inRange) {
     const data = (ev.data ?? {}) as Record<string, unknown>
@@ -250,14 +241,40 @@ export function renderChapter(
       case 'tool/call': {
         toolCalls += 1
         const name = String(data.name ?? 'unknown')
-        const args = redact(typeof data.arguments === 'string' ? data.arguments : JSON.stringify(data.arguments ?? {}))
-        // Invocations always stay inline: this is the "what was attempted" half of the record.
-        body.push(`- ↳ **${name}** \`${args.slice(0, 400)}\`${args.length > 400 ? ' …' : ''} (seq ${ev.seq})`)
+        const args = redact(callArgsText(data))
+        if (name === PLAN_TOOL) {
+          // The Plans block below owns this plan's bytes (full artifact + head +
+          // outline + verdict). Point at it rather than printing a JSON envelope
+          // whose head would look like the plan and is not.
+          const doc = chapterPlans.find((p) => p.seq === ev.seq)
+          body.push(`- ↳ **${name}** plan "${doc?.title ?? '(unparsed)'}" — verbatim text and the user's verdict in the Plans section below (seq ${ev.seq})`)
+          break
+        }
+        const floor = config.callArgArtifactTokens ?? 0
+        if (floor > 0 && estimateTokens(args) > floor) {
+          // Large invocation arguments are artifact-backed, so the bounded head
+          // below can never be the only copy of what was attempted.
+          const ref = artifactRef(args, { toolName: name, sourceSeq: ev.seq, inlined: false })
+          artifacts.push(ref)
+          invocationArtifacts += 1
+          body.push(`- ↳ **${name}** \`${args.slice(0, CALL_HEAD_CHARS)}\`${args.length > CALL_HEAD_CHARS ? ' …' : ''} (seq ${ev.seq})`
+            + ` — full arguments: ${ref.bytes} B ≈ ${estimateTokens(args)} tok, \`${ref.sha256.slice(0, 7)}…\` → \`${ref.path}\``)
+          break
+        }
+        // Invocations stay inline as a bounded head: this is the "what was
+        // attempted" half of the record (docs/architecture.md § Chapter Rendering).
+        body.push(`- ↳ **${name}** \`${args.slice(0, CALL_HEAD_CHARS)}\`${args.length > CALL_HEAD_CHARS ? ' …' : ''} (seq ${ev.seq})`)
         break
       }
+      case 'plan/mode':
+        // NOT a hole and NOT prose: the mode flip is printed in the Plans block
+        // below and folded into the `planMode:` frontmatter line. Naming the type
+        // here is what keeps it out of unrenderedSeqs — an unnamed event would
+        // look like a silently dropped byte (verify.md P4).
+        break
       case 'tool/result': {
         {
-          const cid = callIdOf(ev)
+          const cid = resultCallId(ev)
           if (cid !== undefined && lastResultSeq.get(cid) !== ev.seq) break // earlier copy of a redelivery
         }
         const text = redact(toolResultText(data))
@@ -286,6 +303,52 @@ export function renderChapter(
     }
   }
 
+  // ---- Plans block, AFTER the verbatim transcript (docs/plans-carriage.md § 2).
+  // Absent entirely when the chapter holds no plan and no mode flip — a session
+  // that never entered plan mode gains ZERO extra bytes, which is what keeps the
+  // model tapes byte-identical (verify.md P8).
+  const planFacts: PlanFact[] = []
+  const flipsInRange = scan.flips.filter((f) => f.seq >= range.startSeq && f.seq <= range.endSeq)
+  if (chapterPlans.length > 0 || flipsInRange.length > 0) {
+    body.push('', '---', '', '## Plans in this chapter', '')
+    for (const p of chapterPlans) {
+      const planBody = redact(p.text)
+      const ref = artifactRef(planBody, { toolName: PLAN_TOOL, sourceSeq: p.seq, inlined: false })
+      artifacts.push(ref)
+      const tokens = estimateTokens(planBody)
+      planFacts.push({
+        seq: p.seq,
+        status: p.status,
+        title: p.title,
+        sha256: ref.sha256,
+        artifactPath: ref.path,
+        bytes: ref.bytes,
+        estTokens: tokens,
+        resultSeq: p.resultSeq,
+      })
+      const kb = ref.bytes < 1024 ? `${ref.bytes} B` : `${(ref.bytes / 1024).toFixed(1)} KB`
+      body.push(`### Plan — "${p.title}" — ${p.status.toUpperCase()}`, '')
+      body.push(`- verdict: submitted seq ${p.seq}`
+        + (p.resultSeq !== null
+          ? ` → answered seq ${p.resultSeq}: \`${(p.verdict ?? '').slice(0, 200).replace(/`/g, '\'')}\``
+          : ' — NO RESULT: the review was never answered (pending); do not treat this as approved'))
+      body.push(`- full text: \`${ref.path}\` (${kb} ≈ ${tokens} tok, \`${ref.sha256.slice(0, 7)}…\`) — query it with chapters_artifact (path or sha): action 'toc' | 'search' | 'read'`)
+      if (p.outline.length > 0) body.push(`- outline: ${p.outline.join(' · ')}`)
+      const headChars = config.planInlineChars ?? PLAN_HEAD_FALLBACK_CHARS
+      if (headChars > 0 && planBody.length > 0) {
+        body.push(`- head (first ${headChars} chars, verbatim):`, '', fenced(planBody.slice(0, headChars)), '')
+      }
+      if (p.status === 'superseded') {
+        body.push('- this submission was superseded by a later one of the same plan — the newest is operative')
+      }
+      body.push('')
+    }
+    for (const f of flipsInRange) {
+      body.push(`- plan mode ${f.active ? 'ACTIVE' : 'inactive'} from seq ${f.seq} (log event plan/mode)`)
+    }
+    body.push(`- plan mode at chapter end: ${modeAtEnd}`)
+  }
+
   const bodyText = body.join('\n')
   const estimatedTokens = estimateTokens(bodyText)
   const frontmatter = [
@@ -302,6 +365,15 @@ export function renderChapter(
     `sha256: ${sha256(`${bodyText}\n`)}`,
     `topics: [${[...new Set(topics)].map((t) => JSON.stringify(t)).join(', ')}]`,
     `artifacts: ${artifacts.length}`,
+    // Plans ride in frontmatter ONLY when this chapter actually carries one, so a
+    // session that never entered plan mode writes byte-identical files to before
+    // this feature (verify.md P8). Compact `seq:status:sha8` triples: the minimal
+    // parser in indexing.ts reads flat scalar lists, never nested YAML. The full
+    // facts live in the registry record; the prose lives in the Plans block.
+    ...(planFacts.length > 0
+      ? [`plans: [${planFacts.map((p) => `${p.seq}:${p.status}:${p.sha256.slice(0, 8)}`).join(', ')}]`]
+      : []),
+    ...(chapterPlans.length > 0 || flipsInRange.length > 0 ? [`planMode: ${modeAtEnd}`] : []),
     `unrenderedSeqs: [${unrenderedSeqs.join(', ')}]`,
     '---',
     '',
@@ -322,6 +394,9 @@ export function renderChapter(
       toolResultsDeferred: deferredCount,
       overTarget: estimatedTokens > config.chapterTokenTarget,
       unrenderedSeqs,
+      plans: planFacts,
+      planMode: modeAtEnd,
+      invocationArtifacts,
     },
   }
 }

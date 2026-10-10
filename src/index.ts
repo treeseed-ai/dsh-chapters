@@ -59,6 +59,12 @@ export interface Config {
   fallbackPreset: string
   mergeThreshold: number
   chapterLimit: number
+  /** Plans (docs/plans-carriage.md § 7): verbatim plan chars shown in a chapter,
+   * the tool-call-argument artifact floor (0 = off), and whether the notice
+   * carries the `## Plans on this path` block. */
+  planInlineChars: number
+  callArgArtifactTokens: number
+  plansInNotice: boolean
   harnessId: string
   /** §12: the project's knowledge repo URL ('' = rely on /chapters-link). */
   knowledgeRemote: string
@@ -108,6 +114,17 @@ export const Config = Schema.object({
   // Topic-sequential composition (record §4.2) for the model-free fork path.
   mergeThreshold: Schema.number().default(0.3),
   chapterLimit: Schema.number().default(8000),
+  // Plans (docs/plans-carriage.md § 7). A plan's full text is ALWAYS
+  // artifact-backed, so planInlineChars is display economy and never a data
+  // decision. callArgArtifactTokens defaults to 0 = OFF: turning it on changes
+  // chapter bytes for sessions with large tool-call arguments (a `write` call
+  // carries a whole file), which means model tapes must be re-recorded — so a
+  // deployment opts in deliberately rather than by accident.
+  planInlineChars: Schema.number().default(900),
+  callArgArtifactTokens: Schema.number().default(0),
+  // Renders zero bytes when the path holds no plans, so the default-on cost for
+  // sessions that never enter plan mode is exactly nothing.
+  plansInNotice: Schema.boolean().default(true),
   // Per-machine identity for the knowledge repo (commit author + per-harness
   // token scoping, record §2.1). The hostname is the honest default; override
   // per machine when two sessions on one box must be told apart.
@@ -216,6 +233,9 @@ export async function apply(ctx: HostCtx, config: Config): Promise<void> {
       fallbackPreset: config.fallbackPreset,
       mergeThreshold: config.mergeThreshold,
       chapterLimit: config.chapterLimit,
+      planInlineChars: config.planInlineChars,
+      callArgArtifactTokens: config.callArgArtifactTokens,
+      plansInNotice: config.plansInNotice,
       searchMaxTokens: config.searchDefaultMaxTokens,
       harnessId: config.harnessId,
       coreRulesBudgetTokens: config.coreRulesBudgetTokens,
