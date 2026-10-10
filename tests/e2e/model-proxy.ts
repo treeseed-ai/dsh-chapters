@@ -278,6 +278,8 @@ function findReplay(tape: TapeEntry[], incoming: unknown[]): TapeEntry | null {
 export function normalizeSingle(m: unknown): string { return JSON.stringify(m) === '' ? '' : normalize(m) }
 
 export async function startModelProxy(opts: ProxyOpts): Promise<ProxyHandle> {
+  // Which project's tape this is — a miss must name itself (see the journal line).
+  const tapeName = path.basename(opts.tapeDir)
   fs.mkdirSync(opts.tapeDir, { recursive: true })
   const missLog = opts.journalPath ?? path.join(opts.tapeDir, '..', 'e2e-tape-misses.log')
   const server = http.createServer((req, res) => {
@@ -303,7 +305,12 @@ export async function startModelProxy(opts: ProxyOpts): Promise<ProxyHandle> {
             res.end(Buffer.from(hit.bytes, 'base64'))
             return
           }
-          fs.appendFileSync(missLog, `${new Date().toISOString()} MISS project-tape messages=${inc.length} last=${JSON.stringify(inc[inc.length - 1] ?? '').slice(0, 200)}\n`)
+          // The old line said "project-tape" for every project, which made a red
+          // chain undiagnosable: two boots append to one journal, so a miss from
+          // `heavy` looked like the failure of whichever project died last. Name
+          // the tape AND how many entries it loaded — "entries=0" is a different
+          // bug (missing/untracked tape) than a prefix mismatch.
+          fs.appendFileSync(missLog, `${new Date().toISOString()} MISS tape=${tapeName} entries=${tape.length} messages=${inc.length} last=${JSON.stringify(inc[inc.length - 1] ?? '').slice(0, 200)}\n`)
           // A miss is fatal (503) — UNLESS liveFallback is on, where it falls
           // through to the record path: the real model answers the drifted
           // request AND it lands on the tape, so the next clean replay

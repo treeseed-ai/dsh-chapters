@@ -115,15 +115,24 @@ export async function bootE2eServer(port: number, pins: Pins): Promise<BootHandl
   if (pins.noAuxModel) {
     // Idempotent row patches: the presets are copied fresh per boot, but a pin must
     // never duplicate a key the file already carries.
-    if (!/^ *auto: false$/m.test(y)) y = y.replace(/( *)thresholdRatio: [0-9.]+/, `$1thresholdRatio: ${pins.thresholdRatio}
-$1auto: false`)
-    if (!/^ *elicitedPlot: false$/m.test(y)) y = y.replace(/( *)thresholdRatio: [0-9.]+/, `$1thresholdRatio: ${pins.thresholdRatio}
-$1elicitedPlot: false`)
+    if (!/^ *auto: false$/m.test(y)) y = y.replace(/( *)thresholdRatio: [0-9.]+/, `$1thresholdRatio: ${pins.thresholdRatio}\n$1auto: false`)
+    if (!/^ *elicitedPlot: false$/m.test(y)) y = y.replace(/( *)thresholdRatio: [0-9.]+/, `$1thresholdRatio: ${pins.thresholdRatio}\n$1elicitedPlot: false`)
   }
   if (pins.toolResultArtifactTokens !== undefined && !y.includes('toolResultArtifactTokens:')) {
     y = y.replace(/( *)thresholdRatio: [0-9.]+/, `$1thresholdRatio: ${pins.thresholdRatio}\n$1toolResultArtifactTokens: ${pins.toolResultArtifactTokens}`)
   }
   fs.writeFileSync(row, y)
+  // Say out loud what this boot actually wrote. A red chain twice taught the same
+  // lesson: a pin that is not observable is a pin that did not happen (0.1.10's
+  // threshold pin and 0.1.11's aux-model pin each looked correct locally while the
+  // runner disagreed, and nothing in the log could tell me which side was lying).
+  const rows = (pins.noAuxModel ? ['thresholdRatio', 'auto', 'elicitedPlot'] : ['thresholdRatio'])
+    .map((k) => {
+      const hit = new RegExp(['^ *', k, ': .*$'].join(''), 'm').exec(y)
+      return `${k}=${hit ? hit[0].trim().split(': ')[1] : 'ABSENT'}`
+    })
+    .join(' ')
+  console.log(`[e2e] boot pins: port=${port} tape=${process.env.E2E_TAPE ?? 'default'} model=${process.env.E2E_MODEL ?? 'live'} ${rows}`)
 
   // STRESS REGIME pin (user directive 2026-09-19): 32K window / 15K response.
   // E2E_MODEL=record|replay inserts the tape proxy (same directive's second
@@ -177,7 +186,9 @@ $1elicitedPlot: false`)
     env: {
       ...process.env,
       DSH_HOME: E2E_HOME,
-      DSH_CHAPTERS_ENGINE_ERRORS: path.join(ROOT, 'var', 'e2e-engine-errors.log'),
+      // Port-keyed like everything else about a boot: one shared file made a red
+      // chain ambiguous — the tail belonged to whichever project wrote last.
+      DSH_CHAPTERS_ENGINE_ERRORS: path.join(ROOT, 'var', `e2e-engine-errors-${port}.log`),
       ...(process.env.E2E_COVERAGE === '1' ? { NODE_V8_COVERAGE: covDir } : {}),
       // dev/settings.yaml pins the local provider's key via apiKeyEnv, and a
       // CI box has no ~/.dsh credentials to fall back on (measured 2026-09-23:

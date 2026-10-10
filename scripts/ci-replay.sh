@@ -52,6 +52,7 @@ if [[ ! -d "$NM_DIR/@deepseek-ai/dsh/node_modules/@deepseek-ai/dsh-sandbox-local
   exit 2
 fi
 
+rm -f var/e2e-tape-misses.log var/e2e-engine-errors*.log 2>/dev/null || true
 npm ci
 npm run build
 
@@ -74,6 +75,11 @@ STATUS=0
 E2E_MODEL=replay npm run test:e2e 2>&1 | tee var/ci-replay.log || STATUS=${PIPESTATUS[0]}
 if [[ "$STATUS" -ne 0 ]]; then
   echo "::error::ci-replay: tape replay exited $STATUS"
+  # What each boot actually wrote into its preset — the difference between a pin that
+  # was applied and one that was only requested.
+  grep -E "^\[e2e\] boot pins" var/ci-replay.log | head -10 | while read -r line; do
+    echo "::error::ci-replay ${line:0:300}"
+  done
   grep -E "✘|failed|No tests found|503" var/ci-replay.log | head -24 | while read -r line; do
     echo "::error::ci-replay ${line:0:300}"
   done
@@ -85,10 +91,14 @@ if [[ "$STATUS" -ne 0 ]]; then
   # DSH_CHAPTERS_ENGINE_ERRORS at this file on EVERY boot, and it has already
   # been the difference between guessing and knowing (plot elicitation,
   # finalization deferral). Without it a tape miss says only "unmatched".
-  if [[ -s var/e2e-engine-errors.log ]]; then
-    echo "::error::ci-replay: engine diagnostics tail"
-    tail -8 var/e2e-engine-errors.log | while read -r line; do echo "::error::ci-replay ${line:0:300}"; done
-  fi
+  # Per-boot diagnostics (port-keyed since 0.1.12): the tail of each engine log names
+  # the boot that wrote it, so a plot-elicitation line can no longer be blamed on the
+  # wrong project.
+  for f in var/e2e-engine-errors*.log; do
+    [[ -s "$f" ]] || continue
+    echo "::error::ci-replay engine diagnostics — ${f}"
+    tail -6 "$f" | while read -r line; do echo "::error::ci-replay ${line:0:280}"; done
+  done
   exit "$STATUS"
 fi
 echo "ci-replay: PASS — eight browser projects replayed green on committed tapes, no LLM present."
