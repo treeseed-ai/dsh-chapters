@@ -255,8 +255,10 @@ test('an approved plan is archived whole and called out in the child that contin
     const refusal = (() => {
       for (const e of logEvents(sessionLogTextById(sid)).reverse()) {
         if (e.type !== 'tool/result') continue
-        const m = /"reason"\s*:\s*"([^"]{0,220})/.exec(eventText(e.raw))
-        if (m !== null) return m[1]
+        // The reason is JSON too — capture across escaped quotes, or the report ends
+        // at the first backslash and says as much as "chapter 0 (" did on 0.1.12.
+        const m = /"reason"\s*:\s*"((?:\\.|[^"\\]){0,300})/.exec(eventText(e.raw))
+        if (m !== null) return m[1].replace(/\\"/g, '\"')
       }
       return '(no refusal reason found in the parent log — the tool produced no child and said nothing)'
     })()

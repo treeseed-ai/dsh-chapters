@@ -50,6 +50,32 @@ test('the continuation leg uses the ceiling the real tool reported', async () =>
   assert.equal(d.toSeq, 37, 'ranges come from the real archiveCeiling')
 })
 
+test('an escaped JSON payload parses the ceiling too — the runner-side shape', async () => {
+  const { decide } = await import('../e2e/stub-model.ts')
+  // What the runner actually sends: the tool payload as a JSON STRING inside a JSON
+  // document, so the inner quotes arrive backslash-escaped. Written with
+  // JSON.stringify so the escaping is real rather than whatever a source quote
+  // happens to mean — the first version of this test passed as a false green.
+  const escaped = JSON.stringify(JSON.stringify({ ok: true, archiveCeiling: 41, plans: [] }))
+  const d = decide({ messages: [
+    { role: 'system', content: 'sys' },
+    { role: 'user', content: 'call chapters_segment then chapters_continue' },
+    { role: 'tool', content: escaped },
+  ] } as never) as { kind: string; toSeq?: number }
+  assert.equal(d.kind, 'continue', 'escaped quotes must not hide the number')
+  assert.equal(d.toSeq, 41)
+})
+
+test('an unreadable ceiling refuses to invent a range', async () => {
+  const { decide } = await import('../e2e/stub-model.ts')
+  const d = decide({ messages: [
+    { role: 'system', content: 'sys' },
+    { role: 'user', content: 'call chapters_segment' },
+    { role: 'tool', content: 'archiveCeiling: not-a-number' },
+  ] } as never) as { kind: string }
+  assert.equal(d.kind, 'no-ceiling', 'a failed parse is reported, not guessed around')
+})
+
 test('segment is asked for exactly once — a measured ceiling is not re-measured', async () => {
   const { decide } = await import('../e2e/stub-model.ts')
   const asked = decide({ messages: [

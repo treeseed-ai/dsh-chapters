@@ -63,6 +63,8 @@ export type StubDecision =
   | 'title'
   | 'plan'
   | 'after-approval'
+  /** the segment result was unreadable — the stub refuses to invent a range */
+  | 'no-ceiling'
   /** the continuation leg: segment first… */
   | 'segment'
   /** …then continue, with ranges read from the segment result the REAL tool produced */
@@ -95,10 +97,19 @@ export function decide(body: { messages?: unknown[]; [k: string]: unknown }): { 
   const lastUser = [...messages].reverse().map((m) => (m as { content?: unknown }).content).find((c) => typeof c === 'string') as string | undefined
   // Continuation leg, step 2: `chapters_segment` answered, so continue with the
   // ranges the REAL tool's ceiling allows — read from its result, never guessed.
-  if (lastTool.includes('"archiveCeiling"')) {
-    const ceiling = Number(/"archiveCeiling"\s*:\s*(\d+)/.exec(lastTool)?.[1] ?? '0')
+  if (/archiveCeiling/.test(lastTool)) {
+    // The number survives however the harness frames the payload — plain JSON, or
+    // JSON escaped inside a string one level down, where the quotes arrive as
+    // \"archiveCeiling\". Matching on the KEY and the digits, not on quotes, is the
+    // only version that behaves the same on every machine: the local run read this
+    // fine and the runner did not, and that difference cost six CI cycles (0.1.12).
+    const ceiling = Number(/archiveCeiling[^0-9]{0,6}(\d+)/.exec(lastTool)?.[1] ?? '0')
+    // A ceiling of 0 is not a range, it is a parse failure — and inventing one would
+    // send a bogus archive that `validateRanges` rightly refuses, with an error that
+    // names the chapter and not the cause. Answer in prose and let the spec see no
+    // child, which is the honest failure this time.
     if (Number.isFinite(ceiling) && ceiling > 0) return { kind: 'continue', fromSeq: 0, toSeq: ceiling }
-    return { kind: 'after-approval' }
+    return { kind: 'no-ceiling' }
   }
   // Continuation leg, step 1: the human asked for a continuation; measure first.
   if (typeof lastUser === 'string' && /chapters_segment/.test(lastUser) && !tools.some((t) => t.includes('"childSessionId"'))) {
@@ -199,6 +210,10 @@ export function startStubModel(opts: { port?: number } = {}): Promise<StubHandle
         for (const p of pieces.slice(1)) res.write(sseToolArg(id, created, model, p))
         completion = Math.max(30, Math.round(args.length / 4))
         res.write(sseFinish(id, created, model, 'tool_calls'))
+      } else if (decision.kind === 'no-ceiling') {
+        res.write(sseText(id, created, model, 'Unable to read the archive ceiling from the segmentation result; not archiving.'))
+        completion = 12
+        res.write(sseFinish(id, created, model, 'stop'))
       } else {
         res.write(sseText(id, created, model, 'Approved — the plan is carried; nothing further to change for this journey.'))
         completion = 12
