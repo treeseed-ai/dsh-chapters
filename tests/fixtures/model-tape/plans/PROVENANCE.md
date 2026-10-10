@@ -25,6 +25,48 @@ distillation: approving a plan leaves plan mode (so the folded `planMode:` is
 **Does not prove** that a trained model would choose to submit that plan. The
 scripted upstream decided that, and it decided it on every turn.
 
+## Root cause of the dropped streams — measured on the container, same day
+
+This is no longer a mystery to re-derive: `docker inspect` gave `RestartCount=2` and `docker logs`
+contains exactly two `CUDA error: out of memory` → `ggml_abort()` lines. One-to-one — **every restart
+was a crash**, and `RestartPolicy=unless-stopped` relaunches it silently, so `/health` reads green
+between deaths while anything in flight dies with the previous process. The two abort sites:
+
+| site | what it means |
+|---|---|
+| `alloc at ggml-cuda.cu:583` | a plain VRAM allocation failed |
+| `ggml_cuda_graph_evaluate_and_capture` → `cudaGraphInstantiate` | CUDA **graph capture** failed — and capture happens lazily, *during serving* |
+
+The second explains the shape of the failure: the server boots clean, runs for hours (`graphs reused =
+2020`), then dies the first time it needs a graph for a new tensor shape. The budget on this card
+(RTX 2080 SUPER, 7289 MiB free at load) is why there is no room for that:
+
+```
+weights on CUDA0     4570.57 MiB   ← CPU_MOE=1 leaves 85,565 MiB of experts in system RAM
+KV on CUDA0            432 (+54) MiB
+recurrent state        450.28 MiB   ← per slot, and N_PARALLEL=-1 means several slots
+compute buffer        1173.35 MiB   ← BATCH=8192
+                    ─────────────
+                    ≈ 6626 MiB resident, ~660 MiB headroom — before any graph instance
+```
+
+with `LLAMA_ARG_FIT=off` disabling the guard that would shrink the configuration instead of aborting,
+and `CTX_SIZE=65536` against a DSH profile that pins `contextWindow: 32000` — 32K of unusable headroom
+paid for in VRAM.
+
+Separately, the same server is slow enough to fail on its own: the log's own numbers are **153 tok/s
+prefill / 15.45 tok/s decode**, one turn costing 266 s for 22,765 tokens. So a request that meets an
+abort reads client-side as `TRANSPORT` ("terminated"), and a request that merely outlives a deadline
+reads as `TIMEOUT` — one machine fault, two symptoms, which is exactly why my per-attempt diagnoses
+disagreed. At 15 tok/s the profile's `maxTokens: 15000` is a 16-minute worst case per turn, and no
+client timeout survives that.
+
+**Before scheduling another live distillation:** set `n_parallel 1`, `ctx-size 32768` or lower, turn
+`--fit` back on, drop the batch, consider `--no-cuda-graph` and `--cache-type-k/v q8_0`; then prove a
+*completion* with a real ~17K-token request. `/v1/models` answering is not that proof. And do not run a
+live journey while another agent session is using the same server — per-slot state and graphs multiply,
+and the life that ended at 19:53:55Z died moments after a 22.7K-token turn of mine.
+
 ## Attempted live, twice, on 2026-10-10
 
 Both attempts failed identically, so nobody re-tries this blind: the model container
