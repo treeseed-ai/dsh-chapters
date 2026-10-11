@@ -7,11 +7,14 @@ lastUpdated: true
 One package, plain npm, no monorepo:
 
 ```bash
-npm ci && npm run build && npm test          # 464 unit + integration (zero skips when services are up)
+npm ci && npm run build && npm test          # the deterministic suite: unit + integration, no model
 npm run coverage:ci                          # the ≥85% gate, same numbers CI enforces
-npm run test:e2e:replay                      # 7 browser acceptance segments, off model TAPES
+npm run test:e2e:replay                      # the browser acceptance chain, off model TAPES
 bash scripts/bootstrap-dev-profile.sh --home .dshdev-local   # isolated dev harness home
 ```
+
+(Deliberately no test count here: a number typed into a page goes stale on the next commit, and the honest
+figure lives in the release ledger on [§26](/operations/changelog/).)
 
 ## The tape system (why CI has no LLM)
 

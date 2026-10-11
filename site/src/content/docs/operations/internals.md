@@ -16,8 +16,9 @@ The plugin is small because the rules are strict. One glance at the module map:
 | `src/sync.ts` / `src/provider.ts` | the sync loop (offline degrade, divergence rebuild) and the six-verb provider seam |
 | `src/gitops.ts` / `src/treedx/` | the two transports (isomorphic-git; TreeDX workspace→overlay→commit) |
 | `src/indexing.ts` / `src/search.ts` / `src/vocabulary.ts` / `src/enrich-wire.ts` / `src/rules.ts` | the knowledge layer: derived index, ranked search, shadow vocabulary, enrichment ladder, per-machine rule ledger |
-| `src/client/` | browser plane: the fork action on assistant rows |
-| `tests/unit` + `tests/integration` | 464 deterministic tests (zero skips when services are up — skips are treated as defects) |
+| `src/plans.ts` | session-plan facts: pairs each `exit_plan_mode` call with the `tool/result` carrying the human verdict, folds `plan/mode`, and renders the notice's `## Active plan` / `## Previous plans on this path` block (the `kind: plan` document itself is written by `src/archive.ts` and numbered by the registry — a plan never consumes a chapter number) |
+| `src/client/` | browser plane: both door buttons on assistant rows — a two-row table and ONE runner (`doors.ts`), so the branch and the continuation cannot drift into two implementations |
+| `tests/unit` + `tests/integration` | the deterministic suite (zero skips when services are up — skips are treated as defects; the row count lives in the release ledger on [§26](/operations/changelog/), not on this page, because a typed count goes stale on the next commit) |
 | `tests/e2e` + `tests/fixtures/model-tape/` | eight browser journeys replayed from committed model tapes; misses are loud failures |
 
 Deep prose lives in the repo docs: `docs/architecture.md` (mechanics & decisions), `docs/knowledge-repo.md` (the governing design record with amendments), `docs/provider.md` (transport truth table), `docs/host-compaction-seam.md` (the harness integration surface), `docs/verify.md` (every claim's verification procedure). The archive's rule applies to this site too: **links over paraphrases.**

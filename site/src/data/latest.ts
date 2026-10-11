@@ -1,27 +1,32 @@
-/** Build-time "latest version": registry first; the plugin repo's own
- * package.json as the offline-safe fallback (the repo tracks releases). */
-import { readFileSync } from 'node:fs';
+/** Build-time identity of the plugin this site documents — the typed face of
+ * `plugin-version.mjs`, which the Astro config imports directly (a `.md` page
+ * cannot import a module, and the config needs the number synchronously).
+ *
+ * No network is touched at build time. Two reasons, both measured here:
+ *  - an offline or pristine build (the GitHub Pages runner may not reach npmjs)
+ *    must succeed, and a fetch there is a timeout waiting to mis-report;
+ *  - the previous registry-first helper's offline fallback resolved the WRONG
+ *    manifest — a `../../../package.json` from inside the bundler lands on
+ *    `site/package.json`, i.e. the site's own `0.0.1` — so the "safe" path
+ *    printed a version that had never been published. The reader validates the
+ *    manifest by its `name` before trusting anything it says.
+ *
+ * Why the repo's own version is authoritative: `release.yml` refuses to publish
+ * unless the tag equals this file's `version`, so at any release commit the two
+ * are the same number. And nothing on this site tells a human to install a
+ * numbered version — every instruction says `@latest`, which cannot go stale. */
+import { PLUGIN_NAME, readPluginVersion as read } from './plugin-version.mjs'
 
-export interface Latest { version: string; source: 'registry' | 'repo-fallback' | 'unknown' }
-
-function repoVersion(): string | null {
-  try {
-    const raw = readFileSync(new URL('../../../package.json', import.meta.url), 'utf8');
-    const v = (JSON.parse(raw) as { version?: string }).version;
-    return typeof v === 'string' ? v : null;
-  } catch { return null }
+export interface PluginVersion {
+  name: string
+  version: string
+  source: 'repo-package-json' | 'unknown'
+  /** The manifest the number came from — empty when nothing matched. */
+  path: string
 }
 
-export async function getLatest(): Promise<Latest> {
-  try {
-    const res = await fetch('https://registry.npmjs.org/@treeseed%2fdsh-chapters/latest', {
-      signal: AbortSignal.timeout(4000),
-    });
-    if (res.ok) {
-      const j = (await res.json()) as { version?: string };
-      if (typeof j.version === 'string' && j.version.length > 0) return { version: j.version, source: 'registry' };
-    }
-  } catch { /* build box offline / registry hiccup */ }
-  const rv = repoVersion();
-  return rv !== null ? { version: rv, source: 'repo-fallback' } : { version: '0.0.0-dev', source: 'unknown' };
-}
+export { PLUGIN_NAME }
+
+/** Resolve the current release from the repo's own manifest. Deterministic: the
+ * same input always yields the same page bytes. */
+export const readPluginVersion = read as () => PluginVersion

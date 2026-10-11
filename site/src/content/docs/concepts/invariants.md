@@ -14,7 +14,11 @@ A naive "fork" copies the parent's events into the child — context *grows* eve
 The header is global to every session in a profile; per-continuation notices are the only injection surface. Enabling dsh-chapters changes what *your sessions can do*, never what *every session hears*. (Rules land in the continuation notice for exactly this reason — [§13](/knowledge/rules/).)
 
 **4. Never let the model author chapter bodies.**
-The model chooses ranges and titles; the plugin renders the text from the log. Model-typed "lossless" archives are reconstructed from recall — which is precisely the failure mode being eliminated. Corollary: the model *is* trusted where trust is cheap and human-auditable — proposed rules are model-authored *prose*, but write-once and approval-gated.
+Ranges and titles come from the model when it works through the tools — or from the plugin's own
+deterministic derivation when a human pulls the door; the **text is always rendered from the log by the
+plugin**, never retyped. Model-typed "lossless" archives are reconstructed from recall — which is precisely
+the failure mode being eliminated. Corollary: the model *is* trusted where trust is cheap and
+human-auditable — proposed rules are model-authored *prose*, but write-once and approval-gated.
 
 ## Why invariants instead of settings
 

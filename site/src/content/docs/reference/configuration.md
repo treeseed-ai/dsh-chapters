@@ -30,8 +30,8 @@ No hardcoded tunables anywhere the harness can configure them. The table below i
 | `plansInNotice` | true | carry the plan block into a child's notice; renders **zero bytes** when the path holds no plan, so tape neutrality is the default |
 | `planSeedMode` | true | seed `plan/mode {active:true}` into a **continuation** child when the archived span was still in plan mode, so the gate survives the boundary (measured: kernel accepts the two-event seed, the host's own projection folds it). Never for a branch, never after an approval — approving a plan exits plan mode |
 | `plansInCheckpoint` | true | carry the operative plan into every in-place compaction checkpoint, the way the plot is carried — because shadowing can hide the chapter that holds it |
-| `planCheckpointChars` | 1600 |
-| `retrievalHints` | true | put `## Finding things` in the child's notice — the three lookup verbs (`read`, `chapters_artifact`, `chapters_search`). Off ⇒ the notice is byte-identical to the pre-hint shape | how much plan text a checkpoint carries; the archive keeps all of it, and a truncated carry says so in the text |
+| `planCheckpointChars` | 1600 | how much plan text a checkpoint carries; the archive keeps all of it, and a truncated carry says so in the text |
+| `retrievalHints` | true | put `## Finding things` in the child's notice — the three lookup verbs (`read`, `chapters_artifact`, `chapters_search`). Off ⇒ the notice is byte-identical to the pre-hint shape |
 | `callArgArtifactTokens` | 0 (off) | above this, a tool-call *argument* is artifact-backed and the inline text is a bounded head. Off by default on purpose: switching it on changes chapter bytes wherever a `write` carried a whole file, which means your model tapes need re-recording |
 | `toolResultDeferFloorTokens` | 200 | archive-time inline/defer floor (realm `toolResultArtifactTokens` is the *arrival* floor — keep it **above** your chunk size: below it, stubs hide compaction and thresholds silently stop firing — measured) |
 | `artifactStoreRoot` | `.dsh-chapters` | workspace store (must be `read`-reachable) |

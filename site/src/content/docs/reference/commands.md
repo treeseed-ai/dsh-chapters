@@ -38,30 +38,41 @@ Per linked project: `Project` / `Remote` / `Provider` lines, then `Sync: a push 
 /chapters-rule approve <id> | revoke <id>                  # YOUR machine's curation fact — never a shared rewrite
 ```
 
-## `/chapters-fork [title]`
+## The deterministic door: `/chapters-fork [title]` and `/chapters-continue [title]`
 
-The message-level fork button, also callable from the composer: everything after the last archive watermark up to the last completed turn is archived verbatim (ranges derived deterministically — **zero model involvement**) and a titled child opens whose first message is the cumulative TOC. If nothing new was said since the last archive it degrades to a pure citation fork — a child citing the existing chapters unchanged, nothing written.
+**One door, two intents — not two mechanisms.** Both commands come from the same builder
+(`deterministicCommand`, `src/tools.ts`), and a test pins that given the same events they archive
+**identically**: same ranges, same titles, same plan facts. Both buttons on the assistant row execute these
+same commands through the host's command wire, from one shared client runner (`src/client/doors.ts` — a
+table of two rows, deliberately not two implementations).
 
-## `/chapters-continue [title]`
+What the door does, either way: everything after the last archive watermark up to the last completed turn is
+archived verbatim, ranges derived by the plugin itself — **zero model involvement** — and a titled child
+opens whose entire inherited history is the cumulative TOC. If nothing new was said since the last archive,
+both degrade to a pure citation child: created, citing the existing chapters unchanged, nothing written.
 
-The same deterministic door, with the opposite intent — and its own message-level **Continue with chapters**
-button beside the fork button, because a door a human can only type is a door that looks broken: the child is
-created and registered, and the UI shows nothing. Everything after the last archive watermark up to
-the last completed turn is archived verbatim (**zero model involvement** — ranges derived from the plugin's
-own watermark), and the child that opens **extends the same stream of work** rather than splitting from it.
-So its notice carries the operative plan — `## Active plan`, the verdict, the chapter, the blob and the
-`kind: plan` document — and, if the session is still planning, the child is genuinely *in* plan mode
-because it is seeded with its own `plan/mode` fact.
+The **only** difference is what the child is told about plans:
 
-Why a command and not just the `chapters_continue` tool: a tool call has to be authored by the model, which
-means (a) the model must chain `chapters_segment` → `chapters_continue` with correct ranges, and (b) any
-recorded test of it **freezes those machine-specific numbers**. The command removes both dependencies —
-which is how the continuation became testable in a browser at all.
+| intent | command | button | what the child's notice carries |
+|---|---|---|---|
+| branch | `/chapters-fork` | *Fork with chapters* | **zero plan bytes** — this child splits a new direction; its plans stay reachable as history, in the cited chapters and as searchable `kind: plan` documents |
+| continue | `/chapters-continue` | *Continue with chapters* | `## Active plan` + `## Previous plans on this path` (marked history) with the verdict, chapter, blob and plan-document paths; and if the session was **still planning**, the child is genuinely *in* plan mode because it is seeded with its own `plan/mode` fact. A plan already approved is not seeded — approving exits plan mode, and that child's job is to implement |
 
-Fork vs continue is a real choice, not a naming preference: a **fork** splits a new direction and receives
-zero directive bytes (the plans stay reachable as history), while a **continuation** keeps the work and is
-told which plan governs it. If nothing new was said since the last archive, both degrade to a pure citation
-child.
+Why commands and buttons, when the `chapters_continue` tool exists: a tool call must be authored by the
+model, which means (a) it has to chain `chapters_segment` → `chapters_continue` with correct ranges, and (b)
+any recorded test of it **freezes those machine-specific numbers**. The door removes both dependencies —
+which is how the continuation became testable in a browser at all, and why a click works on a small local
+model that may not chain two tool calls.
+
+Continue with chapters also got its button late: the fork button had always driven the UI to the child it
+created, while the continuation's only feedback was a session id inside command text — a created child the
+user could not see read as a broken door. Both rows now switch you to the child (with a sidebar fallback and
+an inline note if the switch cannot be made).
+
+One visible side effect, stated plainly because users notice it: the plugin hides the host's native
+*Branch into a new conversation* action in that same message row (`src/client/index.ts`), the two chapter
+doors replacing it. It is a cosmetic rule matched on the button's accessible label, so if a future host
+rewords that label the native button simply reappears — fails open, visibly, never silently.
 
 ## Plus the host's `/compact`
 

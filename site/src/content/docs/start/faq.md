@@ -8,9 +8,23 @@ lastUpdated: true
 
 The harness draft screen turns composer text into the **first message**, not a command — so `/chapters-status` typed cold just messages the agent. Send any short opener first (or ask the agent to check status in prose) and the command surface works for the rest of the session. This is a client draft-routing behavior, not plugin state; it's documented wherever commands appear.
 
-### `/chapters-status` says `local-only — no credentials` / `no upstream linked`
+### `/chapters-status` says `No knowledge repository is linked yet`
 
-Correct, not broken. Before you link a pool, the archive is on disk and fully usable — open it, grep it, commit it; the model reads chapters by path with `read`, and `chapters_search` answers honestly ("no knowledge mirror yet") until a link materializes its index. The status command reports the *transport* state and names the failed step precisely — [Part III](/knowledge/pool/) explains linking.
+Correct, not broken — and it is the *transport* answer, not a search answer. Before you link a pool the
+archive is on disk and fully usable: open it, grep it, commit it; the model reloads chapters by path with
+`read`, and `chapters_search` **already answers from this machine's own store** — chapters, `kind: plan`
+documents and rules — naming the door it answered from so "this machine only" can never be read as "the
+whole project". It also keeps the two facts apart: *nothing matched your query* is not the same answer as
+*nothing is archived here*, and they get different next steps ([§12](/knowledge/search/)). Linking a pool
+widens the corpus to every machine's work — [Part III](/knowledge/pool/) explains it.
+
+### Which button — *Fork with chapters* or *Continue with chapters*?
+
+Either: they are ONE deterministic door pulled with two intents, and the archive they write is identical.
+The choice is about the work, not the machinery — **continue** extends the same stream (so the child is told
+which plan governs it, and stays in plan mode if you were still planning), **fork** splits a new direction
+(so the child is handed zero plan bytes and asks you what it should work on). Both derive their ranges in
+the plugin, so a click needs no model turn ([§15](/reference/commands/)).
 
 ### `origin changed — rebuilding mirror`
 
@@ -22,7 +36,10 @@ That is llama.cpp KV **capacity**, not dsh-chapters. On a single-slot server, in
 
 ### I updated the plugin but nothing changed
 
-Restart `dsh web` — bundles load at boot (`dsh plugin --profile web update … && restart`). Same applies after an upgrade that changes `cordis.patch.yml` defaults.
+Restart `dsh web` — bundles load at boot, so a swap on disk is invisible until then:
+`npm i @treeseed/dsh-chapters@latest` in the profile directory, restart, and `npm ls @treeseed/dsh-chapters`
+in that same directory tells you which version the next boot will load. Same applies after an upgrade that
+changes `cordis.patch.yml` defaults ([§23](/operations/install/)).
 
 ### A continuation said "over budget" and refused
 
@@ -30,7 +47,10 @@ Budget is *newly added* context after the header; the plugin refuses with per-ru
 
 ### My model never writes `PLOT:` lines, so checkpoints have no plot
 
-Fine — the plugin elicits one bounded call to author the plot over the region being condensed, and (since 0.1.3) logs *why* if it declines. Reason strings land in the diagnostics sink if you set `DSH_CHAPTERS_ENGINE_ERRORS`. This exact pipeline is a case study in [§26 changelog](/operations/changelog/) and the [field study](/evidence/field-study/).
+Fine — the plugin elicits one bounded call to author the plot over the region being condensed, and logs
+*why* if it declines. Reason strings land in the diagnostics sink if you set `DSH_CHAPTERS_ENGINE_ERRORS`.
+This exact pipeline is a case study in [§26 changelog](/operations/changelog/) and the
+[field study](/evidence/field-study/).
 
 ### How do I check what a chapter actually contains?
 

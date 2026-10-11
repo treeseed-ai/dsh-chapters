@@ -10,10 +10,16 @@ Six tools, all schema-typed with output schemas (mandatory in this plugin). The 
 |---|---|---|
 | `chapters_segment` | returns the archive ceiling + chapter-shaped ranges (title/summary editable, text never) | "we're expensive — what can we archive?" |
 | `chapters_continue` | archive the chosen ranges, open a new session whose first message is the cumulative TOC, carry a handoff note | the workhorse of continuation |
-| `chapters_fork` | same machinery to branch without abandoning the parent — title + handoff note only, archives nothing, writes no files | "let's try another angle from here" |
-| `chapters_search` | ranked hits into the pool's index, token-bounded | at the start of any domain ("has anyone hit this?") |
+| `chapters_fork` | the same door's branch intent for the model: cites the existing archive, writes nothing (the human-pulled [`/chapters-fork`](/reference/commands/) archives the new span first) | "let's try another angle from here" |
+| `chapters_search` | ranked, token-bounded hits from **whichever corpus is real here**: the pool mirror when one is pulled, otherwise this machine's own store — the answer names the door it came from, and plans are findable **as plans** (`kind: plan`) | at the start of any domain ("has anyone hit this?") |
 | `chapters_artifact` | `toc / search / read` on content-addressed blobs that never hit the window | re-consulting big results — after compaction, across windows — **and reading a session plan without swallowing it** |
 | `chapters_rule_propose` | write-once rule candidate (still needs a human per-machine approve) | "we learned a team convention" |
+
+These six are the model's surface, not the only way in: **every assistant row carries *Fork with chapters*
+and *Continue with chapters*, and the composer carries `/chapters-fork` and `/chapters-continue`** — one
+deterministic door with two intents, where the plugin derives the ranges itself instead of asking the model
+to chain `chapters_segment` → `chapters_continue`. Same archive, same child, same notice, and the intent
+alone decides what the child is told about plans ([§15](/reference/commands/)).
 
 ## What success returns
 
@@ -22,7 +28,7 @@ Six tools, all schema-typed with output schemas (mandatory in this plugin). The 
 | `chapters_segment` | `archiveCeiling`, `eventCount`, `toolResults[{seq, toolName, bytes, estimatedTokens, excerpt}]`, `plans[{seq, title, status, resultSeq, bytes, estimatedTokens, outline, verdict}]`, `livePlans[…]` (above the ceiling — an unfinished turn, so archivable by nothing), `modeActive`, `existingChapters`, `budgetHint` |
 | `chapters_continue` | `childSessionId`, `presetUsed`, `chapters`, `warnings[]` (coverage gaps, over-target chapters), `budget` |
 | `chapters_fork` | `childSessionId`, `presetUsed`, `budget` |
-| `chapters_search` | `results[{score, date, kind, title, path, topics}]`, `total`, `shown`, `budget{requested, used, remaining}`, `note` when the list was trimmed |
+| `chapters_search` | `results[{score, date, kind, title, path, topics}]`, `total`, `shown`, `budget{requested, used, remaining}`, a `note` that names **which door answered** (pool mirror vs this machine's store) or says the list was trimmed to the budget, and `line` (the packed answer text) on the store door |
 | `chapters_artifact` | per action — `toc`: heading map with line numbers; `search`: matched blocks + `totalMatches`/`truncated`/`remainingMatches`; `read`: `start`, `end`, `of`, `lines` |
 | `chapters_rule_propose` | `ok`, `text` — the proposal reply |
 

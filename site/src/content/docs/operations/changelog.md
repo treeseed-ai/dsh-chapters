@@ -27,6 +27,37 @@ notice built from that path — unbounded, and un-costed until the budget gate r
 - Browser-plane ledger for the eight-project chain (`npm run coverage:e2e`): 79.92 / 64.64 / 76.28 —
   reported, not tuned; the ≥85 gate is the deterministic one.
 
+### 0.1.15 — 2026-10 · the documentation site can no longer name a version that does not exist
+
+No behaviour changed in the plugin; what changed is that the **site can no longer tell you to install
+something stale**, and it turned out to be doing exactly that.
+
+- **A real bug, found while removing hand-typed versions**: the version the homepage displayed had a
+  build-time fallback that resolved `package.json` from inside the bundler and landed on
+  `site/package.json`. With the npm registry unreachable, the site printed **`dsh-chapters@0.0.1`** — a
+  version that has never existed. The fallback is gone: `site/src/data/plugin-version.mjs` reads the repo
+  manifest and validates it by package *name* before trusting it, and the build makes **no network
+  request at all**, so it is hermetic and offline-safe (proven by rebuilding with every proxy pointed at a
+  dead port).
+- **Instructions now say `@latest`, everywhere a human is told what to run** — an instruction that cannot
+  go stale beats one that needs editing after every release. The only place that *names* the current
+  release is the homepage, interpolated from the manifest, which the release pipeline already pins
+  (tag must equal `package.json` version).
+- **A guard refuses regression**: `site/scripts/check-stale-versions.mjs` runs first in the site build and
+  fails on a pinned install command or a "latest is X" claim outside the changelog. Negative-tested — a
+  probe page produces exit 1, the real tree produces 0.
+- Numbers with no dynamic need were **removed rather than pinned**: `bare (0.1.3)`, `(since 0.1.3)`,
+  `464 tests`, `7 segments`. The changelog, field study, security and archive-anatomy pages keep their
+  literal numbers on purpose — they are records of what was true on a date, not instructions.
+- Pages were brought in line with what actually ships: **one deterministic door with two intents** (the
+  fork and continue buttons are the same builder, archive-identical by test), all six commands, the
+  findability door in `chapters_search` answering from the workspace store and naming which door answered,
+  `kind: plan` documents searchable as plans, the `## Finding things` notice block, and the tool
+  `chapters_fork` finally distinguished from the command `/chapters-fork`.
+- Install documentation now states **the path that works** (npm inside the profile, then restart) and notes
+  honestly that `dsh plugin add` has never been observed working in this environment — citing only the
+  recorded pnpm-forwarder fact, with no diagnosis and no claimed fix, because nobody reproduced it.
+
 ### 0.1.14 — 2026-10 · a door the user cannot see is a door they will not trust
 
 Caught in real use, not in a test: a user ran `/chapters-continue`, the plugin archived 17 chapters and

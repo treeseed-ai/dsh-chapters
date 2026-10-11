@@ -1,9 +1,11 @@
 ---
-/** Getting started — deliberately the simplest section on the page:
- * current-version install and update commands, each with its own line and
- * one sentence on what it does. No prose beyond that. */
-import { getLatest } from '../data/latest';
-const { version } = await getLatest();
+/** Getting started — deliberately the simplest section on the page: the install
+ * path this project actually uses, with the current release resolved at build
+ * time (never typed by hand). `@latest` in the command is the point: it cannot
+ * go stale between releases, so no instruction can tell a user to install an
+ * outdated version. */
+import { readPluginVersion } from '../data/latest';
+const { version } = readPluginVersion();
 ---
 <section class="dsh-start" id="getting-started">
   <div class="dsh-inner" style="padding-inline:0">
@@ -12,19 +14,20 @@ const { version } = await getLatest();
       <li class="step">
         <div class="dsh-step">
           <h3>Install</h3>
-          <p class="note">Adds the latest dsh-chapters to your harness profile and brings its tools, commands, and the <code>chapters</code> preset with it.</p>
+          <p class="note">Adds dsh-chapters to your harness profile — a plain npm directory — and brings its six tools, six commands, and both archive buttons with it. The release this site documents: <code>{version}</code>.</p>
           <div class="dsh-cmdline">
-            <code id="cmd-add">dsh plugin --profile web add @treeseed/dsh-chapters@{version}</code>
+            <code id="cmd-add">npm i @treeseed/dsh-chapters@latest</code>
             <button class="dsh-copy" type="button" data-cmd="#cmd-add">copy</button>
           </div>
+          <p class="note">Run it in the profile directory (<code>~/.dsh/profiles/&lt;profile&gt;/</code>). <a href="./operations/install/">§23</a> covers every path.</p>
         </div>
       </li>
       <li class="step">
         <div class="dsh-step">
           <h3>Keep it current</h3>
-          <p class="note">Updates the plugin to the newest published version whenever you run it.</p>
+          <p class="note">The same line re-run moves the profile to whatever npm calls <code>latest</code> — no number to chase, so no stale instruction is possible.</p>
           <div class="dsh-cmdline">
-            <code id="cmd-update">dsh plugin --profile web update @treeseed/dsh-chapters</code>
+            <code id="cmd-update">npm i @treeseed/dsh-chapters@latest</code>
             <button class="dsh-copy" type="button" data-cmd="#cmd-update">copy</button>
           </div>
         </div>
@@ -32,12 +35,14 @@ const { version } = await getLatest();
       <li class="step">
         <div class="dsh-step">
           <h3>Restart, then go</h3>
-          <p class="note">Restart <code>dsh web</code> so the bundle loads. From any session: click <em>Fork with chapters</em> on a message, or ask your agent to archive and continue. That’s the whole setup.</p>
+          <p class="note">Restart <code>dsh web</code> so the bundle loads. From any session: click <em>Continue with chapters</em> on a message to carry the work on, or <em>Fork with chapters</em> to branch it — one deterministic door, two intents. That’s the whole setup.</p>
         </div>
       </li>
     </ol>
     <p style="font-size:.82rem;color:var(--sl-color-gray-3);margin-top:1rem">
-      <code>--profile web</code> is required on every plugin command — swap <code>web</code> for your profile name.
+      A profile is just a <code>package.json</code> plus its <code>node_modules</code> under
+      <code>&lt;DSH home&gt;/profiles/&lt;name&gt;/</code> — installing is npm, updating is npm again.
+      The archive stays yours: plain Markdown, kept on uninstall.
     </p>
   </div>
 </section>

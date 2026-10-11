@@ -27,14 +27,18 @@ Project: <slug> · <projectKey>                       ← only when a knowledge 
 - "Carry plans into chapters" — REJECTED — the user sent it back with feedback (ch. 4 …)
 
 - "Rollback plan" — PENDING … (NOT ARCHIVED — parent log seq 11 only)
-                                                     ← the ACTIVE block appears only for a CONTINUATION
-                                                       (`chapters_continue`): same stream of work, so the
-                                                       operative plan stays a live directive and plan mode
-                                                       is SEEDED into the child when the archived span was
-                                                       still planning. A BRANCH (`chapters_fork`, the fork
-                                                       button) splits a new direction, so it gets ZERO bytes
-                                                       here — the plans remain, but as history: in the cited
-                                                       chapters and as searchable `kind: plan` documents.
+                                                     ← the ACTIVE block appears only for a CONTINUATION —
+                                                       whichever way it was pulled: the `chapters_continue`
+                                                       tool, `/chapters-continue`, or the *Continue with
+                                                       chapters* button (which runs that command). Same
+                                                       stream of work, so the operative plan stays a live
+                                                       directive and plan mode is SEEDED into the child when
+                                                       the archived span was still planning. A BRANCH
+                                                       (`chapters_fork`, `/chapters-fork`, the *Fork with
+                                                       chapters* button) splits a new direction, so it gets
+                                                       ZERO bytes here — the plans remain, but as history: in
+                                                       the cited chapters and as searchable `kind: plan`
+                                                       documents.
                                                        A continuation whose plan was already approved is NOT
                                                        seeded either — approving a plan exits plan mode, and
                                                        that child's job is to implement. Anything not
