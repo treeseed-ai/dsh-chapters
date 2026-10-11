@@ -13,6 +13,7 @@ site Part III. Host API facts incl. exact file:line → `docs/contract.md`. Comp
 `docs/host-compaction-seam.md`. Build/test loop + tape system → `docs/development.md` + site §24.
 Claims & verification procedures → `docs/verify.md`. Transport truth table → `docs/provider.md`.
 Session plans in chapters / the ACTIVE PLAN line / `kind: plan` documents / seeded plan mode / findability → `docs/plans-carriage.md` (+ the corpus amendments in `docs/knowledge-repo.md`).
+Open items / what a fresh session should pick up next → `docs/backlog.md` (scoped, with the traps already fixed on main).
 Numbers from real runs (compaction, cache, retrievals) → site Part V (field study §20, cache §21).
 Releases/incidents → site §26 + git log. Benchmarks → `benchmarks/README.md` + site §19.
 
