@@ -18,7 +18,8 @@ Project: <slug> · <projectKey>                       ← only when a knowledge 
 ## Active plan
 (this continuation keeps the same stream of work: 3 plan(s) submitted on the path — …)
 - ACTIVE PLAN: "Carry plans into chapters" — APPROVED
-  (ch. 4 · full text: .dsh-chapters/<root>/artifacts/8f/8f3….txt · ~4.6K tok)
+  (ch. 4 · full text: .dsh-chapters/<root>/artifacts/8f/8f3….txt · plan document:
+   .dsh-chapters/<root>/chapters/plan-001-….md · ~4.6K tok)
   Read the full text with chapters_artifact before implementing. Do NOT re-plan from recall.
 
 ## Previous plans on this path
@@ -61,6 +62,17 @@ agent's framing of "here's what's happening now".>   ← budget-checked TOGETHER
                                                        machine. ⚠ marks a chapter missing or modified
                                                        since archived — flagged, never trusted
 
+## Finding things
+- Chapter detail: open its path above with the read tool.
+- A deferred tool result: chapters_artifact (the path, or the bare sha a chapter cites) — 'toc' | 'search' | 'read'.
+- Anything else on this project — other sessions' work, archived plans (`kind: plan`), curated rules: chapters_search.
+                                                     ← three verbs, one line each; the child's QUESTION
+                                                       decides which to reach for. The notice used to teach
+                                                       only `read`, so tools that were installed and never
+                                                       mentioned were tools a small model would not think to
+                                                       call. `retrievalHints` (default on) is the switch, and
+                                                       off the notice is byte-identical to the old shape
+
 Ancestry: root <session-id>; parent <session-id>; archive under .dsh-chapters/.
                                                      ← explicit back-links, one line; the chapter list
                                                        itself is the ancestor path flattened root-first —
@@ -71,8 +83,8 @@ Ancestry: root <session-id>; parent <session-id>; archive under .dsh-chapters/.
 That is the entire inherited-context surface. There is no replay of the parent's last messages and no second index — the TOC is the only index, deliberately (a regenerated duplicate would drift).
 
 A plan is the highest-value thing a continuation can inherit, and the one thing a child cannot reconstruct:
-`exit_plan_mode` puts the whole design in a tool-call argument, and DSH does not let a created session
-inherit plan mode. So the operative plan's title, verdict, chapter and artifact path ride above the fold —
+`exit_plan_mode` puts the whole design in a tool-call argument. So the operative plan's title, verdict,
+chapter, blob and plan-document paths ride above the fold —
 ~40 tokens that stand between a child and the two failure modes: implementing something nobody approved, or
 re-planning from recall. Seeding is measured, not assumed — the kernel accepts the two-event seed and the host's
 own plan projection folds it to active, so a seeded child really is gated (see the repo's `docs/plans-carriage.md`

@@ -99,7 +99,10 @@ test('segment with a linked project but no mirror → empty existing, no crash',
   try {
     await h.table('projects').put('PKD', { projectKey: 'PKD', slug: 'kb', remote: 'x', harnessId: 'hD', linkedAt: 'l', cwd: h.tmp })
     const r = await h.built.chaptersSearch.execute({ query: 'wrappers' } as never, h.exec as never) as { note?: string }
-    assert.match(r.note ?? '', /no knowledge mirror/, 'search without mirror → honest note')
+    // AMENDED with the findability contract: a LINKED project with no mirror on disk is
+    // not the same situation as an unlinked workspace, and must not be told to link one.
+    assert.match(r.note ?? '', /linked project has no pool mirror on disk yet/, 'linked-but-unpulled says exactly that')
+    assert.equal((r.note ?? '').includes('link one with /chapters-link'), false, 'no advice to re-link a project already linked')
     const seg = await h.built.segment.execute({} as never, h.exec as never) as { ok: boolean }
     assert.equal(seg.ok, true)
   } finally { h.dispose() }

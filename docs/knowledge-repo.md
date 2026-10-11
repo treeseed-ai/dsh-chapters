@@ -755,6 +755,43 @@ Rules of the amendment, all enforced by tests (verify.md P12–P14):
 
 Design detail and measurements: `docs/plans-carriage.md` §§ 9–13.
 
+### Amendment 2026-10-11 — the index answers at home, and the child is told the verbs
+
+Human directive: *"make sure everything is indexed correctly so that a new session can find the
+plans, rules, and other important details when it is asked."* Auditing that claim found the index was
+sound and the **access path was not**, in two specific ways — both now closed and pinned:
+
+1. **`chapters_search` required a pool mirror.** With nothing linked it returned an empty list and a
+   suggestion to go link a remote — while every chapter, every `kind: plan` document and every rule sat
+   in the workspace store, indexable. Search now has two doors over **one shared scorer**
+   (`rankEntries`): the materialized mirror when a project is linked, and `buildLocalCorpus` over the
+   store when it is not. Deliberate details:
+   - **artifacts are not indexed** (they answer to `chapters_artifact`; a blob indexed twice is a second
+     index, which §6 forbids);
+   - **the door is named in the answer** — "searched this machine's store (N indexed document(s); no pool
+     mirror …)" — because a session must never read *this machine only* as *the whole project*;
+   - **"nothing matched" and "nothing here" are different results** (`empty` + `documents`), since they
+     imply different next actions;
+   - if the pool yields nothing, the local store is consulted before answering empty.
+2. **The continuation notice taught only `read`.** A child was told chapters exist and how to open one;
+   it was never told `chapters_search` or `chapters_artifact` exist. An installed tool that is never
+   mentioned is a tool a small model will not reach for, so the notice gains a three-line
+   `## Finding things` block naming all three verbs, plus the one fact a child cannot infer — that plans
+   are searchable **as plans** (`kind: plan`) and rules arrive from other machines. `retrievalHints`
+   (default on) is the switch; off, the notice is byte-identical to the previous shape.
+
+Measured, not assumed: no committed tape contains a seeded notice anywhere in its prefixes (checked
+entry-by-entry across the corpus), so the notice change costs no re-record — and the eight-project chain
+replays green with it. That is luck of coverage rather than design: no current journey makes a
+*continuation child* speak, which is why the child-facing prose is now covered by golden rows here plus
+the live-model leg, and why a child that answers a question in a browser is on the open list.
+
+Also landed: **the kernel-drift gate** (`tests/unit/host-seed-contract.test.ts`) — the seeded
+`plan/mode` continuation depends on the host knowing that type and treating it as log-only, read from the
+kernel's own exported predicates (`KNOWN_SESSION_EVENT_TYPES`, `isSurfaceEligibleType`,
+`isAppendSurfaceEvent`) rather than reimplemented, so a kernel change surfaces as a red row instead of a
+child that silently stops being gated.
+
 ---
 
 *Cross-references: invariants and the four invariants — `AGENTS.md`; budget math —

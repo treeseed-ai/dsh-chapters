@@ -139,18 +139,36 @@ export function searchKnowledge(
   const scoped = opts.projectKey !== undefined
     ? entries.filter((e) => e.path.startsWith(`chapters/${opts.projectKey}`) || e.path.startsWith(`rules/${opts.projectKey}`))
     : entries
-  const scored = scoped
-    .map((e) => ({ e, score: scoreEntry(e, terms, now, summaries.get(e.path) ?? '') + (coreRuleIds !== null && e.kind === 'rule' && coreRuleIds.has(e.path) ? (opts.rulesCoreBonus ?? 0) : 0) }))
-    .filter((s) => s.score > 0)
+  return rankEntries(scoped, summaries, terms, now, coreRuleIds, opts.rulesCoreBonus ?? 0, maxTokens)
+}
+
+/**
+ * The ranking and packing shared by BOTH corpora — the pool mirror and the local
+ * store. Kept as one function on purpose: two scorers is how a "works in the pool,
+ * empty at home" divergence would be born, and the only difference between the two
+ * doors is where the entries came from.
+ */
+export function rankEntries(
+  entries: IndexEntry[],
+  summaries: Map<string, string>,
+  terms: string[],
+  now: number,
+  coreRuleIds: Set<string> | null,
+  rulesCoreBonus: number,
+  maxTokens: number,
+): { results: SearchResult[]; total: number; shown: number; budget: { requested: number; used: number; remaining: number }; line: string } {
+  const scored = entries
+    .map((e) => ({ e, score: scoreEntry(e, terms, now, summaries.get(e.path) ?? '') + (coreRuleIds !== null && e.kind === 'rule' && coreRuleIds.has(e.path) ? rulesCoreBonus : 0) }))
+    .filter((x) => x.score > 0)
     .sort((a, b) => b.score - a.score || (a.e.path < b.e.path ? -1 : 1))
-  const results: SearchResult[] = scored.map((s) => ({
-    score: Number(s.score.toFixed(2)),
-    date: s.e.mtime !== undefined ? new Date(s.e.mtime).toISOString().slice(0, 10) : '----',
-    kind: s.e.kind,
-    title: s.e.title,
-    path: s.e.path,
-    ...(s.e.paths !== undefined ? { paths: s.e.paths } : {}),
-    topics: s.e.topics,
+  const results: SearchResult[] = scored.map((x) => ({
+    score: Number(x.score.toFixed(2)),
+    date: x.e.mtime !== undefined ? new Date(x.e.mtime).toISOString().slice(0, 10) : '----',
+    kind: x.e.kind,
+    title: x.e.title,
+    path: x.e.path,
+    ...(x.e.paths !== undefined ? { paths: x.e.paths } : {}),
+    topics: x.e.topics,
   }))
   const lines: string[] = []
   let used = 0
@@ -168,4 +186,75 @@ export function searchKnowledge(
     budget: { requested: maxTokens, used, remaining: Math.max(0, maxTokens - used) },
     line: lines.join('\n'),
   }
+}
+
+/**
+ * The SAME corpus read straight off the workspace store, for the case that matters
+ * most and was previously unanswered: a project with NO pool linked. Every chapter,
+ * every `kind: plan` document and every rule already exists under the store root —
+ * indexed by nothing but their own frontmatter — and until now `chapters_search`
+ * returned an empty list there, so a session that asked "what did we plan about X"
+ * was told to go link a remote instead of being told the truth it already had.
+ *
+ * Paths come back relative to the workspace (`<storeRoot>/<session>/chapters/…`), so
+ * a result opens with the `read` tool with no translation, which is the whole point
+ * of a citation. Scope is stated by the caller, not assumed: this is this machine's
+ * store, not the shared pool, and the result note says so.
+ */
+export function buildLocalCorpus(storeRoot: string): { entries: IndexEntry[]; summaries: Map<string, string> } {
+  const entries: IndexEntry[] = []
+  const summaries = new Map<string, string>()
+  if (!fs.existsSync(storeRoot)) return { entries, summaries }
+  const addFile = (abs: string, rel: string): void => {
+    let text: string
+    try { text = fs.readFileSync(abs, 'utf8') } catch { return }
+    const entry = entryFromChapter(rel, text, fs.statSync(abs).mtimeMs)
+    entries.push(entry)
+    const fm = /^---[\s\S]*?summary:\s*(.*)$/m.exec(text)
+    if (fm !== null) summaries.set(entry.path, fm[1]!.trim().replace(/^"|"$/g, ''))
+    else if (entry.kind !== 'chapter') summaries.set(entry.path, entryBody(text).slice(0, 500))
+  }
+  const walk = (dir: string, rel: string, leaf: string): void => {
+    let items: fs.Dirent[]
+    try { items = fs.readdirSync(dir, { withFileTypes: true }) } catch { return }
+    for (const e of items) {
+      const abs = path.join(dir, e.name)
+      const r = rel === '' ? e.name : `${rel}/${e.name}`
+      if (e.isDirectory()) { walk(abs, r, leaf); continue }
+      if (e.name.endsWith('.md')) addFile(abs, path.posix.join(leaf, r))
+    }
+  }
+  for (const top of fs.readdirSync(storeRoot, { withFileTypes: true })) {
+    if (!top.isDirectory()) continue
+    if (top.name === 'artifacts') continue // blobs are queried by chapters_artifact, not indexed twice
+    const abs = path.join(storeRoot, top.name)
+    if (top.name === 'rules') { walk(abs, '', 'rules'); continue }
+    // a session tree: chapters/ holds transcript chapters AND plan documents
+    const chapters = path.join(abs, 'chapters')
+    if (fs.existsSync(chapters)) walk(chapters, '', path.posix.join(top.name, 'chapters'))
+    const rules = path.join(abs, 'rules')
+    if (fs.existsSync(rules)) walk(rules, '', path.posix.join(top.name, 'rules'))
+  }
+  return { entries, summaries }
+}
+
+/**
+ * Search THIS machine's store (no pool required). Returns the same shape as
+ * `searchKnowledge`, plus `empty` so the caller can tell "nothing matched" apart
+ * from "nothing to match against" — those two feel identical to a session and are
+ * completely different facts about the workspace.
+ */
+export function searchLocalStore(
+  storeRoot: string,
+  query: string,
+  maxTokens: number,
+  opts: { rulesCoreBonus?: number } = {},
+): { results: SearchResult[]; total: number; shown: number; budget: { requested: number; used: number; remaining: number }; line: string; documents: number; empty: boolean } {
+  const { entries, summaries } = buildLocalCorpus(storeRoot)
+  const terms = tokenize(query)
+  if (terms.length === 0) {
+    return { results: [], total: 0, shown: 0, budget: { requested: maxTokens, used: 0, remaining: maxTokens }, line: '', documents: entries.length, empty: entries.length === 0 }
+  }
+  const ranked = rankEntries(entries, summaries, terms, Date.now(), null, opts.rulesCoreBonus ?? 0, maxTokens)
+  return { ...ranked, documents: entries.length, empty: entries.length === 0 }
 }

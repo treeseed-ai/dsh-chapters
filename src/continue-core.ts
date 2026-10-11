@@ -63,6 +63,13 @@ export interface ContinueConfig extends RenderConfig {
    */
   plansInNotice?: boolean | undefined
   /**
+   * Teach a child HOW to look things up, not only what was archived (findability
+   * audit, 2026-10-11). The index answers questions about every kind — chapters,
+   * `kind: plan` documents, curated rules — but the notice previously pointed at
+   * nothing but `read`, so a session had to guess that `chapters_search` exists.
+   */
+  retrievalHints?: boolean | undefined
+  /**
    * Seed `plan/mode {active:true}` into a CONTINUATION child when the archived span
    * ended with plan mode active, so the planning gate survives the boundary the way
    * the plot does (decision 2026-10-10; measured: the kernel accepts a two-event
@@ -148,6 +155,7 @@ export function assembleNotice(input: {
    * approved or re-plans from recall. Absent/empty => zero injected bytes.
    */
   plansSection?: string
+  retrievalHints?: boolean | undefined
 }): string {
   const lines = [
     `# Continuation: ${input.title}`,
@@ -168,6 +176,16 @@ export function assembleNotice(input: {
     const mark = e.status === 'ok' ? '' : ` ⚠ ${e.status} since archived`
     const msgs = e.messages !== undefined ? ` (${e.messages} msgs)` : ''
     lines.push(`${e.number}. [${e.title}](${e.path}) — ${e.summary}${msgs}${mark}`)
+  }
+  if (input.retrievalHints !== false) {
+    // Three verbs, one line each: the child's question decides which to reach for.
+    lines.push(
+      '',
+      '## Finding things',
+      '- Chapter detail: open its path above with the read tool.',
+      "- A deferred tool result: chapters_artifact (the path, or the bare sha a chapter cites) — action 'toc' | 'search' | 'read'.",
+      "- Anything else on this project — other sessions' work, archived plans (`kind: plan`), curated rules: chapters_search.",
+    )
   }
   lines.push('', `Ancestry: root ${input.rootSession}; parent ${input.parentSession}; archive under ${input.storeRoot}/.`)
   return lines.join('\n')
@@ -402,6 +420,7 @@ async function finishChild(
     ...(args.projectLine !== undefined ? { projectLine: args.projectLine } : {}),
     ...(args.rulesSection !== undefined ? { rulesSection: args.rulesSection } : {}),
     ...(plansSection !== '' ? { plansSection } : {}),
+    retrievalHints: config.retrievalHints !== false,
   })
   const budget = preflight({
     noticeTokens: estimateTokens(noticeText),

@@ -4,7 +4,29 @@ description: How the two-layer index is built, what ranks, and why search qualit
 lastUpdated: true
 ---
 
-`chapters_search` answers over the **mirror** — so it behaves identically offline, on git, or on TreeDX, and its inputs are plain files you can grep.
+`chapters_search` answers from **whichever corpus is real for this workspace right now**: the pool
+**mirror** when a project is linked and pulled, and otherwise **this machine's own store** — so it behaves
+identically offline, on git, or on TreeDX, and on a laptop that has never linked anything. Its inputs are
+plain files you can grep either way, and the answer always says which door it came from.
+
+## Two doors, one scorer
+
+| door | when | paths it returns |
+|---|---|---|
+| pool mirror | a project is linked **and** pulled (`.dsh-knowledge/` exists) | `chapters/<project>/<session>/…`, `rules/<project>/…` |
+| local store | nothing linked, or linked but not pulled yet, **or** the pool had no match | `.dsh-chapters/<session>/chapters/…`, `.dsh-chapters/rules/<harness>/…` |
+
+Both call the same `rankEntries`, so a result cannot rank one way at home and another way in the pool —
+that divergence is the reason there is one scorer rather than two implementations. Three deliberate
+details:
+
+- **The store holds three document kinds and search knows them apart**: transcript chapters, `kind: plan`
+  directives, and curated rules. A plan is findable *as a plan*, by what it changes and by its status.
+- **Artifacts are not indexed.** Deferred blobs answer to `chapters_artifact` (path or bare sha). Indexing
+  them would be the second index the design record forbids, and their bytes are content-addressed anyway.
+- **"Nothing matched" and "nothing here" are different answers.** The first means your query missed; the
+  second means the workspace holds no archive at all. They imply different next actions, so they are
+  reported differently (`documents` vs `empty`), never merged into one quiet `[]`.
 
 ## What's indexed
 

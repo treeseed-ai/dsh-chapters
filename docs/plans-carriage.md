@@ -316,6 +316,7 @@ Every item below was an assumption the deterministic plane had encoded — and t
 | — | Seven-segment tape replay | green WITHOUT re-recording (2026-10-09, `npm run test:e2e:replay`, EXIT=0) |
 | — | `plans` browser journey | LANDED as the eighth chain project (2026-10-10) and immediately **extended to two legs** so § 12's continue-vs-branch distinction is tested, not described: a `chapters_segment`→`chapters_continue` continuation (asserts `## Active plan`, the plan's document path, and NO seeded gate because approving a plan exits plan mode) and a fork-button branch (asserts **no** directive section, archive still cited). Replays in 17 s on a committed tape; the eight-project chain re-runs for the 0.1.9 ship. Its tape is scripted-upstream distilled — see § Tapes and `PROVENANCE.md` |
 | 7 | Journey made hardware-independent (0.1.10): 0.99 threshold pin + `compaction/*`-absent guard; replay chain annotates its own failure and ships the engine diagnostics | built — tape re-distilled under the pin, eight-project chain `CHAIN_EXIT=0` locally, hosted acceptance green at the 0.1.10 tag |
+| 7 | Findability round (§ 14): local search door over a shared scorer, `## Finding things` in the notice (`retrievalHints`), kernel-drift gate on the seed contract | built — verify.md P18–P20; two pinned contract rows amended with reason; eight-project chain re-run |
 | 6 | Second-round decisions (§§ 9–13): intent-aware notice, seeded plan mode for continuations, `kind: plan` documents, checkpoint carriage, the one injection-screen exception | built 2026-10-10 — verify.md P12–P17; 582 deterministic rows green, gate 98.05 / 86.44 / 93.67 |
 | — | Follow-up, not blocking | re-record the `plans` tape from the live model — ATTEMPTED TWICE on 2026-10-10 and both times the model container dropped the stream mid-turn (`TRANSPORT`), one after 15 minutes with zero tool calls; `PROVENANCE.md` says what to check first. The carriage evidence does not change, only the claim about model behaviour |
 | — | Browser-plane ledger | `npm run coverage:e2e` over all EIGHT replays: **79.92 stmts / 64.64 branch / 76.28 funcs** — the non-gated plane, reported rather than tuned (the deterministic gate is the enforced one) |
@@ -347,6 +348,34 @@ with no tape re-recorded.
   `artifacts/aa/<sha>.txt` citation, the standard form the body prints, could 404 on the machine that
   wrote it. The resolver now walks the session trees between the store root and the mirror (P10), which
   is what makes "every byte remains retrievable" true rather than intended.
+
+## 14. Findability: a plan nobody can reach is a plan nobody follows
+
+The four decisions made plans *carried*. The audit that followed ("make sure a new session can find the
+plans, rules, and other important details when asked") found the index was already correct and the
+**access path** was not — two separate defects, both now pinned:
+
+1. **`chapters_search` needed a pool mirror.** Unlinked, it answered `[]` plus "link a remote" — while
+   every `kind: plan` document sat in the workspace store two directories away. Search now has a local
+   door over the **same scorer** (`rankEntries`), falls back to it when the pool has no match, names
+   which door answered, and distinguishes an empty workspace from a missed query. Artifacts stay out of
+   the index on purpose: they answer to `chapters_artifact`, and indexing them twice is the second index
+   the record forbids.
+2. **The child was never told the verbs.** The notice taught `read` and nothing else; `chapters_search`
+   and `chapters_artifact` were installed but unmentioned — so for a small model they did not exist. The
+   notice gains `## Finding things` (three lines) and says the one thing a session cannot infer: that
+   plans are searchable **as plans**.
+
+Measured before believing: **no committed tape prefix contains a seeded notice anywhere** (checked
+entry-by-entry across all eight projects), so the notice change costs zero re-records and the chain
+replays green with it. That is coverage luck, not design — no current journey makes a *continuation
+child* speak — which is why the child-facing prose now has golden rows, why the live-model leg exists,
+and why "a child answers a findability question in a browser" is on the open list rather than claimed.
+
+Two rows in the suite pinned the OLD contract and failed loudly, which is the only reason this section
+is honest: `no mirror ⇒ honest empty` became `no mirror ⇒ the local answer, with the door named`. Amended
+in place with the reason in the diff, because a silently-passing old expectation would have meant the
+feature shipped broken and green.
 
 ## Deferred (human decisions, not ours)
 

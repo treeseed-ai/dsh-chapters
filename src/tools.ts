@@ -18,7 +18,7 @@ import type { ChapterRange, SessionEventLike, ToolResultOverride } from './types
 import { composeChapters } from './compose.ts'
 import { projectForCwd } from './sync.ts'
 import { deriveRanges, refusalResult, runContinue, runFork, type BudgetProbe, type ContinueConfig, type ContinuePorts } from './continue-core.ts'
-import { searchKnowledge } from './search.ts'
+import { searchKnowledge, searchLocalStore } from './search.ts'
 import { resolveArtifactPath, resolveArtifactWithMirror, buildToc, searchArtifact, readLines } from './artifact-query.ts'
 import { makeArchiveFs, type DomainLike, type RegistryStore } from './store.ts'
 import type { SessionState } from './registry.ts'
@@ -532,14 +532,60 @@ export function buildChaptersTools(
       const caller = callerOf(exec)
       if ('reason' in caller) return { ...CALLER_MISSING }
       const cwd = (caller.session as { header?: { cwd?: string } }).header?.cwd ?? ''
+      // Typed once rather than spread from a conditional: the union of `{…} | {}` is
+      // not spreadable under this tsconfig, and the alternative was casting blind.
+      const localOpts = (): { rulesCoreBonus?: number } =>
+        config.rulesCoreBonus !== undefined ? { rulesCoreBonus: config.rulesCoreBonus } : {}
       const cloneDir = path.join(cwd, DEFAULT_CLONE_DIR)
-      if (!fs.existsSync(cloneDir)) {
-        return { ok: true as const, results: [], total: 0, shown: 0, note: 'no knowledge mirror yet — no project is linked for this workspace (link one with /chapters-link)' }
+      const budget = args.maxTokens ?? config.searchMaxTokens ?? 400
+      // Two doors, one scorer. The pool mirror when a project is linked; the workspace
+      // store when it is not — because the chapters, `kind: plan` documents and rules
+      // are ALREADY here, and "link a remote first" is not an answer to a question a
+      // local archive can reply to. Which door answered is stated in `note`, so a
+      // session never mistakes "this machine only" for "the whole project".
+      // "not linked" and "linked but not pulled yet" are different situations with
+      // different fixes; one note for both would send a session to link a project it
+      // already linked (measured: the pinned row for exactly that case). The door is
+      // named on EVERY branch, including the empty store — a session cannot tell
+      // "nothing here" from "I did not look here" without it.
+      const doorTail = (): string => {
+        let linked = false
+        try { linked = projectForCwd(store.projects(), cwd) !== undefined } catch { linked = false }
+        return linked
+          ? 'linked project has no pool mirror on disk yet — the sync loop pulls it; /chapters-status shows the last sync'
+          : 'no pool mirror — link one with /chapters-link to reach other machines\u2019 work'
       }
-      const outcome = searchKnowledge(cloneDir, args.query, args.maxTokens ?? config.searchMaxTokens ?? 400, {
+      const localNote = (n: number): string => `searched this machine's store (${String(n)} indexed document(s); ${doorTail()})`
+      if (!fs.existsSync(cloneDir)) {
+        const local = searchLocalStore(path.join(cwd, config.artifactStoreRoot), args.query, budget, localOpts())
+        return {
+          ok: true as const,
+          results: local.results.map((r) => ({ score: r.score, date: r.date, kind: r.kind, title: r.title, path: r.path, topics: r.topics })),
+          total: local.total,
+          shown: local.shown,
+          line: local.line,
+          budget: local.budget,
+          ...(local.results.length > 0 ? { note: localNote(local.documents) } : { note: `nothing archived in this workspace yet — nothing to search (${String(local.documents)} indexed documents; ${doorTail()})` }),
+        }
+      }
+      const outcome = searchKnowledge(cloneDir, args.query, budget, {
         ...(config.harnessId !== undefined ? { harnessId: config.harnessId } : {}),
         ...(config.rulesCoreBonus !== undefined ? { rulesCoreBonus: config.rulesCoreBonus } : {}),
       })
+      if (outcome.results.length === 0) {
+        const local = searchLocalStore(path.join(cwd, config.artifactStoreRoot), args.query, budget, localOpts())
+        if (local.results.length > 0) {
+          return {
+            ok: true as const,
+            results: local.results.map((r) => ({ score: r.score, date: r.date, kind: r.kind, title: r.title, path: r.path, topics: r.topics })),
+            total: local.total,
+            shown: local.shown,
+            line: local.line,
+            budget: local.budget,
+            note: `no pool match; found ${String(local.results.length)} in this machine's store`,
+          }
+        }
+      }
       return {
         ok: true as const,
         results: outcome.results.map((r) => ({ score: r.score, date: r.date, kind: r.kind, title: r.title, path: r.path, topics: r.topics })),

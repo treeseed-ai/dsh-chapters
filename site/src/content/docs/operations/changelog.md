@@ -27,6 +27,40 @@ notice built from that path — unbounded, and un-costed until the budget gate r
 - Browser-plane ledger for the eight-project chain (`npm run coverage:e2e`): 79.92 / 64.64 / 76.28 —
   reported, not tuned; the ≥85 gate is the deterministic one.
 
+### 0.1.12 — 2026-10 · an index nobody can reach is not an index
+
+The request was not "add search" but *"make sure a new session can find the plans, rules and other
+important details when it's asked."* Auditing that sentence found the index itself was sound and the
+**access path** was not, in two separate ways. Both are now closed, tested, and recorded as an amendment
+to the knowledge record.
+
+- **Search answers at home now.** With no pool linked, `chapters_search` returned `[]` plus "go link a
+  remote" — while every chapter, every `kind: plan` document and every rule sat in the workspace store.
+  It now reads that store through **the same scorer** the mirror uses (`rankEntries`), falls back to it
+  when the pool has no match, **names the door it answered from** (so "this machine only" is never read
+  as "the whole project"), and separates *nothing matched* from *nothing archived here* — two facts with
+  two different next actions. Deferred blobs are deliberately **not** indexed: they answer to
+  `chapters_artifact`, and a second index is what the design record forbids.
+- **A child is told the verbs.** The notice taught `read` and nothing else, so `chapters_search` and
+  `chapters_artifact` — installed, pointed at nothing — effectively did not exist for a small model. The
+  notice gains a three-line `## Finding things`, including the one thing a session cannot infer: that
+  plans are searchable **as plans** (`kind: plan`) and that rules arrive from other machines.
+  `retrievalHints` (default on) is the switch; off, the notice is byte-identical to the previous shape.
+- **A kernel-drift gate for the seeded continuation.** Seeding `plan/mode` depends on two host facts: the
+  type is known, and it is not surface-eligible. Those are now read from the **kernel's own exported
+  predicates** (`KNOWN_SESSION_EVENT_TYPES`, `isSurfaceEligibleType`, `isAppendSurfaceEvent`), not
+  reimplemented — so a host upgrade that would leave a continuation silently *ungated* shows up as a red
+  row naming the intent that moved.
+- **Two pinned rows were amended, not deleted.** They asserted the old `no mirror ⇒ honest empty`
+  contract and failed loudly — the only reason this entry can claim the flaw was found. The diff carries
+  the reason, because a silently-passing expectation is how a feature ships broken and green. One of them
+  also caught a genuine wording bug in the new answer: a project that *is* linked but not yet pulled was
+  being told to link one.
+- Measured, not assumed: no committed tape prefix contains a seeded notice (checked entry-by-entry across
+  all eight projects), so the notice change costs no re-record and the chain replays green. That is
+  coverage luck — no journey yet makes a *continuation child speak* — and it is recorded as an open row
+  rather than quietly rounded up to a claim.
+
 ### 0.1.11 — 2026-10 · the plans journey cannot ask the model anything
 
 0.1.10 pinned the threshold and still went red on hosted CI — with the new annotations making the cause

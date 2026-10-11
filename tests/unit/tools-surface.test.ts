@@ -218,11 +218,26 @@ test('fork-command: nothing-to-archive says so; success text names the branch se
 
 // ------------------------------------------------------------------ search
 
-test('search: no mirror is an honest empty, a mirror returns ranked readable paths', async () => {
+// CONTRACT AMENDED (findability audit, 2026-10-11, user directive "make sure a new
+// session can find the plans, rules and other important details when asked"): a bare
+// workspace used to answer with 'no knowledge mirror yet' and NOTHING ELSE, even though
+// every chapter, plan document and rule was sitting in the local store. The honest
+// answer is now the local answer, with the door named. The mirror half of this row is
+// unchanged — same scorer, same readable paths.
+test('search: no mirror answers from the local store and says so; a mirror still returns ranked readable paths', async () => {
   const w = world()
   try {
     const bare = await w.built.chaptersSearch.execute({ query: 'composer' } as never, w.exec as never) as { note?: string; total: number }
-    assert.match(bare.note ?? '', /no knowledge mirror/)
+    assert.match(bare.note ?? '', /nothing archived in this workspace yet/, 'an EMPTY store is not reported as a failed search')
+    assert.match(bare.note ?? '', /no pool mirror/, 'and the door is named so this-machine is never read as whole-project')
+    // now the same workspace WITH local documents: the answer is the documents
+    const local = path.join(w.tmp, '.dsh-chapters', 'sess-y', 'chapters')
+    fs.mkdirSync(local, { recursive: true })
+    fs.writeFileSync(path.join(local, 'plan-001-composer.md'), '---\nkind: plan\ntitle: "Composer policy"\ntopics: ["compose", "composer"]\n---\n# Composer policy\n\nhow chapters merge\n')
+    const found = await w.built.chaptersSearch.execute({ query: 'composer merge' } as never, w.exec as never) as { total: number; results: Array<{ kind: string; path: string }>; note?: string }
+    assert.ok(found.total >= 1, 'the local plan document answers with no pool at all')
+    assert.equal(found.results[0]!.kind, 'plan')
+    assert.match(found.note ?? '', /searched this machine's store/, 'naming the door it came from')
 
     const chapters = path.join(w.tmp, '.dsh-knowledge', 'chapters', 'PKS', 'sess-x')
     fs.mkdirSync(chapters, { recursive: true })

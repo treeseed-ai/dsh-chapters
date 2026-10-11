@@ -65,6 +65,8 @@ export interface Config {
   planInlineChars: number
   callArgArtifactTokens: number
   plansInNotice: boolean
+  /** Teach the child its lookup verbs (read / chapters_artifact / chapters_search). */
+  retrievalHints: boolean
   /** Seed plan mode into continuation children (plans-carriage § 10). */
   planSeedMode: boolean
   /** Carry the operative plan into every in-place checkpoint (§ 9). */
@@ -130,6 +132,7 @@ export const Config = Schema.object({
   // Renders zero bytes when the path holds no plans, so the default-on cost for
   // sessions that never enter plan mode is exactly nothing.
   plansInNotice: Schema.boolean().default(true),
+  retrievalHints: Schema.boolean().default(true),
   // Seeding is measured-safe (kernel accepts the two-event seed and the host's own
   // plan projection folds it to active) and it is what keeps the agent anchored to
   // the task across a continuation — so it ships ON, for continuations only.
@@ -247,6 +250,7 @@ export async function apply(ctx: HostCtx, config: Config): Promise<void> {
       planInlineChars: config.planInlineChars,
       callArgArtifactTokens: config.callArgArtifactTokens,
       plansInNotice: config.plansInNotice,
+      retrievalHints: config.retrievalHints,
       planSeedMode: config.planSeedMode,
       searchMaxTokens: config.searchDefaultMaxTokens,
       harnessId: config.harnessId,
