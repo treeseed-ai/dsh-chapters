@@ -36,6 +36,15 @@ import { randomBytes } from 'node:crypto'
 
 export interface StubHandle { url: string; port: number; close: () => Promise<void> }
 
+/**
+ * The ONE phrase that makes this stub submit a plan. Exported because the journey and
+ * the stub must not drift: the first version keyed the decision on words that also
+ * appear in the SYSTEM PROMPT (the tool catalog names `exit_plan_mode`), so the stub
+ * "saw" a request that was never made — the lesson that row still pins. Importing the
+ * constant into the prompt is what keeps the two honest.
+ */
+export const PLAN_TRIGGER = 'Present your plan with the exit_plan_mode tool now'
+
 export const STUB_MODEL = 'stub-plan-carriage'
 
 /** The plan the scripted model submits: ordinary markdown, no secrets, no live paths. */
@@ -63,6 +72,8 @@ export type StubDecision =
   | 'title'
   | 'plan'
   | 'after-approval'
+  /** in plan mode, but answering plainly — no submission, so the mode STAYS active */
+  | 'plain'
   /** the segment result was unreadable — the stub refuses to invent a range */
   | 'no-ceiling'
   /** the continuation leg: segment first… */
@@ -82,11 +93,14 @@ export type StubDecision =
  * The honest signal is the shape of the transcript: a `role:'tool'` message exists
  * only once a tool has RUN, i.e. the human has answered the review.
  */
-const toolText = (m: unknown): string => {
-  const rec = (m ?? {}) as { role?: unknown; content?: unknown }
-  if (rec.role !== 'tool') return ''
+/** Content of any message shape (string, block array, or nested) as text. */
+const textOf = (m: unknown): string => {
+  const rec = (m ?? {}) as { content?: unknown }
   return typeof rec.content === 'string' ? rec.content : JSON.stringify(rec.content ?? '')
 }
+/** Role-guarded, because `lastTool` means the last TOOL result and nothing else. */
+const toolText = (m: unknown): string => ((m as { role?: unknown } | null)?.role === 'tool' ? textOf(m) : '')
+const userText = (m: unknown): string => ((m as { role?: unknown } | null)?.role === 'user' ? textOf(m) : '')
 
 export function decide(body: { messages?: unknown[]; [k: string]: unknown }): { kind: StubDecision } | { kind: 'continue'; fromSeq: number; toSeq: number } {
   const messages = Array.isArray(body.messages) ? body.messages : []
@@ -116,7 +130,22 @@ export function decide(body: { messages?: unknown[]; [k: string]: unknown }): { 
     return { kind: 'segment' }
   }
   if (lastTool.includes('"childSessionId"')) return { kind: 'after-approval' }
-  return tools.length > 0 ? { kind: 'after-approval' } : { kind: 'plan' }
+  if (tools.length > 0) return { kind: 'after-approval' }
+  // Plan mode was ENTERED, but the human did not ask for a plan. This is the shape
+  // that isolates the seeding question: `plan/mode {active:true}` is in the log, the
+  // turn COMPLETES (no review card open, no r38 composer ambiguity), so the
+  // deterministic door has a real ceiling to archive against while the session is
+  // still planning. Keyed on the exact phrase the planning prompt uses, so a plain
+  // message cannot be mistaken for a request to submit.
+  // EVERY user-role message, not the last one: the harness appends its own injected
+  // user messages (workspace instructions, runtime snapshot, skill catalog) AFTER the
+  // human's, so keying on the tail read the catalog and concluded "no request" — the
+  // journey then hung waiting for a review card that could never appear (measured:
+  // plan/mode active, turn ended, zero tool calls). The trigger is a whole sentence so
+  // the plan-mode POLICY text, which also names the tool, cannot set it off.
+  const asksForPlan = messages.some((m) => (m as { role?: unknown }).role === 'user'
+    && userText(m).includes(PLAN_TRIGGER))
+  return asksForPlan ? { kind: 'plan' } : { kind: 'plain' }
 }
 
 const chunk = (id: string, created: number, model: string, payload: Record<string, unknown>): string =>
@@ -210,6 +239,10 @@ export function startStubModel(opts: { port?: number } = {}): Promise<StubHandle
         for (const p of pieces.slice(1)) res.write(sseToolArg(id, created, model, p))
         completion = Math.max(30, Math.round(args.length / 4))
         res.write(sseFinish(id, created, model, 'tool_calls'))
+      } else if (decision.kind === 'plain') {
+        res.write(sseText(id, created, model, 'In plan mode, and nothing to plan yet — answering in one sentence without touching any tool.'))
+        completion = 16
+        res.write(sseFinish(id, created, model, 'stop'))
       } else if (decision.kind === 'no-ceiling') {
         res.write(sseText(id, created, model, 'Unable to read the archive ceiling from the segmentation result; not archiving.'))
         completion = 12

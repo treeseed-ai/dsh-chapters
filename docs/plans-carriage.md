@@ -425,7 +425,15 @@ containing a submission does not end until the review is answered. So:
   plan marked PENDING/un-stored (`continue-command.test.ts`).
 
 So the honest statement is: the seeded continuation is covered deterministically and structurally, and
-NOT yet observed in a real browser. Building that row needs new stub rules and a fresh distillation; it is
+NOT yet observed in a real browser. An attempt at that browser row on 2026-10-11 was built and then
+REVERTED, unshipped, for two reasons worth recording so the next person does not re-derive them:
+(a) the scripted upstream had to learn to answer PLAINLY in plan mode, and its decision rule first keyed
+on the LAST user message — but the harness appends its own injected user messages (instructions, runtime
+snapshot, skill catalog) AFTER the human's, so the ask was invisible and the journey hung on a review card
+that could never appear; that ordering trap is now pinned by a unit row; and (b) a stale stub process
+serving pre-edit logic made the failure look like a product problem. Neither is a product defect. The
+shape is sound — `plan/mode {active:true}` logged, turn completed at seq 21, no tool call — so a future
+leg needs the plain branch plus a fresh distillation, and nothing else. Building that row needs new stub rules and a fresh distillation; it is
 recorded as the remaining piece rather than quietly claimed.
 
 ## Deferred (human decisions, not ours)

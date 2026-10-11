@@ -7,7 +7,7 @@
  */
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { decide, STUB_MODEL } from '../e2e/stub-model.ts'
+import { decide, PLAN_TRIGGER, STUB_MODEL } from '../e2e/stub-model.ts'
 
 const msg = (role: string, content: string) => ({ role, content })
 
@@ -18,7 +18,7 @@ test('the title assembly is its own decision — a single system prompt about ti
 test('a fresh conversation submits the plan — even though the system prompt names exit_plan_mode and approval', () => {
   const withCatalog = [
     msg('system', 'Tools include exit_plan_mode: Present your plan for the user\'s review and, on approval, leave plan mode.'),
-    msg('user', 'Plan only: which file defines the chapter renderer?'),
+    msg('user', `Plan only, then present it with the ${PLAN_TRIGGER} — which file defines the chapter renderer?`),
   ]
   assert.equal(decide({ messages: withCatalog }).kind, 'plan', 'catalog text is NOT a verdict')
 })
@@ -38,7 +38,7 @@ test('the stub names itself, never impersonates the distilled model', () => {
 })
 
 test('the continuation leg uses the ceiling the real tool reported', async () => {
-  const { decide } = await import('../e2e/stub-model.ts')
+  const { decide, PLAN_TRIGGER } = await import('../e2e/stub-model.ts')
   const segResult = '{"ok":true,"archiveCeiling":37,"eventCount":38,"plans":[],"livePlans":[]}'
   const d = decide({ messages: [
     { role: 'system', content: 'tools include chapters_continue' },
@@ -51,7 +51,7 @@ test('the continuation leg uses the ceiling the real tool reported', async () =>
 })
 
 test('an escaped JSON payload parses the ceiling too — the runner-side shape', async () => {
-  const { decide } = await import('../e2e/stub-model.ts')
+  const { decide, PLAN_TRIGGER } = await import('../e2e/stub-model.ts')
   // What the runner actually sends: the tool payload as a JSON STRING inside a JSON
   // document, so the inner quotes arrive backslash-escaped. Written with
   // JSON.stringify so the escaping is real rather than whatever a source quote
@@ -67,7 +67,7 @@ test('an escaped JSON payload parses the ceiling too — the runner-side shape',
 })
 
 test('an unreadable ceiling refuses to invent a range', async () => {
-  const { decide } = await import('../e2e/stub-model.ts')
+  const { decide, PLAN_TRIGGER } = await import('../e2e/stub-model.ts')
   const d = decide({ messages: [
     { role: 'system', content: 'sys' },
     { role: 'user', content: 'call chapters_segment' },
@@ -77,7 +77,7 @@ test('an unreadable ceiling refuses to invent a range', async () => {
 })
 
 test('segment is asked for exactly once — a measured ceiling is not re-measured', async () => {
-  const { decide } = await import('../e2e/stub-model.ts')
+  const { decide, PLAN_TRIGGER } = await import('../e2e/stub-model.ts')
   const asked = decide({ messages: [
     { role: 'system', content: 'sys' },
     { role: 'user', content: 'please run chapters_segment and then chapters_continue' },
@@ -89,4 +89,17 @@ test('segment is asked for exactly once — a measured ceiling is not re-measure
     { role: 'tool', content: '{"ok":true,"childSessionId":"ch-1","budget":{}}' },
   ] } as never)
   assert.equal((after as { kind: string }).kind, 'after-approval', 'the journey closes with text, not another archive')
+})
+
+test('the human ask is found even when injected user messages come AFTER it', async () => {
+  const { decide, PLAN_TRIGGER } = await import('../e2e/stub-model.ts')
+  const d = decide({ messages: [
+    { role: 'system', content: 'sys' },
+    { role: 'user', content: `Plan only, no tools. ${PLAN_TRIGGER}.` },
+    // what the harness really appends, in this order, after the human's words:
+    { role: 'user', content: '<system-reminder> The following workspace instructions may be relevant…' },
+    { role: 'user', content: 'Current runtime context. This snapshot supersedes earlier ones.' },
+    { role: 'user', content: '<system-reminder> A skill is a reusable set of task-specific instructions…' },
+  ] } as never) as { kind: string }
+  assert.equal(d.kind, 'plan', 'the LAST user message is the skill catalog — keying on it read "no request" and hung the journey')
 })
