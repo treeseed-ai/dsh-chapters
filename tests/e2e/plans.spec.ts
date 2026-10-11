@@ -250,10 +250,6 @@ test('an approved plan is archived whole, and a branch inherits it as history no
   // keeps is everything that does not depend on a frozen number: the real
   // submission, the real review, the real archive, and what a BRANCH inherits.
 
-  const fork = page.locator('button[aria-label="Fork with chapters"]').first()
-  await expect(fork, 'the chapters fork action survives a plan turn').toBeVisible({ timeout: 120_000 })
-  await fork.click()
-
   // ===================== LEG 1 (LIVE MODELS ONLY): a CONTINUATION ================
   // The guard is honest rather than a dodge: what breaks is the TAPE, not the
   // journey — a recorded request freezes the ranges the model authored, and those
@@ -294,6 +290,10 @@ test('an approved plan is archived whole, and a branch inherits it as history no
     expect(continuedSeed, 'an approved plan left plan mode, so this child is not gated').not.toMatch(/Plan mode is ACTIVE in this session/)
     expect(continuedSeed).toContain('plan document:', 'and it points at the searchable document')
   }
+
+  const fork = page.locator('button[aria-label="Fork with chapters"]').first()
+  await expect(fork, 'the chapters fork action survives a plan turn').toBeVisible({ timeout: 120_000 })
+  await fork.click()
 
   // A branch must carry NO plan directive — its plans are history (decision 3).
   // The switch to the branch is async (the same race fork-button.spec.ts documents),

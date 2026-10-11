@@ -149,3 +149,31 @@ The first hosted run of this tape MISSED on a plot-elicitation request: the runn
 `E2E_THRESHOLD=0.99` and the spec asserts no `compaction/*` event appears, so a future change that brings
 pressure into this journey fails locally instead of surprising a machine nobody can see. If you re-record
 from the live model, keep the pin — the tape is only valid for the regime it was distilled under.
+
+## Live attempt 5 (2026-10-11, after the user set `N_PARALLEL` off and rebuilt the container)
+
+The server held up — **RestartCount=0, one life, no OOM** — and the journey ran 8.6 min against the real
+model. What it proved, and what it broke:
+
+- **A real model plans, and the carriage works.** It emitted a genuine `exit_plan_mode` call (seq 20) with
+  its own plan, the host opened its review, the click approved it, `plan/mode` flipped active→inactive, and
+  the archived chapter carried the plan. The parent exited plan mode on approval exactly as § 10 claims.
+- **The branch child got NO plan section — verified on bytes, from the live run.** Its seeded notice listed
+  chapters and cited paths, with no `## Active plan` and no `ACTIVE PLAN` call-out. Decision 3 holds against
+  a real model, not only against a stub.
+- **The model ignored an explicit negative instruction.** Told in words not to read, grep, glob or run any
+  tool except the plan tool, it called `grep`, `glob`, `read`, and `bash` anyway before producing its plan.
+  RR2's lesson, re-learned: prompt-level "don't" is advisory to this model; only structure is binding.
+- **The live-only continuation leg failed, and the reason is the model, not the product.** It called
+  `chapters_segment` (seq 62) and then *answered in prose* instead of calling `chapters_continue` — so my
+  guard threw with the tool's own account rather than a bare zero. A two-step tool chain that must be
+  followed in order is not something a 15-tok/s local model can be asked to guarantee.
+- **A real ordering bug this run caught in my own spec:** the fork-button click precedes the continuation
+  leg, so the live leg was typing its instruction into the BRANCH child (which then dutifully called
+  `chapters_segment` and asked the human what to do — a defensible thing for an agent with no directive).
+  Moved the leg ahead of the click.
+
+So: the live plane remains **not green**, and the honest statement is narrower than "the feature needs a
+live run" — the *archival and intent behaviour is now live-verified*, while a journey that requires the
+model to chain two specific tool calls in sequence is not reliably runnable at all. That leg stays
+live-only, guarded, and reported when it fails.
