@@ -21,10 +21,12 @@ Latest release: see the [npm page](https://www.npmjs.com/package/@treeseed/dsh-c
 
 - the agent tools `chapters_segment`, `chapters_continue`, `chapters_fork`, `chapters_search`, `chapters_artifact`, `chapters_rule_propose`;
 - the composer commands `/chapters-link`, `/chapters-status`, `/chapters-enrich`, `/chapters-rule`;
-- a **Fork with chapters** button on every assistant message;
+- a **Fork with chapters** and a **Continue with chapters** button on every assistant message — the two
+  deterministic doors, the branch and the continuation (the notice decides: a branch gets zero directive
+  bytes, a continuation carries the operative plan);
 - the `chapters` agent preset (select it from the preset menu to route in-place `/compact` through the deterministic engine — optional; the archive tools work without it).
 
-**3. Take a continuation.** Work a few turns in a real task until the conversation feels expensive, then either click **Fork with chapters** on the last assistant message, or say:
+**3. Take a continuation.** Work a few turns in a real task until the conversation feels expensive, then either click **Continue with chapters** on the last assistant message (**Fork with chapters** if this is a new direction rather than more of the same), or say:
 
 > *"Segment this conversation and continue with a TOC; keep the debugging history in one chapter and the setup in another."*
 

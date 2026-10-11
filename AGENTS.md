@@ -13,7 +13,7 @@ site Part III. Host API facts incl. exact file:line → `docs/contract.md`. Comp
 `docs/host-compaction-seam.md`. Build/test loop + tape system → `docs/development.md` + site §24.
 Claims & verification procedures → `docs/verify.md`. Transport truth table → `docs/provider.md`.
 Session plans in chapters / the ACTIVE PLAN line / `kind: plan` documents / seeded plan mode / findability → `docs/plans-carriage.md` (+ the corpus amendments in `docs/knowledge-repo.md`).
-Open items / what a fresh session should pick up next → `docs/backlog.md` (scoped, with the traps already fixed on main).
+Open items / what a fresh session should pick up next → `docs/backlog.md` (NOTE: `tsconfig.json` excludes `src/client/`, so `npm run typecheck` never checks the client plane — run a strict `tsc` over `src/client/*.ts` when touching it) (scoped, with the traps already fixed on main).
 Numbers from real runs (compaction, cache, retrievals) → site Part V (field study §20, cache §21).
 Releases/incidents → site §26 + git log. Benchmarks → `benchmarks/README.md` + site §19.
 
@@ -300,8 +300,10 @@ Rounds 23-28 then: E3 measured (per-machine — see the Cache section, never cro
 on-scratch, the rest human-only), the target-hardware verdict (r28: zero-token compaction confirmed at
 llama.cpp counters, ~2 s steady-state turns), and a full-install product bug found-and-fixed by the
 same run — one domain, one opener, `acquireChapterStore` (e0e67d0).
-**MVP state: engine + tools + preset verified ON THE REAL MODEL, and the message-level fork BUTTON
-is shipped and e2e-green** (`conversation.chat.assistant-actions` → `remote.commands` → watermark
+**MVP state: engine + tools + preset verified ON THE REAL MODEL, and the message-level fork AND
+continue BUTTONS are shipped and e2e-green** (both rows come from one table + one runner in
+`src/client/doors.ts` — adding a third door must extend that table, never copy the body; a test refuses a
+second runner) (`conversation.chat.assistant-actions` → `remote.commands` → watermark
 fork → `sessions.open` after `refresh`; `tests/{unit,integration,e2e}`, Playwright with
 workspace-cached chromium — client-plane facts are now measured, never guessed).
 **Long-context mechanics (architecture amendments, 2026-09-19) are BUILT**: arrival-time

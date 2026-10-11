@@ -4,11 +4,15 @@ import { test, expect } from '@playwright/test'
 import { openApp, newSessionWithTurn, localModelUp, E2E_REGISTRY, E2E_SESS_DIR } from './session.ts'
 
 /**
- * The assistant-row fork action, on a session this spec CREATES through the
+ * The assistant-row door actions, on a session this spec CREATES through the
  * real UI with one genuine Local-model turn. Two planes of truth per
  * assertion: the durable registry/session log (what the plugin wrote) and
  * the browser (the reported defect this spec exists to keep fixed: after the
  * click, the app SWITCHES to the branch).
+ *
+ * Both deterministic doors have a row here: `/chapters-continue` shipped as a
+ * composer command only, which made a pulled continuation look like nothing had
+ * happened. One runner, two rows — src/client/doors.ts.
  */
 const ROOT = path.resolve(import.meta.dirname, '..', '..')
 const registry = () => JSON.parse(fs.readFileSync(E2E_REGISTRY, 'utf8')) as
@@ -23,6 +27,9 @@ test('the fork action keeps its promises: ours visible, native hidden, click for
   await newSessionWithTurn(page, 'Which file implements the chapter composer merge rule? Use only file reads (no shell commands) and answer in one sentence.')
 
   await expect(page.locator('button[aria-label="Fork with chapters"]').first()).toBeVisible()
+  // Both deterministic doors need a mouth: a composer-only `/chapters-continue`
+  // left the user with a created child and no affordance at all.
+  await expect(page.locator('button[aria-label="Continue with chapters"]').first()).toBeVisible()
   await expect(page.locator('button[aria-label="Branch into a new conversation"]')).toBeHidden()
 
   const before = childCount()

@@ -44,7 +44,9 @@ The message-level fork button, also callable from the composer: everything after
 
 ## `/chapters-continue [title]`
 
-The same deterministic door, with the opposite intent: everything after the last archive watermark up to
+The same deterministic door, with the opposite intent — and its own message-level **Continue with chapters**
+button beside the fork button, because a door a human can only type is a door that looks broken: the child is
+created and registered, and the UI shows nothing. Everything after the last archive watermark up to
 the last completed turn is archived verbatim (**zero model involvement** — ranges derived from the plugin's
 own watermark), and the child that opens **extends the same stream of work** rather than splitting from it.
 So its notice carries the operative plan — `## Active plan`, the verdict, the chapter, the blob and the

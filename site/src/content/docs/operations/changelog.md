@@ -27,6 +27,38 @@ notice built from that path — unbounded, and un-costed until the budget gate r
 - Browser-plane ledger for the eight-project chain (`npm run coverage:e2e`): 79.92 / 64.64 / 76.28 —
   reported, not tuned; the ≥85 gate is the deterministic one.
 
+### 0.1.14 — 2026-10 · a door the user cannot see is a door they will not trust
+
+Caught in real use, not in a test: a user ran `/chapters-continue`, the plugin archived 17 chapters and
+created the child — correctly, and registered in the workspace index — and they reported "I don't see a
+new session." Nothing had failed. The fork button had always driven the UI to the child it created; the
+continuation had **no button at all**, so its only feedback was a session id inside command text, and
+the sidebar list was never refreshed. A deterministic door whose result is invisible is a door nobody
+pulls twice.
+
+- **New: a 'Continue with chapters' action in the assistant row**, beside the fork button, doing the same
+  thing the fork button does for its own intent.
+- The fix is a table plus **one** runner (`src/client/doors.ts`): `makeForker` generalised over
+  command/noun/label, both rows registered from `DOOR_ACTIONS`, `src/client/index.ts` reduced to thin
+  chrome. This codebase has been bitten repeatedly by two implementations drifting apart, so the test
+  suite now refuses a second runner body outright — and the change is **net −75 lines** while adding a
+  feature.
+- The title regex was the only branch-specific piece (`BRANCH_TITLE`) and is now noun-derived; the
+  child-id pattern already parses both doors' reply shapes, verified against the server templates rather
+  than assumed, with a drift pin that reads `src/tools.ts` so client parsing cannot silently fall out of
+  step with server wording.
+- Honest limit, stated rather than papered: the browser journey proves **both buttons render and the
+  fork one still clicks through**. Nothing yet *clicks* Continue — doing that inside the fork project
+  would spawn a second child and break that spec's child-count assertion, so it needs its own boot and
+  tape (the standing "one journey, one boot" lesson). It is recorded as an open row, not claimed.
+- Also learned: `tsconfig.json` excludes `src/client/`, so `npm run typecheck` has never typechecked the
+  client plane. A strict one-off `tsc` over `src/client/*.ts` was run for this change and is clean, but
+  the gap is real and pre-existing.
+
+Ledger: 616 rows, 5 failing and exactly those 5 are the TreeDX live rows (container down by request),
+coverage gate satisfied (97.7 / 86.31 / 93.46 / 97.7); `plans`, `fork` and `suite` browser projects
+replayed green.
+
 ### 0.1.13 — 2026-10 · the continuation gets a door a human can pull
 
 Live attempt 5 settled it, with two findings that pointed at the same place:
