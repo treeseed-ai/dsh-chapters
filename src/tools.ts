@@ -10,7 +10,7 @@ import { randomUUID } from 'node:crypto'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { estimateTokens, toolResultCandidates } from './render.ts'
-import { detectPlans } from './plans.ts'
+import {detectPlans, type PlanIntent} from './plans.ts'
 import { buildRulesSection } from './rules.ts'
 import { rulesCommand } from './rules-commands.ts'
 import { DEFAULT_CLONE_DIR } from './sync.ts'
@@ -78,11 +78,19 @@ export interface ToolsConfig extends ContinueConfig {
 }
 
 /** Build the two tool definitions (registration is the caller's lifecycle). */
+/** The shape the host's command service takes — two doors share it. */
+export interface HostCommand {
+  name: string
+  description: string
+  input: { hint: string }
+  handler: (invocation: { agent: unknown; rawInput?: string; signal?: AbortSignal }) => Promise<{ kind: 'success'; text?: string } | { kind: 'error'; text: string }>
+}
+
 export function buildChaptersTools(
   ctx: ToolsCtx,
   store: RegistryStore,
   config: ToolsConfig,
-): { segment: ReturnType<typeof defineTool>; chaptersContinue: ReturnType<typeof defineTool>; chaptersFork: ReturnType<typeof defineTool>; chaptersSearch: ReturnType<typeof defineTool>; chaptersArtifact: ReturnType<typeof defineTool>; chaptersRulePropose: ReturnType<typeof defineTool>; forkCommand: { name: string; description: string; input: { hint: string }; handler: (invocation: { agent: unknown; rawInput?: string; signal?: AbortSignal }) => Promise<{ kind: 'success'; text?: string } | { kind: 'error'; text: string }> } } {
+): { segment: ReturnType<typeof defineTool>; chaptersContinue: ReturnType<typeof defineTool>; chaptersFork: ReturnType<typeof defineTool>; chaptersSearch: ReturnType<typeof defineTool>; chaptersArtifact: ReturnType<typeof defineTool>; chaptersRulePropose: ReturnType<typeof defineTool>; forkCommand: HostCommand; continueCommand: HostCommand } {
 
   const portsFor = async (caller: CallerAgent): Promise<ContinuePorts> => {
     const cwd = caller.session.header.cwd ?? ''
@@ -398,13 +406,40 @@ export function buildChaptersTools(
   // agent turn and no proposed ranges. `/chapters-fork [title]`: everything
   // up to the last completed turn is archived verbatim and a titled child
   // opens whose entire history is the cumulative TOC.
-  const forkCommand = {
-    name: 'chapters-fork',
-    description: 'Fork this conversation into a new session: archive everything so far into verbatim chapters and open a child whose history is the table of contents. Optional argument: a title for the branch.',
+  /**
+   * THE DETERMINISTIC DOOR (docs/plans-carriage.md § 15). A child can be created two
+   * ways: the model calls `chapters_continue` (which needs it to chain segment→continue
+   * and to author ranges — measured non-reliable on a small local model, attempt 5), or a
+   * HUMAN pulls this lever and the plugin derives everything itself. `deriveRanges` and
+   * `composeChapters` are deterministic, so a command needs no agent turn and no proposed
+   * ranges — and crucially it freezes no machine-specific numbers into a tape, which is
+   * what made the browser plane unable to cover continuations at all.
+   *
+   * One builder, two specs: `/chapters-fork` SPLITS the work (`intent: 'branch'` ⇒ the
+   * child gets zero plan bytes) and `/chapters-continue` EXTENDS it (`intent: 'continue'`
+   * ⇒ `## Active plan` and, while the session is still planning, the seeded `plan/mode`).
+   * Archive semantics are identical by user decision: everything since the watermark.
+   * Copy-pasting this body would be how the two doors drift apart; they cannot now.
+   */
+  interface DeterministicDoor {
+    name: string
+    intent: PlanIntent
+    /** Words for the default title, the handoff note and the success text. */
+    noun: string
+    verb: string
+    /** The task the child is handed when no plan carries one. */
+    noDirective: string
+  }
+
+  const deterministicCommand = (door: DeterministicDoor) => ({
+    name: door.name,
+    description: door.intent === 'branch'
+      ? 'Fork this conversation into a new session: archive everything so far into verbatim chapters and open a child whose history is the table of contents. Optional argument: a title for the branch.'
+      : 'Continue this conversation in a new session: archive everything so far into verbatim chapters and open a child that carries the same stream of work — its notice names the operative plan, if one is still standing. Optional argument: a title for the continuation.',
     input: { hint: '[title]' },
     async handler(invocation: { agent: unknown; rawInput?: string; signal?: AbortSignal }): Promise<{ kind: 'success'; text?: string } | { kind: 'error'; text: string }> {
       const agent = invocation.agent as CallerAgent
-      if (agent?.session === undefined) return { kind: 'error' as const, text: 'chapters-fork: no session context for this invocation' }
+      if (agent?.session === undefined) return { kind: 'error' as const, text: `${door.name}: no session context for this invocation` }
       try {
         const ports = await portsFor(agent)
         const cwd0 = (agent.session as { header?: { cwd?: string } }).header?.cwd ?? ''
@@ -413,43 +448,40 @@ export function buildChaptersTools(
         }
         const events = await ports.readCallerEvents()
         const anchor = [...events].reverse().find((e) => e.type === 'turn/end')?.seq
-        if (anchor === undefined) return { kind: 'error' as const, text: 'chapters-fork: nothing to archive yet — the conversation has no completed turn' }
+        if (anchor === undefined) return { kind: 'error' as const, text: `${door.name}: nothing to archive yet — the conversation has no completed turn` }
         const trimmed = (invocation.rawInput ?? '').trim()
         const parentTitle = [...events].reverse()
           .find((e) => e.type === 'session/title')?.data?.title as string | undefined
-        const title = trimmed !== '' ? trimmed : `${parentTitle ?? 'Chapters branch'} \u2014 branch`
+        const title = trimmed !== '' ? trimmed : `${parentTitle ?? `Chapters ${door.noun}`} \u2014 ${door.noun}`
         const rsCmd = rulesSectionFor(agent)
-        if (rsCmd.refusal !== undefined) return { kind: 'error' as const, text: `chapters-fork refused: ${rsCmd.refusal}` }
+        if (rsCmd.refusal !== undefined) return { kind: 'error' as const, text: `${door.name} refused: ${rsCmd.refusal}` }
         const callerArgs = {
           callerSessionId: agent.session.id,
           callerPreset: (ctx.sessionProjections?.stateOf(agent.session, 'agentPreset') as string | null | undefined) ?? null,
           title,
-          // The button means "branch": same rule as chapters_fork — history, not a
-          // directive, and no seeded mode. The tool `chapters_continue` keeps the
-          // opposite intent because it extends the same stream of work.
-          intent: 'branch' as const,
+          // THE intent, and the only place it is chosen for a human-pulled door.
+          intent: door.intent,
           toolResultOverrides: [],
           ...(projectLineFor(agent) !== undefined ? { projectLine: projectLineFor(agent) as string } : {}),
           ...(rsCmd.section !== undefined ? { rulesSection: rsCmd.section } : {}),
         }
         // Archive watermark: compaction chapters (and prior forks) already carry
-        // [.. lastArchived]. The fork segments ONLY what is newer — the store
-        // stays append-only AND duplicate-free, and the child's TOC inherits
-        // every earlier chapter through the ancestry walk. When nothing is
-        // newer, this degrades to a pure citation fork (runFork): child created,
-        // archive cited, nothing written.
+        // [.. lastArchived]. This segments ONLY what is newer — the store stays
+        // append-only AND duplicate-free, and the child's TOC inherits every earlier
+        // chapter through the ancestry walk. When nothing is newer, this degrades to a
+        // pure citation fork: child created, archive cited, nothing written.
         const parentState = await ports.getState(agent.session.id)
         const lastArchived = parentState.chapters.reduce((m, c) => Math.max(m, c.endSeq), 0)
         const fromSeq = lastArchived > 0 ? lastArchived + 1 : 0
         if (fromSeq > 0 && anchor <= lastArchived) {
-          const forked = await runFork(ports, { ...callerArgs, handoffNote: 'Branched from the conversation through the Chapters fork. Nothing had been said since the last archive, so this branch cites the existing chapters unchanged. Ask the user what this branch should work on.' }, config)
+          const forked = await runFork(ports, { ...callerArgs, handoffNote: `Archived through the Chapters ${door.noun}. Nothing had been said since the last archive, so this ${door.noun} cites the existing chapters unchanged. ${door.noDirective}` }, config)
           if (cwd0 !== '') config.scheduler?.schedule(cwd0, 'archive:fork-cite')
-          return { kind: 'success' as const, text: `Forked (nothing new to archive): branch \u201C${title}\u201D is session ${forked.childSessionId ?? '(created)'} citing ${parentState.chapters.length} existing chapter(s). Switch from the sidebar.` }
+          return { kind: 'success' as const, text: `${door.verb} (nothing new to archive): ${door.noun} \u201C${title}\u201D is session ${forked.childSessionId ?? '(created)'} citing ${parentState.chapters.length} existing chapter(s). Switch from the sidebar.` }
         }
-        // Topic-sequential composition (record §4.2): merge adjacent
-        // same-task collections from the stored per-turn signatures. No
-        // signatures yet (a session that predates the feature) → the legacy
-        // size-based segmentation, which is exactly what deriveRanges is.
+        // Topic-sequential composition (record §4.2): merge adjacent same-task
+        // collections from the stored per-turn signatures. No signatures yet (a session
+        // that predates the feature) → the legacy size-based segmentation, which is
+        // exactly what deriveRanges is.
         const composed = composeChapters(events, fromSeq, anchor, parentState.collections, {
           mergeThreshold: config.mergeThreshold,
           chapterLimit: config.chapterLimit,
@@ -460,22 +492,41 @@ export function buildChaptersTools(
         const notes = composed.chapters.length > 0
           ? composed.notes
           : ['no stored turn signatures — legacy size-based segmentation']
-        const handoffNote = 'Branched from the conversation through the Chapters fork. The chapters listed above carry every prior word verbatim — reload any with the read tool on its path. No task was handed over with this fork: ask the user what this branch should work on.'
+        const handoffNote = `Archived through the Chapters ${door.noun}. The chapters listed above carry every prior word verbatim — reload any with the read tool on its path. ${door.noDirective}`
           + (notes.length > 0 ? `\n(Segmentation notes: ${notes.join('; ')})` : '')
         const result = await runContinue(ports, { ...callerArgs, handoffNote, chapters }, config)
         if (result.ok && cwd0 !== '') config.scheduler?.schedule(cwd0, 'archive:fork')
         const budgetText = result.budget !== undefined ? `; TOC ~${result.budget.usedTokens} tokens, allowance ${result.budget.allowanceTokens}` : ''
-        return { kind: 'success' as const, text: `Forked: ${chapters.length} new chapter(s) archived (watermark respected: seqs ${fromSeq}..${anchor}), branch \u201C${title}\u201D is session ${result.childSessionId ?? '(created)'}${budgetText}. Switch to it from the sidebar — its first message is the table of contents.` }
+        return { kind: 'success' as const, text: `${door.verb}: ${chapters.length} new chapter(s) archived (watermark respected: seqs ${fromSeq}..${anchor}), ${door.noun} \u201C${title}\u201D is session ${result.childSessionId ?? '(created)'}${budgetText}. Switch to it from the sidebar — its first message is the table of contents.` }
       } catch (error) {
         const refusal = refusalResult(error)
         if (refusal !== null) {
           const budget = refusal.budget !== undefined ? ` (notice ~${refusal.budget.usedTokens} > allowance ${refusal.budget.allowanceTokens})` : ''
-          return { kind: 'error' as const, text: `chapters-fork refused: ${refusal.reason ?? 'refused'}${budget}` }
+          return { kind: 'error' as const, text: `${door.name} refused: ${refusal.reason ?? 'refused'}${budget}` }
         }
-        return { kind: 'error' as const, text: `chapters-fork failed: ${String((error as Error)?.message ?? error)}`.slice(0, 500) }
+        return { kind: 'error' as const, text: `${door.name} failed: ${String((error as Error)?.message ?? error)}`.slice(0, 500) }
       }
     },
-  }
+  })
+
+  const forkCommand = deterministicCommand({
+    name: 'chapters-fork',
+    intent: 'branch',
+    noun: 'branch',
+    verb: 'Forked',
+    // A branch SPLITS the work (decision 3): it inherits history, not an order.
+    noDirective: 'No task was handed over with this fork: ask the user what this branch should work on.',
+  })
+
+  const continueCommand = deterministicCommand({
+    name: 'chapters-continue',
+    intent: 'continue',
+    noun: 'continuation',
+    verb: 'Continued',
+    // A continuation EXTENDS the same stream. When a plan is operative the notice already
+    // carries it as a directive, so this line only speaks for the plan-less case.
+    noDirective: 'If the notice above names an active plan, that is your directive — read its full text before implementing and do NOT re-plan from recall. Otherwise ask the user what to carry on with.',
+  })
 
   // ------------------------------------------------- knowledge project line
 
@@ -680,7 +731,7 @@ export function buildChaptersTools(
     },
   })
 
-  return { segment: chaptersSegment, chaptersContinue, chaptersFork, chaptersSearch, chaptersArtifact, chaptersRulePropose, forkCommand }
+  return { segment: chaptersSegment, chaptersContinue, chaptersFork, chaptersSearch, chaptersArtifact, chaptersRulePropose, forkCommand, continueCommand }
 }
 
 export function registerChaptersTools(
@@ -699,12 +750,22 @@ export function registerChaptersTools(
   const commands = ctx.get?.('commands') as { register?: (def: unknown) => (() => void) | unknown } | undefined
   if (commands?.register !== undefined) {
     try {
-      const disposer = commands.register(built.forkCommand)
-      if (typeof disposer === 'function') disposeCommand = disposer as () => void
+      // Both deterministic doors register on the same seam. Keep EVERY disposer: a loop
+      // that overwrote `disposeCommand` would leak the first registration and unregister
+      // only whichever door was added last.
+      const commandDisposers: Array<() => void> = []
+      for (const def of [built.forkCommand, built.continueCommand]) {
+        const disposer = commands.register(def)
+        if (typeof disposer === 'function') commandDisposers.push(disposer as () => void)
+      }
+      if (commandDisposers.length > 0) disposeCommand = () => { for (const d of commandDisposers) d() }
     } catch (error) {
-      ctx.logger?.warn?.(`dsh-chapters: /chapters-fork command registration failed (${String(error)}); tools unaffected`)
+      ctx.logger?.warn?.(`dsh-chapters: host command registration failed (${String(error)}); tools unaffected`)
     }
   }
-  return () => { disposeSegment(); disposeContinue(); disposeFork(); disposeSearch()
-    disposeArtifact(), disposeRulePropose(); disposeCommand?.() }
+  // Pre-existing comma operator here (`disposeArtifact(), disposeRulePropose()`) ran both,
+  // so behaviour was right — but it reads as a typo and would silently break if anyone
+  // reordered the line. Semicolons, since this is the unload path a test cannot cover.
+  return () => { disposeSegment(); disposeContinue(); disposeFork(); disposeSearch();
+    disposeArtifact(); disposeRulePropose(); disposeCommand?.() }
 }

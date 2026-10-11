@@ -27,6 +27,42 @@ notice built from that path — unbounded, and un-costed until the budget gate r
 - Browser-plane ledger for the eight-project chain (`npm run coverage:e2e`): 79.92 / 64.64 / 76.28 —
   reported, not tuned; the ≥85 gate is the deterministic one.
 
+### 0.1.13 — 2026-10 · the continuation gets a door a human can pull
+
+Live attempt 5 settled it, with two findings that pointed at the same place:
+
+- a **tape cannot carry a model-authored range** — the recorded `chapters_continue` said `endSeq: 30` and
+  the runner's own ceiling was 29, so `validateRanges` refused it *correctly*; no pin fixes a number
+  frozen in a recording;
+- and a small local model **will not reliably chain two tool calls** — live, it called `chapters_segment`
+  and then answered in prose. Asking it harder is not a fix.
+
+The cure was already in the codebase. `/chapters-fork` derives everything itself — no model turn, no
+proposed ranges — but it was hard-wired to `intent: 'branch'`, and a branch by design asserts **nothing**
+about plans. So every property of the *continuation* shape could only be proven through the model's door,
+which is exactly the door that cannot be tested repeatably.
+
+- **New: `/chapters-continue [title]`** — the same deterministic door with the continuation intent.
+  Archive semantics are identical by decision (everything since the watermark); what differs is that the
+  child extends the same stream, so its notice carries `## Active plan` with the verdict, chapter, blob and
+  `kind: plan` document — and if the session is still planning, the child is really *in* plan mode (seeded
+  with its own `plan/mode` fact). Both doors come from **one builder**, and a test pins that the two doors
+  **archive identically** (same ranges, titles and plan facts) so the factoring cannot drift into two
+  implementations. The tool stays for the model's own use; it is simply no longer the only way to prove
+  what a continuation carries.
+- **The continuation leg is back in the acceptance chain**, replayed on every push with no GPU and no
+  frozen numbers — asserted from the child's durable log, without the UI switching to it. The browser plane
+  now covers **both intents**, which is where the fork-vs-continue decision actually lives.
+- Fixed a latent trap found on the way: the command loop overwrote `disposeCommand`, which would have
+  leaked the first registration and unregistered only the last; and a pre-existing comma operator in the
+  disposer list (`disposeArtifact(), disposeRulePropose()`) — behaviour was right, the reading was a trap.
+- Measured, not assumed: from attempt 5's own log, the turn containing a plan submission does **not** end
+  until the review is answered (`turn/end` at 41, after the verdict at 21). So a session whose only turn is
+  pending has no archive ceiling and `/chapters-continue` refuses with its first guard. The seeded case is
+  reachable in a browser only once an earlier turn closed — which needs a second distilled session. It is
+  pinned deterministically (seed `['user/message','plan/mode']`, the live-and-un-stored wording) and is
+  **not yet observed in a browser**, stated as the remaining piece rather than claimed.
+
 ### 0.1.12 — 2026-10 · an index nobody can reach is not an index
 
 The request was not "add search" but *"make sure a new session can find the plans, rules and other

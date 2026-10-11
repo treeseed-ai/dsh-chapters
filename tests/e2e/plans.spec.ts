@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { test, expect, type Page } from '@playwright/test'
-import { openApp, localModelUp, currentSessionId, sessionLogTextById, logEvents, typeComposer, ROOT } from './session.ts'
+import { openApp, localModelUp, currentSessionId, sessionLogTextById, logEvents, typeComposer, findSessionIdWhoseLogContains, sessIdsWithPrefix, ROOT } from './session.ts'
 
 /**
  * A SESSION PLAN, carried: plan mode in the browser, a real `exit_plan_mode`
@@ -136,7 +136,7 @@ async function newSession(page: Page): Promise<string> {
   return sid
 }
 
-test('an approved plan is archived whole, and a branch inherits it as history not as an order', async ({ page }) => {
+test('an approved plan is archived whole, a continuation carries it as a directive, and a branch inherits it as history', async ({ page }) => {
   test.setTimeout(1_500_000)
 
   const upstreamLive = await localModelUp()
@@ -250,46 +250,38 @@ test('an approved plan is archived whole, and a branch inherits it as history no
   // keeps is everything that does not depend on a frozen number: the real
   // submission, the real review, the real archive, and what a BRANCH inherits.
 
-  // ===================== LEG 1 (LIVE MODELS ONLY): a CONTINUATION ================
-  // The guard is honest rather than a dodge: what breaks is the TAPE, not the
-  // journey — a recorded request freezes the ranges the model authored, and those
-  // numbers belong to the machine that distilled them. Against a live model there is
-  // no frozen number: the segment tool reports a ceiling, the model reads it, the
-  // archive uses it. So the browser coverage of `## Active plan` and the seeded gate
-  // runs where it can be true, and CI runs the part that is portable.
-  if ((process.env.E2E_MODEL ?? 'live') !== 'replay') {
-    const beforeContinue = logEvents(sessionLogTextById(sid)).length
-    await typeComposer(page, 'Continue this work in a fresh session: call chapters_segment, then call chapters_continue with exactly the ranges it reports.')
-    await expect.poll(() => {
-      const evs = logEvents(sessionLogTextById(sid))
-      return evs.length > beforeContinue && evs.some((e) => e.type === 'turn/end' && e.seq > beforeContinue)
-    }, { timeout: 900_000, intervals: [3000] }, 'the continuation turn closed').toBe(true)
+  // ============ LEG 1: a CONTINUATION, through the DETERMINISTIC door ============
+  // Why this leg exists and the previous one did not (docs/plans-carriage.md § 15): a
+  // continuation driven by the MODEL freezes the ranges that model authored into the
+  // tape — 30 on one machine, 29 on another, and `validateRanges` was right to refuse.
+  // `/chapters-continue` derives its own ranges from the plugin's watermark, so nothing
+  // machine-specific is recorded and the leg replays everywhere. No model turn is needed
+  // to create the child, which is also why no new tape entry appears here.
+  const contTitle = 'Carried on from the live journey'
+  const beforeContinuation = sessIdsWithPrefix('ch-').length
+  await typeComposer(page, `/chapters-continue ${contTitle}`)
+  // The child appears in the store; the UI does not switch, so this waits on the durable
+  // log rather than on a view — the same discipline every other assertion here follows.
+  let continuedId = ''
+  await expect.poll(() => {
+    const found = findSessionIdWhoseLogContains('## Active plan', 'ch-')
+    if (found !== null) continuedId = found
+    return continuedId
+  }, { timeout: 240_000, intervals: [2000] }, 'a continuation child was created by the command').toBeTruthy()
+  expect(sessIdsWithPrefix('ch-').length, 'exactly one new child from the command').toBe(beforeContinuation + 1)
 
-    const continuedId = (() => {
-      for (const e of logEvents(sessionLogTextById(sid)).reverse()) {
-        if (e.type !== 'tool/result') continue
-        const m = /"childSessionId"\s*:\s*"(ch-[^"]+)"/.exec(eventText(e.raw))
-        if (m !== null) return m[1]
-      }
-      return ''
-    })()
-    if (continuedId === '') {
-      const why = (() => {
-        for (const e of logEvents(sessionLogTextById(sid)).reverse()) {
-          if (e.type !== 'tool/result') continue
-          const m = /"ok"\s*:\s*false[^]{0,40}"reason"\s*:\s*"((?:\\.|[^"\\]){0,300})/.exec(eventText(e.raw))
-          if (m !== null) return `the tool refused: ${m[1]}`
-        }
-        return 'the model never called chapters_continue'
-      })()
-      throw new Error(`continuation leg: no child created — ${why}`)
-    }
-    const continuedSeed = planNoticeText(continuedId)
-    expect(continuedSeed).toContain('## Active plan', 'a continuation gets the directive section')
-    expect(continuedSeed).toContain(`ACTIVE PLAN: "${planTitle}" — APPROVED`)
-    expect(continuedSeed, 'an approved plan left plan mode, so this child is not gated').not.toMatch(/Plan mode is ACTIVE in this session/)
-    expect(continuedSeed).toContain('plan document:', 'and it points at the searchable document')
-  }
+  const continuedSeed = planNoticeText(continuedId)
+  expect(continuedSeed).toContain('## Active plan', 'a continuation gets the directive section')
+  expect(continuedSeed).toContain(`ACTIVE PLAN: "${planTitle}" — APPROVED`, 'the operative plan, by its own title, with the real verdict')
+  expect(continuedSeed).toContain('plan document:', 'and it cites the searchable plan document')
+  expect(continuedSeed).toContain('chapters_artifact', 'and how to load the whole text without swallowing it')
+  expect(continuedSeed).toContain('## Finding things', 'the retrieval verbs ride on every continuation')
+  // The plan was approved, so plan mode had ENDED: this child must not be gated.
+  expect(continuedSeed, 'an approved plan means no seeded gate').not.toMatch(/Plan mode is ACTIVE in this session/)
+  const contEvents = logEvents(sessionLogTextById(continuedId))
+  expect(contEvents.filter((e) => e.type === 'plan/mode').length, 'no plan/mode seeded into an implementing child').toBe(0)
+  expect(contEvents.filter((e) => e.type === 'user/message' && e.raw.includes('"plugin":"dsh-chapters"')).length,
+    'one synthetic notice, nothing copied from the parent (invariant 2)').toBe(1)
 
   const fork = page.locator('button[aria-label="Fork with chapters"]').first()
   await expect(fork, 'the chapters fork action survives a plan turn').toBeVisible({ timeout: 120_000 })

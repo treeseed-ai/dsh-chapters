@@ -315,6 +315,7 @@ Every item below was an assumption the deterministic plane had encoded — and t
 | 5 | Site docs (§9 anatomy, §16 tools, §17 configuration, §18 notice) | done in the same release |
 | — | Seven-segment tape replay | green WITHOUT re-recording (2026-10-09, `npm run test:e2e:replay`, EXIT=0) |
 | — | `plans` browser journey | LANDED as the eighth chain project (2026-10-10) and immediately **extended to two legs** so § 12's continue-vs-branch distinction is tested, not described: a `chapters_segment`→`chapters_continue` continuation (asserts `## Active plan`, the plan's document path, and NO seeded gate because approving a plan exits plan mode) and a fork-button branch (asserts **no** directive section, archive still cited). Replays in 17 s on a committed tape; the eight-project chain re-runs for the 0.1.9 ship. Its tape is scripted-upstream distilled — see § Tapes and `PROVENANCE.md` |
+| 8 | `/chapters-continue` — the deterministic door for continuations (§ 15): continuation leg back in the tape chain, both intents covered in the browser, no frozen ranges |
 | 7 | Journey made hardware-independent (0.1.10): 0.99 threshold pin + `compaction/*`-absent guard; replay chain annotates its own failure and ships the engine diagnostics | built — tape re-distilled under the pin, eight-project chain `CHAIN_EXIT=0` locally, hosted acceptance green at the 0.1.10 tag |
 | 7 | Findability round (§ 14): local search door over a shared scorer, `## Finding things` in the notice (`retrievalHints`), kernel-drift gate on the seed contract | built — verify.md P18–P20; two pinned contract rows amended with reason; eight-project chain re-run |
 | 6 | Second-round decisions (§§ 9–13): intent-aware notice, seeded plan mode for continuations, `kind: plan` documents, checkpoint carriage, the one injection-screen exception | built 2026-10-10 — verify.md P12–P17; 582 deterministic rows green, gate 98.05 / 86.44 / 93.67 |
@@ -376,6 +377,56 @@ Two rows in the suite pinned the OLD contract and failed loudly, which is the on
 is honest: `no mirror ⇒ honest empty` became `no mirror ⇒ the local answer, with the door named`. Amended
 in place with the reason in the diff, because a silently-passing old expectation would have meant the
 feature shipped broken and green.
+
+## 15. The deterministic door: `/chapters-continue`
+
+Attempt 5 settled an argument that had cost three releases. Two facts, both measured:
+
+1. **A tape cannot carry a model-authored range.** The continuation leg broke on the runner because the
+   recorded `chapters_continue` arguments said `endSeq: 30` while the runner's own ceiling was 29.
+   `validateRanges` refused — correctly. Nothing about pinning a threshold can fix a number frozen in a
+   recording.
+2. **A small local model will not reliably chain two tool calls.** Live, it called `chapters_segment` and
+   then answered in prose. So the leg could not be made green by asking the model harder.
+
+Both have the same cure: the plugin already knew how to create a child without a model. `/chapters-fork`
+derives everything itself — *"no model involvement — `deriveRanges` is deterministic, so a click needs no
+agent turn and no proposed ranges."* The gap was that this door was hard-wired to `intent: 'branch'`, and a
+branch by decision 3 asserts **nothing** about plans. So every property of the *continuation* shape
+(`## Active plan`, `## Previous plans on this path`, the seeded `plan/mode`, the `plan document:` citation)
+was provable only through the model's door.
+
+**`/chapters-continue` is that same builder with the other intent.** Archive semantics are identical by
+user decision (everything since the watermark). It is one `deterministicCommand(door)` producing both
+defs — name, verbs, intent, and the no-directive prose are the only differences, and
+`tests/unit/continue-command.test.ts` pins that the two doors **archive identically** (same ranges, same
+titles, same plan facts) so the factoring cannot drift into two implementations. Consequences:
+
+- the continuation leg is **back in the tape chain**, replaying on every push with no GPU and no frozen
+  number (it needs no model request at all — the child is created by the command, and asserted from its
+  durable log without the UI switching to it);
+- the browser plane now covers **both intents**, which is where decision 3 actually lives;
+- and the tool `chapters_continue` keeps existing for the model's own use — it is simply no longer the
+  only way to learn whether a continuation carries its plan.
+
+### The seeded-gate case: measured, and why there is no browser row for it yet
+
+The open question was whether the host gives a completed turn to archive while a plan review is still
+pending. Answered from attempt 5's own log (no speculation): `plan/mode` active at seq 4,
+`exit_plan_mode` at 20, the verdict at 21, `plan/mode` inactive at 23, `turn/end` at **41** — the turn
+containing a submission does not end until the review is answered. So:
+
+- a session whose *only* turn is pending has **no ceiling**, and `/chapters-continue` refuses with its
+  first guard (`nothing to archive yet — the conversation has no completed turn`);
+- the seeded case is reachable in a browser only when an earlier turn already closed — which means a
+  second distilled session (a plain turn, then `/plan`), not a rewording of the current one;
+- the plugin-side behaviour for that shape **is** pinned at L0: a pending-review fixture yields
+  seed `['user/message', 'plan/mode']`, the notice line `Plan mode is ACTIVE in this session`, and the
+  plan marked PENDING/un-stored (`continue-command.test.ts`).
+
+So the honest statement is: the seeded continuation is covered deterministically and structurally, and
+NOT yet observed in a real browser. Building that row needs new stub rules and a fresh distillation; it is
+recorded as the remaining piece rather than quietly claimed.
 
 ## Deferred (human decisions, not ours)
 

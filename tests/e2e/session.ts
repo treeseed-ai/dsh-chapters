@@ -196,6 +196,29 @@ export function sessionLogTextById(id: string): string {
   return ''
 }
 
+/**
+ * Discover a session by a fragment of its durable log — the way a CHILD created by a
+ * plugin command is found without the UI ever switching to it. Poll-friendly: returns
+ * null until the file exists and contains the fragment. `prefix` narrows the id space
+ * (e.g. 'ch-' for continuation children).
+ */
+/** Session ids currently on disk with a given prefix — for "exactly one new child" checks. */
+export function sessIdsWithPrefix(prefix: string): string[] {
+  return sessDirs()
+    .map((d) => (d.startsWith('ch-') ? d : d.replace(/^session-/, '')))
+    .filter((id) => id.startsWith(prefix))
+}
+
+export function findSessionIdWhoseLogContains(fragment: string, prefix = ''): string | null {
+  for (const dir of sessDirs()) {
+    // dirs are `session-<uuid>` (parent) or `ch-<uuid>` (a created child)
+    const id = dir.startsWith('ch-') ? dir : dir.replace(/^session-/, '')
+    if (prefix !== '' && !id.startsWith(prefix)) continue
+    if (sessionLogTextById(id).includes(fragment)) return id
+  }
+  return null
+}
+
 function sessionLogFile(sid: string): string | null {
   for (const dir of sessDirs()) {
     if (!dir.includes(sid)) continue
