@@ -17,7 +17,7 @@
  *  - Config uses schemastery (default import) — plain specs are for tool
  *    parameters, zod for domain records; never mix.
  */
-import { writeFileSync, mkdirSync, existsSync, cpSync } from 'node:fs'
+import { writeFileSync, mkdirSync, existsSync, cpSync, readdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { hostname } from 'node:os'
 import { fileURLToPath } from 'node:url'
@@ -175,7 +175,8 @@ const HERE = dirname(fileURLToPath(import.meta.url))
 const PKG_ROOT = join(HERE, '..')
 
 export async function apply(ctx: HostCtx, config: Config): Promise<void> {
-  if (config.installChaptersPreset) installChaptersPreset(ctx)
+  let presetReport: PresetInstallReport | undefined
+  if (config.installChaptersPreset) presetReport = installChaptersPreset(join(PKG_ROOT, 'presets', PRESET_ID), dshHomePath(USER_PRESET_DIR, PRESET_ID), ctx.logger)
 
   let domain: import('./store.ts').DomainLike | undefined
   try {
@@ -289,7 +290,15 @@ export async function apply(ctx: HostCtx, config: Config): Promise<void> {
     console.error(message)
   }
 
-  ctx.logger?.info?.('dsh-chapters: mounted (preset install + tools registered)')
+  // Honest status, because the settings surface reads "enabled and running" either way:
+  // a plugin whose only compaction engine failed to install is NOT healthy, and a log line
+  // that says "mounted" is what made the partial-preset case take a human hours to find.
+  const presetNote = presetReport === undefined ? 'preset install disabled' : `preset: ${presetReport.status}`
+  const unhealthy = presetReport !== undefined && presetReport.status === 'failed'
+    && config.installChaptersPreset === true
+  const mountMsg = `dsh-chapters: mounted (tools registered; ${presetNote})`
+  if (unhealthy) ctx.logger?.warn?.(`${mountMsg} — UNHEALTHY: sessions choosing the chapters preset will not compose`)
+  else ctx.logger?.info?.(mountMsg)
 
   const marker = process.env.DSH_CHAPTERS_WITNESS
   if (marker === undefined) return
@@ -358,17 +367,101 @@ export function createScheduler(
 const PRESET_ID = 'chapters'
 const USER_PRESET_DIR = '.agent-presets' // kernel constant: presets/agent-presets/src/discovery.ts
 
-function installChaptersPreset(ctx: HostCtx): void {
-  const srcDir = join(PKG_ROOT, 'presets', PRESET_ID)
-  if (!existsSync(srcDir)) return
-  const dstDir = dshHomePath(USER_PRESET_DIR, PRESET_ID)
-  if (existsSync(join(dstDir, 'preset.yml'))) return // user-owned from here on; never clobber
+export type PresetInstallStatus = 'installed' | 'repaired' | 'complete' | 'failed' | 'no-source'
+
+/** What the preset install actually did — the caller must not report success on a 'failed'. */
+export interface PresetInstallReport {
+  status: PresetInstallStatus
+  /** Shipped files absent from the installed copy (the partial-preset case). */
+  missing: string[]
+  dstDir: string
+  error?: string
+}
+
+/**
+ * Every file under a directory, as sorted relative paths (forward slashes).
+ * A missing root is empty; anything else that goes wrong (a FILE sitting where a
+ * directory should be, an unreadable home) THROWS, and the caller turns that into a
+ * reported `failed` — the first version of this helper swallowed those, which is the
+ * same silent-unhealthy shape the whole function exists to remove.
+ */
+function fileList(root: string): string[] {
+  if (!existsSync(root)) return []
+  const out: string[] = []
+  const walk = (dir: string, rel: string): void => {
+    for (const e of readdirSync(dir, { withFileTypes: true })) {
+      const r = rel === '' ? e.name : `${rel}/${e.name}`
+      if (e.isDirectory()) walk(join(dir, e.name), r)
+      else out.push(r)
+    }
+  }
+  walk(root, '')
+  return out.sort()
+}
+
+/**
+ * Install the `chapters` preset into the user preset directory, and — the part that
+ * used to be missing — tell the truth about what happened.
+ *
+ * The never-clobber rule exists because the installed copy is user-owned: the user may
+ * have edited `agent.cordis.yml` to retune the compaction row. But the OLD guard tested
+ * for `preset.yml` ALONE, and the preset is really two files — `agent.cordis.yml` is the
+ * one that names the engine realm row. So a partially wiped home (an interrupted
+ * uninstall/reinstall is what triggered this) left a preset directory that passed the
+ * guard forever: the installer returned early on every boot, the preset could not mount,
+ * and the plugin still logged that it had mounted. Sessions that had chosen the preset
+ * then looked corrupted, while their logs and data were untouched — the break was in
+ * composition, which is invisible if the report lies.
+ *
+ * The repair is therefore *additive*: missing shipped files are restored, files the user
+ * already has are never overwritten. That keeps the user's edits intact AND makes a
+ * half-deleted preset self-healing, because restoring a missing file is not clobbering
+ * anything.
+ *
+ * Exported for testing with real temp directories; `srcDir`/`dstDir` are parameters so no
+ * test has to touch the developer's DSH home.
+ */
+export function installChaptersPreset(
+  srcDir: string,
+  dstDir: string,
+  log?: { info?: (m: string) => void; warn?: (m: string) => void },
+  userPresetRoot = dirname(dstDir),
+): PresetInstallReport {
+  // `missing` is declared OUTSIDE the try because the catch reports it: an install that
+  // died halfway should still say which files were outstanding when it failed.
+  let missing: string[] = []
   try {
-    mkdirSync(join(dshHomePath(), USER_PRESET_DIR), { recursive: true })
-    cpSync(srcDir, dstDir, { recursive: true })
-    ctx.logger?.info?.(`dsh-chapters: installed the "${PRESET_ID}" preset to ${dstDir} — pick it in the preset menu for chapter-form compaction (standard keeps LLM summaries)`)
+    const shipped = fileList(srcDir)
+    if (!shipped.includes('preset.yml')) return { status: 'no-source', missing: [], dstDir }
+    const present = new Set(fileList(dstDir))
+    missing = shipped.filter((f) => !present.has(f))
+
+    const doCopy = (files: string[]): void => {
+      mkdirSync(userPresetRoot, { recursive: true })
+      for (const f of files) {
+        const to = join(dstDir, f)
+        mkdirSync(dirname(to), { recursive: true })
+        cpSync(join(srcDir, f), to)
+      }
+    }
+
+    if (present.size === 0) {
+      doCopy(shipped)
+      log?.info?.(`dsh-chapters: installed the "${PRESET_ID}" preset to ${dstDir} — pick it in the preset menu for chapter-form compaction (standard keeps LLM summaries)`)
+      return { status: 'installed', missing: [], dstDir }
+    }
+    if (missing.length > 0) {
+      doCopy(missing)
+      const msg = `dsh-chapters: preset at ${dstDir} was INCOMPLETE (missing ${missing.join(', ')}) — restored the missing file(s); files you already had were left alone. A preset without agent.cordis.yml cannot mount the chapter engine, which is why sessions choosing it failed to compose.`
+      if (log?.warn !== undefined) log.warn(msg)
+      else log?.info?.(msg)
+      return { status: 'repaired', missing, dstDir }
+    }
+    return { status: 'complete', missing: [], dstDir }
   } catch (error) {
-    ctx.logger?.info?.(`dsh-chapters: preset install FAILED (${String(error)})`)
+    const detail = String((error as Error)?.message ?? error)
+    log?.warn?.(`dsh-chapters: preset install FAILED (${detail}) — chapter-form compaction will NOT be available until this is fixed`)
+    return { status: 'failed', missing, dstDir, error: detail }
   }
 }
 
@@ -379,7 +472,15 @@ async function witness(ctx: HostCtx, marker: string, preopened?: import('./store
   const out: Record<string, unknown> = { at: new Date().toISOString() }
   try {
     out.storageDomainPresent = ctx.get?.('storageDomain') !== undefined
-    out.presetsInstalled = existsSync(dshHomePath(USER_PRESET_DIR, PRESET_ID, 'preset.yml'))
+    // Was: "does preset.yml exist". That is the SAME one-file blindness that hid the
+    // partial preset, in the very diagnostic a user reaches for when this breaks — so
+    // the witness now reports the completeness verdict and the missing list.
+    const presetDst = dshHomePath(USER_PRESET_DIR, PRESET_ID)
+    const presetShipped = fileList(join(PKG_ROOT, 'presets', PRESET_ID))
+    const presetPresent = new Set(existsSync(presetDst) ? fileList(presetDst) : [])
+    out.presetsInstalled = presetPresent.has('preset.yml')
+    out.presetComplete = presetShipped.length > 0 && presetShipped.every((f) => presetPresent.has(f))
+    out.presetMissing = presetShipped.filter((f) => !presetPresent.has(f))
     const storageDomain = ctx.get?.('storageDomain') as { open: (s: unknown) => Promise<import('./store.ts').DomainLike>; get?: (n: string) => import('./store.ts').DomainLike | undefined }
     const store = preopened !== undefined ? makeDomainStore(preopened) : (await acquireChapterStore(storageDomain!)).store
     const prior = await store.get(WITNESS_SESSION)

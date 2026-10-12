@@ -27,6 +27,39 @@ notice built from that path — unbounded, and un-costed until the budget gate r
 - Browser-plane ledger for the eight-project chain (`npm run coverage:e2e`): 79.92 / 64.64 / 76.28 —
   reported, not tuned; the ≥85 gate is the deterministic one.
 
+### 0.1.16 — 2026-10 · a half-deleted preset can no longer fail silently forever
+
+Reported from a real installation: after an accidental uninstall/reinstall of the harness, the
+`chapters` preset had "disappeared", existing chapter sessions looked **corrupted**, and the settings panel
+still said the plugin was enabled and running.
+
+The cause was one line of over-trust. The preset ships as **two** files — `preset.yml`, and
+`agent.cordis.yml`, the one that actually names the chapter engine realm row — but the never-clobber guard
+checked for `preset.yml` **alone**. So a partially wiped home produced a preset directory that passed the
+guard on every boot forever: nothing was ever repaired, sessions choosing the preset failed to *compose*
+(their logs and archives were untouched — the break was in composition, which is exactly why it looked
+like data corruption), and the plugin still logged that it had mounted. Three separate wrongs in one
+mechanism: undetectable, unrepairable, and actively reporting health.
+
+- **Completeness is now measured against the shipped file set**, not a single filename — so a preset gains
+  a third file and stays covered.
+- **The repair is additive.** Missing shipped files are restored; any file the user already has is left
+  byte-for-byte alone, so a hand-tuned preset survives. Restoring a file that is absent is not clobbering
+  a file that exists.
+- **The result is returned, not just logged** (`installed / repaired / complete / failed / no-source`), the
+  mount line carries it, and `failed` logs **UNHEALTHY** — because a plugin whose only compaction engine
+  did not install is not healthy, and "enabled and running" cost someone hours of debugging.
+- **The witness diagnostic got the same fix**, since it carried the identical one-file blindness: it now
+  reports `presetComplete` and `presetMissing`.
+- The installer is now **testable** — it used to resolve its own paths into the developer's real
+  `~/.dsh`. Seven rows over temp directories cover the incident itself, user-edit preservation, nested
+  preset files, a destination that cannot be created, and a source that would install a broken preset.
+
+Immediate recovery for anyone in this state: stop the harness, `mv ~/.dsh/.agent-presets/chapters
+~/.dsh/.agent-presets/chapters.bak`, start again — the fresh copy lands and, because nothing in the session
+logs or the archive was rewritten, the sessions that name the preset compose again. Diff your tuning back
+from the `.bak` if you had any. This release makes that recovery automatic for future partial wipes.
+
 ### 0.1.15 — 2026-10 · the documentation site can no longer name a version that does not exist
 
 No behaviour changed in the plugin; what changed is that the **site can no longer tell you to install

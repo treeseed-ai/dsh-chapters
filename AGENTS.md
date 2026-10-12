@@ -290,7 +290,10 @@ one plane fails boot loudly; and the Phase 1 mount is a shipped preset naming `d
 **Phase 1 stages 0-4 landed (rounds 18-22): the whole loop works with the real parts.** Registry/store/engine/
 preset-install/tools pass — a realm row names our subpath export (`dsh-chapters/engine`), the cascade
 finalizes post-commit, `presets/chapters/` installs itself into `.agent-presets` at boot (profile
-`!!js` has no `require`, copying is the delivery mechanism), and r22 closed the MVP loop: parent →
+`!!js` has no `require`, copying is the delivery mechanism) — and since 0.1.16 that copy validates the
+WHOLE shipped file set and repairs missing files additively: the guard once tested only for `preset.yml`
+while `agent.cordis.yml` is the file that mounts the engine, so a partial wipe was a permanent silent
+failure (never clobber a user's edits; DO restore what is absent), and r22 closed the MVP loop: parent →
 `chapters_segment` → `chapters_continue` (ranges only; plugin renders) → TOC-only child with the composed
 preset (15K head) → the CHILD `read` its chapter and echoed its title back. Two real bugs caught and
 fixed en route: finalization must run on the rejection path too (the retry loop can commit, then throw),
