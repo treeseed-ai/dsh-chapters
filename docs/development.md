@@ -492,3 +492,39 @@ Two traps measured while finding that:
   `src/` only).
 
 Never fix a missing test runner by editing the tests. The suite is the contract; the runner is local.
+
+### Verifying against a host version that is not the installed one
+
+A preset/delivery change must be proven on EVERY host release the package claims to serve, and the
+installed host is one data point. Recipe measured 2026-10-16 (this is how 0.1.17 was verified on
+0.2.0-rc.2, 0.2.1-alpha.4 and the pinned 0.1.5-rc.1 in one sitting):
+
+```bash
+# 1. a second host, installed as its own tree — never over the running one
+mkdir -p var/host-versions/a4 && cd var/host-versions/a4
+echo '{"name":"a4-host","private":true,"dependencies":{"@deepseek-ai/dsh":"0.2.1-alpha.4"}}' > package.json
+npm install --no-audit --no-fund           # ~1 min, 616 packages
+# 2. a THROWAWAY home for it (profiles/web/package.json listing the bundles + this plugin),
+#    then boot THAT bin with DSH_HOME pointed at the new home:
+DSH_HOME=$PWD/var/a4-home DSH_CHAPTERS_WITNESS=$PWD/var/a4-home/w.json \
+  node var/host-versions/a4/node_modules/@deepseek-ai/dsh/lib/bin.js web --port 0 --no-open
+```
+
+The witness JSON is the answer — `presetRegister`, `presetDroppedRows`, `presetRoster` and
+`presetInventoryRows`/`presetUnusableRows` say what a log line only hints at, and `presetUnusableRows: []`
+is the assertion that the composition actually ACTIVATES rather than merely being declared.
+
+Three traps, all paid for:
+
+- **Never symlink a host tree into an npm-managed profile's `node_modules`.** `npm install` treats what it
+  does not recognize as extraneous and **deletes it through the link** — it ate a 500-package host closure
+  this way ("the closure is gone, `ls` returns nothing"). Copy instead (`cp -r`), or point the boot's own
+  installation anchor at the other tree and install ONLY the plugin into the profile.
+- **`npm pack` + install-from-tarball, not `file:`-linked sources.** The artifact users get is the packed
+  `files` list; a linked working tree hides a missing `files` entry (e.g. an asset the preset needs).
+- Boot with `timeout 45 …` and read the exit code: **124 means it stayed up** (healthy), `1` means the
+  plugin tree refused to load. A crashed boot and a slow boot both print to the same log; the code is the
+  difference between "no preset" and "no harness".
+
+Prune after: `var/host-versions/`, the throwaway homes and `var/coverage` are all regenerable in minutes and
+together cost ~2 GB — this repository's contract is the *measurements written down*, not their scratch.

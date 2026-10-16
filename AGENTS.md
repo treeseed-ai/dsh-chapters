@@ -503,7 +503,11 @@ Then [docs/contract.md](docs/contract.md) for how to declare things, and
    copies the parent's log anyway. `agents.create` with a seed is the only sanctioned path. Measure the
    contract from `spikes/probe/FINDINGS.md` rather than re-deriving it from greps.
 3. Prefer `deepseek-harness` over any community plugin when they disagree.
-4. Re-check the pinned line references in `vendor/fork.ts`'s header after any DSH upgrade — this design
-   leans on kernel internals.
+4. Re-check the pinned kernel references after any DSH upgrade — this design leans on host internals. The
+   live anchors are `docs/contract.md` (file:line facts) and the drift gates:
+   `tests/unit/host-seed-contract.test.ts` (seed contract) and
+   `tests/unit/preset-declaration.test.ts` (preset delivery + config keys + prompt variables).
+   (`vendor/fork.ts` named here before no longer exists in this repo — never tracked; that pointer was
+   itself the drift this rule warns about.)
 5. Build before installing (`tsc -p tsconfig.json`), and remember a restart recomposes every session's
    header, so cache measurements only mean something within one process generation.
