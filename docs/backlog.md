@@ -121,7 +121,10 @@ NEW host too (measured). Full record: `docs/contract.md` § Presets are declarat
 
 0. **Re-anchor the e2e host, then re-distill the tapes.** `tests/e2e/boot.ts` now refuses by name
    while `dev/dsh-host-lock` pins a pre-0.2.0 host, and the refusal lifts itself when the lock moves —
-   that is the upgrade path, not a TODO. The per-boot row pins (`thresholdRatio`, `enrichmentEnabled`,
+   that is the upgrade path, not a TODO. `ci.yml`'s `host-capability` job reads that same lock and
+   SKIPS the acceptance job with a step-summary reason plus a `::warning::` while the pinned host
+   predates declaration rows: visibly skipped, never red-by-accident, never green-by-omission.
+   Publishing is unaffected — the release gate is the deterministic suite. The per-boot row pins (`thresholdRatio`, `enrichmentEnabled`,
    `auto`, `elicitedPlot`, `toolResultArtifactTokens`) and the `[e2e] boot pins:` line were deleted with
    the YAML they patched; they come back expressed as CONFIG on the registered row (`compactionThresholdRatio`
    exists now; the rest need the same treatment). Until then the browser acceptance chain does not run, and
