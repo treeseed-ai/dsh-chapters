@@ -76,11 +76,17 @@ jobs:
           V=$(node -p "require('./dev/dsh-host-lock/package.json').dependencies['@deepseek-ai/dsh']")
           M=$(node -e "const v=process.argv[1];const m=/^(\d+)\.(\d+)/.exec(v);console.log(m && (Number(m[1])>0||Number(m[2])>=2) ? 'true':'false')" "$V")
           echo "pinned=$V" >> "$GITHUB_OUTPUT"; echo "preset-rows=$M" >> "$GITHUB_OUTPUT"
-          if [ "$M" = "true" ]; then echo "pinned host $V registers preset declaration rows — acceptance chain runs" >> "$GITHUB_STEP_SUMMARY"
-          else echo "### acceptance chain SKIPPED: the pinned host ($V) cannot register preset declaration rows" >> "$GITHUB_STEP_SUMMARY"
-               echo "" >> "$GITHUB_STEP_SUMMARY"
-               echo "The plugin registers the 'chapters' preset as a declaration row (0.2.0 is the support floor; src/preset.ts), so the tape chain needs dev/dsh-host-lock moved to a 0.2.x host AND the tapes re-distilled - the persona suffix is prompt bytes. Not red, not green: not run. Track it in docs/backlog.md." >> "$GITHUB_STEP_SUMMARY"
-               echo "pinned host $V predates preset declaration rows - acceptance chain SKIPPED (see docs/backlog.md)" >> "$GITHUB_WARNING"
+          if [ "$M" = "true" ]; then
+            echo "pinned host $V registers preset declaration rows — acceptance chain runs" >> "$GITHUB_STEP_SUMMARY"
+          else
+            {
+              echo "### acceptance chain SKIPPED: the pinned host ($V) cannot register preset declaration rows"
+              echo
+              echo "The plugin registers the 'chapters' preset as a declaration row (0.2.0 is the support floor; src/preset.ts), so the tape chain needs dev/dsh-host-lock moved to a 0.2.x host AND the tapes re-distilled - the persona suffix is prompt bytes that changed with it. Not red, not silently green: NOT RUN. Track it in docs/backlog.md."
+            } >> "$GITHUB_STEP_SUMMARY"
+            # `::warning::` is the workflow command; there is no $GITHUB_WARNING file, and
+            # writing to an unset variable fails the step with `ambiguous redirect`.
+            echo "::warning::pinned host $V predates preset declaration rows - acceptance chain skipped (docs/backlog.md)"
           fi
 
   e2e-replay:
