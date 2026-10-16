@@ -129,10 +129,14 @@ NEW host too (measured). Full record: `docs/contract.md` § Presets are declarat
    the YAML they patched; they come back expressed as CONFIG on the registered row (`compactionThresholdRatio`
    exists now; the rest need the same treatment). Until then the browser acceptance chain does not run, and
    `docs/verify.md`'s P23 is retired rather than passing.
-1. **The roster check is the only evidence we have that a preset composes — and it is a boot-time log
-   line.** A user cannot see it without a terminal. Candidate: surface `delivery:` + the roster verdict in
-   `/chapters-status` (and a warning row in the Settings plugin panel), so "installed and running" stops
-   being the whole answer. Nothing else in the plugin reports health to a human today.
+1. **The roster verdict is a boot log line, and a user has no terminal.** 0.1.18 made the preset a
+   visible Loader row (`preset-chapters`) and put the mounted-row count in that line, so the
+   "is it actually usable" fact is one grep away — but it is still a grep. Candidate: surface it in
+   `/chapters-status`. Nothing else in the plugin reports health to a human today.
+2. **`installChaptersPreset` and `compactionThresholdRatio` are accepted-and-inert** since 0.1.18 (the
+   preset is a row; the engine threshold is row config). They must be DELETED in the next minor — a key
+   that silently does nothing is its own drift — and the removal needs the same care: check no shipped
+   profile patch sets them, then drop both from `Config` and from `cordis.patch.yml`'s header.
 2. **`compositionInventory()` is used by the dev witness only.** Making the boot check itself compare
    mounted rows would catch a row that resolves but never activates — the `broken` flag does not always
    cover that, and the witness proves the shape of the answer already.

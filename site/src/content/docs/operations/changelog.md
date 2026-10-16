@@ -6,6 +6,44 @@ lastUpdated: true
 
 Releases publish automatically from a bare-semver tag via **npm trusted publishing (OIDC)**. The publish itself is gated on the full deterministic suite under the coverage gate; the eight-segment tape-replay acceptance chain runs in CI on every push to `main`, so a release is always cut from a green acceptance run. Each CI-published version carries a provenance attestation tying it back to this repo, that workflow run, and that commit — 0.1.0, the one manual ship, predates attestation.
 
+### 0.1.18 — 2026-10 · the preset became a row you can see, like the host's own
+
+0.1.17 made the preset exist again; it did that by *registering* a declaration row from inside the
+plugin's startup. That fixed the bug and left a smell: a preset nobody can see is a preset nobody can
+manage. It was absent from the plugin list and the config editor, could not be disabled from a profile
+patch, and the one thing that should be configuration — the composition itself — was TypeScript.
+
+- **The preset is now a declaration row in our own bundle patch**: `preset-chapters`, in
+  `cordis.patch.yml`, carrying the same `config` shape as `@deepseek-ai/dsh-agent-preset` rows
+  (`id`/`name`/`description`/`order`/`plugins`). Like the host's `preset-standard` / `preset-ptc` it is
+  a visible Loader entry — inspectable, overridable from your profile patch, disable-able with
+  `disabled: true`.
+- **Its row module is ours** (`@treeseed/dsh-chapters/preset`), mirroring the host's plugin line for
+  line (`inject: ['agentPresets']`, `static [EntryGroup.key] = true` so child `!!js` expressions are
+  preserved until the child that owns them activates, and `[Service.init]` **yielding** the registry
+  disposer so Cordis owns the registration's lifetime), plus one addition: rows this host cannot
+  import are dropped and named. Why not the host package directly is measured in the repo's
+  `docs/contract.md`: an unresolvable row aborts the plugin tree of a host predating declaration rows,
+  and `dsh.bundle.patch` as an array will not even parse past one — so the row rides the single string
+  layer we already ship.
+- **The lifetime lesson, because it is the subtle one**: registering from `apply()` and handing the
+  disposer to `ctx.effect` *un-registered the preset the moment activation finished* — measured as
+  `register()` reporting success while the roster came back without `chapters`. A row's own init is the
+  only place with the right lifetime. (Same family as r35's apply-fiber trap on the storage domain.)
+- **The boot line now says whether the ROWS are active**, not just whether the preset is declared:
+  `preset "chapters" is in the host roster — 30 mounted rows all active`. Declared-and-unusable was the
+  failure mode this release shipped into on the first try, and one line distinguishes them.
+- `installChaptersPreset` and `compactionThresholdRatio` became **accepted-and-inert**, with the reason
+  in the patch header: deleting a config key can make an existing profile patch fail to *parse*, and a
+  bundle that will not mount is worse than a key that does nothing. The engine threshold is
+  `thresholdRatio` on the preset's own realm row now, retuned where the host retunes its presets.
+- **Verified by real boots of the packed artifact on three hosts**: 0.2.0-rc.2 → present, 30 rows all
+  active, `dsh-tool-schedule` dropped (unpublished at that release); 0.2.1-alpha.4 → present, 31 rows,
+  nothing dropped; 0.1.5-rc.1 (pre-floor) → **boots**, logs `this host cannot register preset
+  declaration rows (before 0.2.0)`, tools keep working. And the drift gate grew to 16 rows, each
+  confirmed to fail on the mutation it guards — ralph re-disabled, an extra pruner key, `toolFilter`
+  restored, `{{cwd}}` restored, the durable id renamed.
+
 ### 0.1.17 — 2026-10 · the preset had to be *created*, not merely installed — and the old delivery broke the old host
 
 Reported by a user: the plugin is installed, enabled, and running, and the `chapters` preset is simply not

@@ -369,35 +369,29 @@ running", the preset is simply absent — and a session's preset id is **durable
 `agent-preset/not-found`, `dsh-agent-preset-registry/lib/index.js:596`), so every chapters session refuses
 to OPEN while its log sits there intact.
 
-**This bundle does NOT ship the row as a patch layer.** It registers the row itself at activation,
-through the host's own `ctx.get('agentPresets').register(definition)` — the same call the host's
-declaration-row plugin makes (`dsh-agent-preset/lib/index.js`, `[Service.init]`). The reason is two
-boot-breaking failures measured on the pinned legacy closure (`@deepseek-ai/dsh 0.1.5-rc.1`, the host
-`dev/dsh-host-lock` freezes for tape bytes) against the installed 0.2.0-rc.2:
+**This bundle DOES ship the row — in its one existing patch layer, with our own row module.**
+`cordis.patch.yml` ends with `- insert: [{id: preset-chapters, name: '@treeseed/dsh-chapters/preset',
+config: <the preset definition>}]`, so the preset is an ordinary Loader entry: visible in the plugin
+list and `dsh --dump-default-config`, overridable or disable-able from a profile patch, positioned by
+`config.order`. The row module (`src/preset.ts`) mirrors `@deepseek-ai/dsh-agent-preset`'s plugin line
+for line and adds the pruning described below. Why not the host package directly, measured on the
+0.1.5-rc.1 closure and on 0.2.0-rc.2:
 
 - `dsh.bundle.patch` as an **array** (what a second layer requires) dies at profile load on a pre-0.1.7
   host: `TypeError [ERR_INVALID_ARG_TYPE]: The "path" argument must be of type string. Received an
-  instance of Array` — legacy `dsh-app-boot/lib/index.js:853` does `join(packageDir, declared)`. Array
-  support (`bundlePatchFiles`) and declaration rows arrive in the SAME release, 0.1.7-alpha.1, verified
-  across the published `dsh-app-boot` tarballs. A two-layer manifest is therefore exactly as incompatible
-  with 0.1.5/0.1.6 as it looks, and the host does not warn — it just never comes up.
-- The **row itself** in any layer a legacy host reads is fatal the same way:
-  `dsh: plugin tree failed to load: … failed to import loader entry preset-chapters
-  (@deepseek-ai/dsh-agent-preset): Cannot find package` (measured; `@deepseek-ai/dsh-agent-preset` is
-  first published at 0.1.7-alpha.1, and 0.1.5-rc.1 ships `dsh-agent-presets`, plural, whose service has
-  no `register()` — `this.ctx.agentPresets.register is not a function`).
-- **`disabled: !!js` cannot gate the row either**, which is the tempting fix. The Loader evaluates a row's
-  `disabled` before services are mounted (`cordis-plugin-loader/lib/index.js:348` →
-  `evaluate(this.ctx, expr)` = `with (ctx) { eval(expr) }`), so `get('agentPresets')` is undefined *on the
-  modern host too* and the row is disabled everywhere — measured on 0.2.0-rc.2: `preset-v2 … failed to
-  import`, roster without it, while the same row with `disabled: !!js false` registered normally. Bare
-  `get(...)` also throws in that scope (`ctx` is bound, `get` is not).
-
-The registration path is verified on both mechanisms with real boots: on 0.2.0-rc.2 the witness reports
-`register: pruned, roster: present, inventoryRows: 28, unusableRows: []`; on 0.1.5-rc.1 it reports
-and the same build on 0.1.5-rc.1 logs
-`delivery: REFUSED — this host predates preset declaration rows (< 0.2.0)` — the tools work,
-the preset cannot exist there, and 0.2.0 is now the support floor.
+  instance of Array` (`dsh-app-boot/lib/index.js:853`, `join(packageDir, declared)`). Array support and
+  declaration rows arrive in the SAME release, 0.1.7-alpha.1 — so one layer, still a string, is both
+  enough and the only boot-safe shape.
+- a row naming `@deepseek-ai/dsh-agent-preset` in ANY layer a legacy host reads aborts its plugin tree:
+  `plugin tree failed to load: … failed to import loader entry … Cannot find package` (the package is
+  first published at 0.1.7-alpha.1). A row naming our own module resolves wherever our package runs.
+- **`disabled: !!js` cannot capability-gate a root row**: the Loader evaluates `disabled` before services
+  are mounted (`cordis-plugin-loader/lib/index.js:348` → `with (ctx) { eval(expr) }`), so
+  `get('agentPresets')?.register === undefined` is true on the MODERN host too and the row never
+  registers — measured (`preset-v2 … failed to import`, roster without it, while the same row with
+  `disabled: !!js false` registered normally). Bare `get(...)` also throws there; only `ctx` is bound.
+- and the row must be *ours* anyway for the reason below: it is the one place that can drop a child the
+  host cannot load before the mount is attempted.
 
 Three consequences of reading the registry rather than the filesystem:
 

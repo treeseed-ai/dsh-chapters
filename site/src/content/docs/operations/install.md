@@ -61,21 +61,29 @@ routes `/compact` through the zero-token engine.
 
 "Enabled and running" in Settings is **not** evidence that the preset exists, and a missing preset is the
 one failure a user feels as corruption: every chapters session refuses to open with
-`agent-preset/not-found`, while its log and chapters sit there intact. So the plugin prints its delivery
-and then asks the host's own roster:
+`agent-preset/not-found`, while its log and chapters sit there intact. So the plugin prints what it
+mounted and then asks the host's own roster:
 
 ```
-dsh-chapters: mounted (tools registered; delivery: registered the chapters preset declaration row)
-dsh-chapters: preset "chapters" is in the host roster — chapter-form compaction and continuations will compose
+dsh-chapters: preset "chapters" registered as a declaration row
+dsh-chapters: preset "chapters" is in the host roster — 30 mounted rows all active
 ```
 
-Anything else is a named problem, and the line says which: `delivery: registered the chapters preset (N
-row(s) this host cannot resolve, dropped)` means the preset is healthy but the host is missing a package
-the composition asked for (it is dropped rather than mounted, because one unresolvable row would make the
-whole preset unusable); `DECLARED BUT BROKEN` means a row resolved and then refused to activate;
-`NOT in the host roster` means the preset was never created, with the roster's own ids listed. A host below **0.2.0** cannot register a preset row at all: the mount line says
-`delivery: REFUSED — this host predates preset declaration rows (< 0.2.0)`, the `chapters_*` tools and
-`/chapters-*` commands still work, and no `chapters` preset can exist there. 0.2.0 is the support floor.
+The second line counts the rows on purpose: **declared and usable are different facts.** A row can resolve
+and still never activate, and the roster alone cannot see that. Anything other than the above is a named
+problem:
+
+| line | what it means |
+|---|---|
+| `registered — dropped N row(s) this host cannot import: …` | healthy, and the host is missing packages the composition asked for. They are dropped rather than mounted, because **one** unresolvable row makes the whole preset broken |
+| `DECLARED BUT BROKEN — <row>: <host reason>` | a row mounted but refused to activate: a package that renamed a config key or a subpath. Re-anchor the row against this host |
+| `N of M rows NOT active (…)` | declared and *not* usable — the host's inventory, quoted, naming the rows |
+| `NOT in the host roster (roster: …)` | the preset was never created, with the ids that do exist listed |
+| `this host cannot register preset declaration rows (before 0.2.0)` | below the support floor: the harness boots, the `chapters_*` tools and `/chapters-*` commands work, and no `chapters` preset can exist there |
+
+The preset is an ordinary Loader entry — `preset-chapters`, shipped in this bundle's patch layer — so it
+is visible in the plugin list and the config editor, overridable from your own profile patch, and
+switch-off-able with `disabled: true` on that row if you would rather author the composition yourself.
 
 ## If the new-workspace directory picker dies before you can choose a folder
 

@@ -314,26 +314,33 @@ and `validateRanges` refuses before any file is written.
 
 **Host 0.1.7-alpha.1 retired the preset mechanism that paragraph describes — do not carry it forward as
 current.** Nothing reads `$DSH_HOME/.agent-presets` any more; a preset is an `@deepseek-ai/dsh-agent-preset`
-*declaration row*. **This bundle does not ship that row as a patch layer — it registers the row at
-activation** through the host's own `ctx.get('agentPresets').register()`, because shipping it needs a
-`dsh.bundle.patch` ARRAY, and both the array and the row abort the boot of a pre-0.1.7 host (the closure
-`dev/dsh-host-lock` freezes for tape bytes), while `disabled: !!js` cannot gate the row (the Loader
-evaluates `disabled` before services mount, so it is disabled everywhere). **Support floor is 0.2.0**
-(user decision 2026-10-16): the legacy `.agent-presets` copy, the `presets/chapters/` tree, and
-`preset-install.test.ts` are DELETED, and the engine row's `thresholdRatio` became the host-plane config
-`compactionThresholdRatio`. A pre-0.2.0 host therefore gets `delivery: REFUSED` with its tools intact — and
-the tape acceptance chain needs `dev/dsh-host-lock` moved to 0.2.x plus a re-distill; `tests/e2e/boot.ts`
-refuses BY NAME until then, and the refusal lifts itself when the lock moves (silently skipping the pins
-would make every segment pass a run that never exercised the preset). Health is the host ROSTER's answer,
-asked AFTER activation, plus
-`compositionInventory()` rows — **file presence is not preset existence, and "declared" is not "usable"**:
-one unresolvable row makes the WHOLE preset `broken` (`mountPreset` throws), so rows the host cannot import
-are dropped and named in the mount line. The consequence of getting delivery wrong is severe and silent: a
-session's preset id is durable state (recorded as `agent-preset/selected`), so an unregistered id makes
-every session that chose it fail to *open* (`agent-preset/not-found`) while its log sits there intact —
-and meanwhile the plugin boots, registers its tools, and Settings says "enabled and running". Facts with
-file:line: `docs/contract.md` § Presets are declaration rows; the gate that turns the next host rename
-into a red row instead of a broken user session is `tests/unit/preset-declaration.test.ts`.
+*declaration row*, and the chapters preset IS one now: `preset-chapters`, inserted by our own bundle patch,
+with the preset definition in its `config` — so it is a visible Loader entry you can inspect, override, or
+`disabled: true` from a profile patch, exactly like the host's `preset-standard`. **Its row module is ours**
+(`@treeseed/dsh-chapters/preset`, `src/preset.ts`), not the host package: it mirrors the host's plugin line
+for line (`inject: ['agentPresets']`, `static [EntryGroup.key] = true` so child `!!js` expressions survive
+until the child activates, `[Service.init]` yielding the registry disposer so **Cordis** owns the
+registration's lifetime) and adds drop-what-will-not-load. Why not name the host package: one unresolvable
+row aborts the plugin tree of a host predating declaration rows, and one unresolvable *child* makes the
+whole preset `broken` — measured both ways; our module resolves wherever our package runs, and pruning a
+missing child keeps the preset usable instead of declaring it unusable. **The lifecycle is the trap that
+took longest**: registering in `apply()` and disposing through `ctx.effect` un-registered the preset the
+moment activation finished (`register()` reported success while the roster came back WITHOUT `chapters`) —
+same apply-fiber trap r35 caught for the storage domain; a row's own init is the only place with the right
+lifetime. **Support floor is 0.2.0** (user decision 2026-10-16): the legacy `.agent-presets` copy, the
+`presets/chapters/` tree and `preset-install.test.ts` are DELETED, and a pre-0.2.0 host logs
+`this host cannot register preset rows` while its tools keep working. The tape acceptance chain needs
+`dev/dsh-host-lock` moved to 0.2.x plus a re-distill; `tests/e2e/boot.ts` refuses BY NAME until then and the
+refusal lifts itself when the lock moves (silently skipping the pins would make every segment pass a run that
+never exercised the preset). Health is still the host ROSTER's answer, asked AFTER activation, plus
+`compositionInventory()` rows — **file presence is not preset existence, and "declared" is not "usable"**.
+A session's preset id is durable state (`agent-preset/selected`), so an unregistered id makes every session
+that chose it fail to *open* (`agent-preset/not-found`) while its log sits there intact — and meanwhile the
+plugin boots, registers its tools, and Settings says "enabled and running". Facts with file:line:
+`docs/contract.md` § Presets are declaration rows; the gate that turns the next host rename into a red row
+instead of a broken user session is `tests/unit/preset-declaration.test.ts` (15 rows, each verified to fail
+on the mutation it guards: ralph re-disabled, an unknown pruner key, `toolFilter` restored, `{{cwd}}`
+restored, the preset id renamed).
 Rounds 23-28 then: E3 measured (per-machine — see the Cache section, never cross the numbers),
 `chapters_fork` (r24), the durable title (r25), the 20-check mechanical pass (r26/26b: 18/20 proven
 on-scratch, the rest human-only), the target-hardware verdict (r28: zero-token compaction confirmed at
