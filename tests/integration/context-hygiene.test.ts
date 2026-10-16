@@ -27,6 +27,9 @@ const CONTEXT_LITERALS = /\b(32_?000|32_?768|64_?000|128_?000|131_?072|1_?000_?0
 const WINDOW_KEYS = /contextWindow|maxContextTokens|context_window/i
 
 function walk(dir: string, out: string[]): string[] {
+  // The composition moved from a shipped preset directory into `src/preset.ts`, so a
+  // missing directory is not an error here — it is the shape of this repo now.
+  if (!fs.existsSync(dir)) return out
   for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
     const p = path.join(dir, e.name)
     if (e.isDirectory()) walk(p, out)
@@ -35,7 +38,7 @@ function walk(dir: string, out: string[]): string[] {
   return out
 }
 
-const files = [...walk(path.join(ROOT, 'src'), []), ...walk(path.join(ROOT, 'presets'), [])]
+const files = walk(path.join(ROOT, 'src'), [])
 
 test(`no context-window literal in ${files.length} shipped files`, () => {
   const offenders: string[] = []
@@ -55,8 +58,10 @@ test(`no context-window literal in ${files.length} shipped files`, () => {
   assert.deepEqual(offenders, [], `context-size literals must not ship — the window comes from adapter config:\n${offenders.join('\n')}`)
 })
 
+// The rows the plugin registers ARE the preset now: the composition moved from
+// presets/chapters/agent.cordis.yml into src/preset.ts, and the rule travels with it.
 test('preset rows never pin a window key', () => {
-  for (const f of walk(path.join(ROOT, 'presets'), [])) {
+  for (const f of [path.join(ROOT, 'src', 'preset.ts'), ...walk(path.join(ROOT, 'presets'), [])]) {
     const body = fs.readFileSync(f, 'utf8')
     const hit = body.split('\n').find((l) => WINDOW_KEYS.test(l) && !l.trim().startsWith('#'))
     assert.equal(hit, undefined, `${path.relative(ROOT, f)} pins a context window: ${hit?.trim()}`)

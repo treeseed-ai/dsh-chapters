@@ -1,3 +1,0 @@
-name: Probe Roots
-description: Package-shipped preset resolving via agentPresets config.roots.
-order: 96

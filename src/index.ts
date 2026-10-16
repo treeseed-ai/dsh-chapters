@@ -4,9 +4,13 @@
  * decision in the pure modules (docs/development.md § L0).
  *
  * Responsibilities:
- *  1. Install the `chapters` preset into `$DSH_HOME/.agent-presets/` on boot
- *     (write-if-missing; user edits are never overwritten). Profile `!!js` has
- *     no `require` (measured r20), so copying is the delivery mechanism.
+ *  1. Make the `chapters` preset EXIST in the host's preset roster, and say loudly
+ *     when it does not. Hosts before 0.2.0 are NOT supported: a preset is an
+ *     `@deepseek-ai/dsh-agent-preset` declaration row, and this plugin registers
+ *     that row at activation through the host's own `agentPresets.register()`
+ *     (`src/preset.ts`). The old `$DSH_HOME/.agent-presets/` directory copy is
+ *     gone — no 0.2.x host reads it, and shipping the row as a patch layer instead
+ *     breaks the boot of every pre-0.1.7 host (measured; docs/contract.md).
  *  2. Open the dsh_chapters storage domain and register chapters_segment /
  *     chapters_continue (src/tools.ts adapts them to the pure core).
  *  3. Witness/dev diagnostics.
@@ -17,16 +21,16 @@
  *  - Config uses schemastery (default import) — plain specs are for tool
  *    parameters, zod for domain records; never mix.
  */
-import { writeFileSync, mkdirSync, existsSync, cpSync, readdirSync } from 'node:fs'
+import { writeFileSync, existsSync, readdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { hostname } from 'node:os'
 import { fileURLToPath } from 'node:url'
 import Schema from '@deepseek-ai/schemastery'
-import { dshHomePath } from '@deepseek-ai/dsh-home-paths'
 import { appendChapters, reserve } from './registry.ts'
 import { acquireChapterStore, makeDomainStore } from './store.ts'
 import type { ChapterRecord } from './archive.ts'
 import { registerChaptersTools } from './tools.ts'
+import { CHAPTERS_PRESET_ID, registerChaptersPreset, inventoryEntry, unusableRows, type PresetRegistryLike, type RegisterOutcome } from './preset.ts'
 import { registerHostCommands } from './commands.ts'
 import { createEnrichWiring } from './enrich-wire.ts'
 import { rulesCommand, type RulesIo } from './rules-commands.ts'
@@ -52,6 +56,7 @@ interface HostCtx {
 
 export interface Config {
   installChaptersPreset: boolean
+  compactionThresholdRatio: number
   artifactStoreRoot: string
   chapterTokenTarget: number
   toolResultDeferFloorTokens: number
@@ -111,6 +116,10 @@ export const Config = Schema.object({
   // The preset is how the engine reaches real sessions (preset realm mount);
   // turning this off means opting into manual preset authoring instead.
   installChaptersPreset: Schema.boolean().default(true),
+  // The engine row of the registered preset (docs/host-compaction-seam.md). This is the
+  // one row config that used to live in a preset YAML a human edited in the home; with
+  // the row registered from code it belongs to THIS config, so a profile patch retunes it.
+  compactionThresholdRatio: Schema.number().default(0.9),
   artifactStoreRoot: Schema.string().default('.dsh-chapters'),
   chapterTokenTarget: Schema.number().default(8000),
   toolResultDeferFloorTokens: Schema.number().default(200),
@@ -174,9 +183,40 @@ export const inject = ['storageDomain', 'tools', 'agents', 'llm', 'sessionProjec
 const HERE = dirname(fileURLToPath(import.meta.url))
 const PKG_ROOT = join(HERE, '..')
 
+/** Registrations this module owns for the life of the process. The registry hands back an
+ *  unregister disposer, and holding it — never calling it — is the point: a disposer wired
+ *  through `ctx.effect` runs when the apply fiber's activation completes, which un-registered
+ *  the preset the instant it had been registered (measured: `register()` reported success
+ *  while the roster came back without `chapters`). The same apply-fiber trap bit the storage
+ *  domain in r35. */
+const heldDisposers: Array<() => Promise<void>> = []
+
 export async function apply(ctx: HostCtx, config: Config): Promise<void> {
-  let presetReport: PresetInstallReport | undefined
-  if (config.installChaptersPreset) presetReport = installChaptersPreset(join(PKG_ROOT, 'presets', PRESET_ID), dshHomePath(USER_PRESET_DIR, PRESET_ID), ctx.logger)
+  // § Preset delivery. A host whose `agentPresets` exposes `register()` composes presets
+  // from declaration rows; one that does not is older than 0.2.0 and is NOT supported.
+  // The answer comes from the service's shape, never from a version string.
+  const registry = ctx.get?.('agentPresets') as PresetRegistryLike | undefined
+  const registers = typeof registry?.register === 'function'
+  let registerOutcome: RegisterOutcome
+  if (!config.installChaptersPreset) registerOutcome = { state: 'disabled' }
+  else if (!registers) registerOutcome = { state: 'unsupported' }
+  else {
+    try {
+      registerOutcome = (await registerChaptersPreset(registry, {
+        resolvable: resolvableFromThisPackage,
+        thresholdRatio: config.compactionThresholdRatio,
+        // NOT ctx.effect(): a cleanup registered on the apply fiber fires when THAT fiber's
+        // activation completes, and the registry's disposer un-registers the preset — measured
+        // on 0.2.0-rc.2, where `register()` reported success while the roster came back
+        // WITHOUT `chapters`. Same apply-fiber trap r35 caught for the storage domain.
+        dispose: (disposer) => { heldDisposers.push(disposer) },
+      })).outcome
+    } catch (error) {
+      // Nothing here may take the plugin down: tools and commands register below, and a
+      // session with no chapters tools is still useful.
+      registerOutcome = { state: 'failed', reason: String((error as Error)?.message ?? error) }
+    }
+  }
 
   let domain: import('./store.ts').DomainLike | undefined
   try {
@@ -290,19 +330,37 @@ export async function apply(ctx: HostCtx, config: Config): Promise<void> {
     console.error(message)
   }
 
-  // Honest status, because the settings surface reads "enabled and running" either way:
-  // a plugin whose only compaction engine failed to install is NOT healthy, and a log line
-  // that says "mounted" is what made the partial-preset case take a human hours to find.
-  const presetNote = presetReport === undefined ? 'preset install disabled' : `preset: ${presetReport.status}`
-  const unhealthy = presetReport !== undefined && presetReport.status === 'failed'
-    && config.installChaptersPreset === true
+  // Honest status, because the settings surface reads "enabled and running" either way.
+  // "mounted" is not "the preset exists": a session's preset id is durable state, so an
+  // absent or broken preset means every chapters session refuses to OPEN while its log
+  // sits there intact — a user-visible failure with nothing in the UI to explain it.
+  const presetNote = registerOutcome.state === 'registered' ? 'delivery: registered the chapters preset declaration row'
+    : registerOutcome.state === 'pruned' ? `delivery: registered the chapters preset (${registerOutcome.dropped.length} row(s) this host cannot resolve, dropped)`
+      : registerOutcome.state === 'already-declared' ? 'delivery: preset declared by another patch layer (kept, not re-registered)'
+        : registerOutcome.state === 'disabled' ? 'delivery: OFF (config.installChaptersPreset=false; preset authoring is yours)'
+          : registerOutcome.state === 'unsupported' ? 'delivery: REFUSED — this host predates preset declaration rows (< 0.2.0)'
+            : `delivery: FAILED (${registerOutcome.reason})`
+  const unhealthy = registerOutcome.state === 'failed'
+    || (registerOutcome.state === 'unsupported' && config.installChaptersPreset === true)
   const mountMsg = `dsh-chapters: mounted (tools registered; ${presetNote})`
   if (unhealthy) ctx.logger?.warn?.(`${mountMsg} — UNHEALTHY: sessions choosing the chapters preset will not compose`)
   else ctx.logger?.info?.(mountMsg)
 
+  // File presence is NOT preset existence (§ Preset delivery): the roster is the only
+  // evidence. It must be asked AFTER activation — the registry re-audits a mount by
+  // awaiting the settled loader tree, and a caller "must not run inside a Host row's
+  // own activation, which the settlement would wait on" — hence this deferred check,
+  // which also catches a registration that mounted but could not activate. One check
+  // per boot, reused by the dev witness.
   const marker = process.env.DSH_CHAPTERS_WITNESS
-  if (marker === undefined) return
-  setTimeout(() => { witness(ctx, marker, domain) }, 500).unref?.()
+  let roster: Promise<RosterVerdict> | undefined
+  const rosterCheck = (): Promise<RosterVerdict> =>
+    roster ??= reportPresetRoster(ctx, config.fallbackPreset, registerOutcome)
+  setTimeout(() => {
+    void rosterCheck().then((verdict) => {
+      if (marker !== undefined) void witness(ctx, marker, domain, verdict, registerOutcome)
+    })
+  }, 500).unref?.()
 }
 
 /**
@@ -362,125 +420,158 @@ export function createScheduler(
   })
 }
 
-// ---------------------------------------------------------------- preset install
-
-const PRESET_ID = 'chapters'
-const USER_PRESET_DIR = '.agent-presets' // kernel constant: presets/agent-presets/src/discovery.ts
-
-export type PresetInstallStatus = 'installed' | 'repaired' | 'complete' | 'failed' | 'no-source'
-
-/** What the preset install actually did — the caller must not report success on a 'failed'. */
-export interface PresetInstallReport {
-  status: PresetInstallStatus
-  /** Shipped files absent from the installed copy (the partial-preset case). */
-  missing: string[]
-  dstDir: string
-  error?: string
-}
+// ---------------------------------------------------------------- preset delivery
 
 /**
- * Every file under a directory, as sorted relative paths (forward slashes).
- * A missing root is empty; anything else that goes wrong (a FILE sitting where a
- * directory should be, an unreadable home) THROWS, and the caller turns that into a
- * reported `failed` — the first version of this helper swallowed those, which is the
- * same silent-unhealthy shape the whole function exists to remove.
+ * Why delivery is a `register()` call and not a file, in one incident: hosts from
+ * 0.1.7-alpha.1 stopped reading `$DSH_HOME/.agent-presets/` — a preset is an
+ * `@deepseek-ai/dsh-agent-preset` declaration row — while the plugin kept copying,
+ * kept logging that it had mounted, and the preset was simply GONE. That is worse
+ * than a crash, because `resume` resolves the preset id recorded in the session's
+ * own log and throws `agent-preset/not-found`, so every chapters session became
+ * unopenable while its durable log sat there intact and uncorrupted.
+ *
+ * Shipping the row as a patch layer instead is what a reader will reach for, and it
+ * is a boot-breaking choice on the hosts this plugin used to support: `dsh.bundle.patch`
+ * as an array throws `ERR_INVALID_ARG_TYPE` at legacy `dsh-app-boot/lib/index.js:853`,
+ * an unresolvable row aborts a legacy plugin tree, and `disabled: !!js` cannot gate the
+ * row because the Loader evaluates `disabled` before any service is mounted (all three
+ * measured). Support floor is 0.2.0 now, so the row is registered here through the
+ * host's own `agentPresets.register()` — the same call its declaration-row plugin makes.
  */
-function fileList(root: string): string[] {
-  if (!existsSync(root)) return []
-  const out: string[] = []
-  const walk = (dir: string, rel: string): void => {
-    for (const e of readdirSync(dir, { withFileTypes: true })) {
-      const r = rel === '' ? e.name : `${rel}/${e.name}`
-      if (e.isDirectory()) walk(join(dir, e.name), r)
-      else out.push(r)
-    }
-  }
-  walk(root, '')
-  return out.sort()
-}
 
 /**
- * Install the `chapters` preset into the user preset directory, and — the part that
- * used to be missing — tell the truth about what happened.
+ * Whether a row's module can be imported from THIS package's resolution family.
  *
- * The never-clobber rule exists because the installed copy is user-owned: the user may
- * have edited `agent.cordis.yml` to retune the compaction row. But the OLD guard tested
- * for `preset.yml` ALONE, and the preset is really two files — `agent.cordis.yml` is the
- * one that names the engine realm row. So a partially wiped home (an interrupted
- * uninstall/reinstall is what triggered this) left a preset directory that passed the
- * guard forever: the installer returned early on every boot, the preset could not mount,
- * and the plugin still logged that it had mounted. Sessions that had chosen the preset
- * then looked corrupted, while their logs and data were untouched — the break was in
- * composition, which is invisible if the report lies.
+ * The preset mount resolves its rows from the registry's context, which shares this Node
+ * resolution root; a false answer here means a row that would activate as failed — and one
+ * failed row makes the whole preset `broken`, which is worse than a missing tool.
  *
- * The repair is therefore *additive*: missing shipped files are restored, files the user
- * already has are never overwritten. That keeps the user's edits intact AND makes a
- * half-deleted preset self-healing, because restoring a missing file is not clobbering
- * anything.
- *
- * Exported for testing with real temp directories; `srcDir`/`dstDir` are parameters so no
- * test has to touch the developer's DSH home.
+ * Never throws: an unresolvable specifier is the answer. Two limits of the probe are the
+ * host's own, not ours to paper over: a RELATIVE specifier resolves without touching the
+ * filesystem (Node answers the URL, not existence), so a file-URL row would always be
+ * reported resolvable; and a name that resolves is not yet a name that ACTIVATES — a plugin
+ * that rejects its config throws later, which is what the roster line reports as
+ * `DECLARED BUT BROKEN`. Subpath exports are the useful case, and they are the ones a host
+ * rename eats first: `@scope/pkg/no-longer-exported` answers `ERR_PACKAGE_PATH_NOT_EXPORTED`.
  */
-export function installChaptersPreset(
-  srcDir: string,
-  dstDir: string,
-  log?: { info?: (m: string) => void; warn?: (m: string) => void },
-  userPresetRoot = dirname(dstDir),
-): PresetInstallReport {
-  // `missing` is declared OUTSIDE the try because the catch reports it: an install that
-  // died halfway should still say which files were outstanding when it failed.
-  let missing: string[] = []
+export function resolvableFromThisPackage(specifier: string): boolean {
+  if (specifier.startsWith('.') || specifier.startsWith('/') || specifier.startsWith('file:')) return true
   try {
-    const shipped = fileList(srcDir)
-    if (!shipped.includes('preset.yml')) return { status: 'no-source', missing: [], dstDir }
-    const present = new Set(fileList(dstDir))
-    missing = shipped.filter((f) => !present.has(f))
-
-    const doCopy = (files: string[]): void => {
-      mkdirSync(userPresetRoot, { recursive: true })
-      for (const f of files) {
-        const to = join(dstDir, f)
-        mkdirSync(dirname(to), { recursive: true })
-        cpSync(join(srcDir, f), to)
-      }
-    }
-
-    if (present.size === 0) {
-      doCopy(shipped)
-      log?.info?.(`dsh-chapters: installed the "${PRESET_ID}" preset to ${dstDir} — pick it in the preset menu for chapter-form compaction (standard keeps LLM summaries)`)
-      return { status: 'installed', missing: [], dstDir }
-    }
-    if (missing.length > 0) {
-      doCopy(missing)
-      const msg = `dsh-chapters: preset at ${dstDir} was INCOMPLETE (missing ${missing.join(', ')}) — restored the missing file(s); files you already had were left alone. A preset without agent.cordis.yml cannot mount the chapter engine, which is why sessions choosing it failed to compose.`
-      if (log?.warn !== undefined) log.warn(msg)
-      else log?.info?.(msg)
-      return { status: 'repaired', missing, dstDir }
-    }
-    return { status: 'complete', missing: [], dstDir }
-  } catch (error) {
-    const detail = String((error as Error)?.message ?? error)
-    log?.warn?.(`dsh-chapters: preset install FAILED (${detail}) — chapter-form compaction will NOT be available until this is fixed`)
-    return { status: 'failed', missing, dstDir, error: detail }
+    import.meta.resolve(specifier)
+    return true
+  } catch {
+    return false
   }
+}
+
+/** What the host roster says about our preset. */
+export type RosterVerdict =
+  | { state: 'present'; broken?: string }
+  | { state: 'absent'; rows: string[] }
+  | { state: 'unknown'; error: string }
+
+/** Ask the host which presets exist. Tolerates both shapes the service has
+ *  offered: the bare row array (`list()`) and the remote envelope (`{presets}`). */
+export async function readRosterVerdict(
+  presets: { list?: () => Promise<unknown> } | undefined,
+  presetId: string,
+): Promise<RosterVerdict> {
+  if (presets?.list === undefined) return { state: 'unknown', error: 'agentPresets service absent' }
+  try {
+    const raw = await presets.list()
+    const rows = ((Array.isArray(raw) ? raw : (raw as { presets?: unknown[] } | undefined)?.presets) ?? []) as
+      { id?: unknown; broken?: unknown }[]
+    const mine = rows.find((r) => r?.id === presetId)
+    if (mine === undefined) return { state: 'absent', rows: rows.map((r) => String(r?.id ?? '?')).sort() }
+    const broken = mine.broken
+    return typeof broken === 'string' && broken !== '' ? { state: 'present', broken } : { state: 'present' }
+  } catch (error) {
+    return { state: 'unknown', error: String((error as Error)?.message ?? error) }
+  }
+}
+
+/** The remedy, in the two shapes an absent preset can have on a supported host. */
+export function rosterRemediation(presetId: string, outcome: RegisterOutcome): string {
+  if (outcome.state === 'disabled') {
+    return `config.installChaptersPreset=false, so this plugin did not register "${presetId}" — declare it yourself, `
+      + 'or turn the config back on and restart'
+  }
+  if (outcome.state === 'unsupported') {
+    return 'this host predates preset declaration rows (< 0.2.0) and is not supported by this plugin — the chapters '
+      + 'tools and commands still work, but no `chapters` preset can exist here; upgrade @deepseek-ai/dsh'
+  }
+  return `this plugin registers "${presetId}" itself at activation, so an absent preset means that call did not `
+    + 'happen or was refused — read the mount line above for "delivery:" and the failure arm it names'
+}
+
+/** Deferred boot check: one truthful line about the preset, plus the verdict for the witness.
+ * Exported so the four arms of that line are tested without booting a host — the line IS the
+ * health signal a user reads, and an untested health signal is how the silent case survived. */
+export async function reportPresetRoster(
+  ctx: HostCtx,
+  presetId: string,
+  outcome: RegisterOutcome,
+): Promise<RosterVerdict> {
+  const presets = ctx.get?.('agentPresets') as { list?: () => Promise<unknown> } | undefined
+  const verdict = await readRosterVerdict(presets, presetId)
+  const line = (message: string, warn: boolean): void => {
+    if (warn) {
+      ctx.logger?.warn?.(message)
+      console.error(message)
+    } else ctx.logger?.info?.(message)
+  }
+  if (verdict.state === 'present' && verdict.broken === undefined) {
+    line(`dsh-chapters: preset "${presetId}" is in the host roster — chapter-form compaction and continuations will compose`, false)
+  } else if (verdict.state === 'present') {
+    line(`dsh-chapters: preset "${presetId}" is DECLARED BUT BROKEN — ${verdict.broken} — sessions choosing it will not compose. `
+      + 'A preset row whose child plugin no longer resolves fails here; the plugin drops rows this host cannot import, '
+      + 'so this line means a package that resolves but will not activate — re-anchor src/preset.ts against this host.', true)
+  } else if (verdict.state === 'absent') {
+    line(`dsh-chapters: UNHEALTHY — preset "${presetId}" is NOT in the host roster (roster: ${verdict.rows.join(', ') || 'empty'}). `
+      + `Every session whose log records it will refuse to open with agent-preset/not-found — the logs are intact; the composition is missing. `
+      + `Remedy: ${rosterRemediation(presetId, outcome)}`, true)
+  } else {
+    line(`dsh-chapters: could not verify the preset roster (${verdict.error}) — treat chapter-form compaction as unconfirmed`, true)
+  }
+  return verdict
 }
 
 // ---------------------------------------------------------------- dev witness
 
-async function witness(ctx: HostCtx, marker: string, preopened?: import('./store.ts').DomainLike): Promise<void> {
+async function witness(
+  ctx: HostCtx,
+  marker: string,
+  preopened?: import('./store.ts').DomainLike,
+  roster?: RosterVerdict,
+  register?: RegisterOutcome,
+): Promise<void> {
   const WITNESS_SESSION = 'dsh-chapters-witness'
   const out: Record<string, unknown> = { at: new Date().toISOString() }
   try {
     out.storageDomainPresent = ctx.get?.('storageDomain') !== undefined
-    // Was: "does preset.yml exist". That is the SAME one-file blindness that hid the
-    // partial preset, in the very diagnostic a user reaches for when this breaks — so
-    // the witness now reports the completeness verdict and the missing list.
-    const presetDst = dshHomePath(USER_PRESET_DIR, PRESET_ID)
-    const presetShipped = fileList(join(PKG_ROOT, 'presets', PRESET_ID))
-    const presetPresent = new Set(existsSync(presetDst) ? fileList(presetDst) : [])
-    out.presetsInstalled = presetPresent.has('preset.yml')
-    out.presetComplete = presetShipped.length > 0 && presetShipped.every((f) => presetPresent.has(f))
-    out.presetMissing = presetShipped.filter((f) => !presetPresent.has(f))
+    // What this host's preset mechanism IS, and what the roster says about the
+    // chapters preset. These two lines are the difference between "the preset files
+    // are installed" (true, and meaningless on a declaration-row host) and "the
+    // preset exists" — the only thing a session cares about.
+    out.registryRegisters = typeof (ctx.get?.('agentPresets') as PresetRegistryLike | undefined)?.register === 'function'
+    out.presetRegister = register?.state ?? 'not-attempted'
+    if (register?.state === 'pruned') out.presetDroppedRows = register.dropped
+    if (register?.state === 'failed') out.presetRegisterError = register.reason
+    out.presetRoster = roster?.state ?? 'not-checked'
+    // The roster says a preset is declared; the inventory says whether its rows are
+    // actually active. A row that resolves but will not activate leaves the preset on
+    // the menu and unusable, and only this distinction names it.
+    const invRaw = await (ctx.get?.('agentPresets') as PresetRegistryLike | undefined)?.compositionInventory?.()?.catch?.(() => undefined)
+    const inv = inventoryEntry(invRaw, CHAPTERS_PRESET_ID)
+    if (inv !== undefined) {
+      out.presetInventoryRows = (inv.rows ?? []).length
+      out.presetUnusableRows = unusableRows(inv)
+      if (inv.broken !== undefined) out.presetInventoryBroken = inv.broken
+    }
+    if (roster?.state === 'absent') out.presetRosterRows = roster.rows
+    if (roster?.state === 'present' && roster.broken !== undefined) out.presetRosterBroken = roster.broken
+    if (roster?.state === 'unknown') out.presetRosterError = roster.error
     const storageDomain = ctx.get?.('storageDomain') as { open: (s: unknown) => Promise<import('./store.ts').DomainLike>; get?: (n: string) => import('./store.ts').DomainLike | undefined }
     const store = preopened !== undefined ? makeDomainStore(preopened) : (await acquireChapterStore(storageDomain!)).store
     const prior = await store.get(WITNESS_SESSION)

@@ -16,6 +16,29 @@ import { startModelProxy, type ProxyHandle } from './model-proxy.ts'
  * every boot runs the CURRENT build in lib/.
  */
 export const ROOT = path.resolve(import.meta.dirname, '..', '..')
+
+/** The `@deepseek-ai/dsh` version the e2e closure pins (dev/dsh-host-lock/package.json). */
+export function pinnedHostVersion(): string {
+  try {
+    const lock = JSON.parse(fs.readFileSync(path.join(ROOT, 'dev', 'dsh-host-lock', 'package.json'), 'utf8')) as
+      { dependencies?: Record<string, string> }
+    return lock.dependencies?.['@deepseek-ai/dsh'] ?? 'unknown'
+  } catch {
+    return 'unknown'
+  }
+}
+
+/** Does the pinned host compose presets from declaration rows (>= 0.2.0)?
+ *  A version TEST, not a capability probe, because this runs before any host is booted —
+ *  the product code probes the service's shape instead (src/index.ts § Preset delivery).
+ *  Minor-version arithmetic is deliberately absent: 0.2.x is the floor, and a prerelease
+ *  of it (0.2.0-rc.1) is in range. */
+export function hostSupportsPresetRows(): boolean {
+  const match = /^(\d+)\.(\d+)/.exec(pinnedHostVersion())
+  if (match === null) return false
+  return Number(match[1]) > 0 || (Number(match[1]) === 0 && Number(match[2]) >= 2)
+}
+
 /** port-keyed home: two boots running at once (even accidentally) can never
  * wipe or corrupt each other's state — a same-home collision was measured
  * destroying an in-flight capture (2026-09-19). */
@@ -95,44 +118,24 @@ export async function bootE2eServer(port: number, pins: Pins): Promise<BootHandl
     }
   }
 
-  // refresh the INSTALLED preset from the link source (write-once install
-  // would otherwise freeze a stale persona), THEN pin the row config
-  const installedPreset = path.join(E2E_HOME, '.agent-presets', 'chapters')
-  fs.rmSync(installedPreset, { recursive: true, force: true })
-  fs.cpSync(path.join(ROOT, 'presets', 'chapters'), installedPreset, { recursive: true })
-  const row = path.join(installedPreset, 'agent.cordis.yml')
-  let y = fs.readFileSync(row, 'utf8')
-  y = y.replace(/thresholdRatio: [0-9.]+/, `thresholdRatio: ${pins.thresholdRatio}`)
-  if (pins.enrichment && !/enrichmentEnabled: true/.test(y)) {
-    y = y.replace(/enrichmentEnabled: false/, 'enrichmentEnabled: true')
+  // The chapters preset is a registered DECLARATION ROW now (src/preset.ts); the
+  // `$DSH_HOME/.agent-presets/` directory this chain used to copy into is read by no host
+  // from 0.1.7-alpha.1, and the pinned host predates `agentPresets.register()` entirely.
+  // So the refusal is a real check on the pinned version rather than a thrown constant:
+  // it lifts itself the moment `dev/dsh-host-lock` moves to >= 0.2.0, which is exactly
+  // the re-anchor the backlog asks for (and the tapes must be re-distilled with it —
+  // the persona suffix is prompt bytes). A silently skipped pin would be worse than red:
+  // every segment would pass a run that never exercised the preset.
+  if (!hostSupportsPresetRows()) {
+    throw new Error(
+      `e2e: the pinned host (@deepseek-ai/dsh ${pinnedHostVersion()}) cannot register preset declaration rows; `
+      + 'this plugin supports >= 0.2.0. Move dev/dsh-host-lock to a 0.2.x host and re-distill the tapes '
+      + '(docs/backlog.md). The deterministic suite (npm test / coverage:ci) is unaffected and is what gates a release.')
   }
-  // Enrichment stays OFF for the existing projects until tapes carry the
-  // enrichment exchanges (an unrecorded auxiliary call is a loud replay miss
-  // BY DESIGN — so the dedicated enrich project will opt in deliberately).
-  if (!/enrichmentEnabled:/.test(y)) {
-    y = y.replace(/( *)thresholdRatio: [0-9.]+/, `$1thresholdRatio: ${pins.thresholdRatio}\n$1enrichmentEnabled: false`)
-  }
-  if (pins.noAuxModel) {
-    // Idempotent row patches: the presets are copied fresh per boot, but a pin must
-    // never duplicate a key the file already carries.
-    if (!/^ *auto: false$/m.test(y)) y = y.replace(/( *)thresholdRatio: [0-9.]+/, `$1thresholdRatio: ${pins.thresholdRatio}\n$1auto: false`)
-    if (!/^ *elicitedPlot: false$/m.test(y)) y = y.replace(/( *)thresholdRatio: [0-9.]+/, `$1thresholdRatio: ${pins.thresholdRatio}\n$1elicitedPlot: false`)
-  }
-  if (pins.toolResultArtifactTokens !== undefined && !y.includes('toolResultArtifactTokens:')) {
-    y = y.replace(/( *)thresholdRatio: [0-9.]+/, `$1thresholdRatio: ${pins.thresholdRatio}\n$1toolResultArtifactTokens: ${pins.toolResultArtifactTokens}`)
-  }
-  fs.writeFileSync(row, y)
-  // Say out loud what this boot actually wrote. A red chain twice taught the same
-  // lesson: a pin that is not observable is a pin that did not happen (0.1.10's
-  // threshold pin and 0.1.11's aux-model pin each looked correct locally while the
-  // runner disagreed, and nothing in the log could tell me which side was lying).
-  const rows = (pins.noAuxModel ? ['thresholdRatio', 'auto', 'elicitedPlot'] : ['thresholdRatio'])
-    .map((k) => {
-      const hit = new RegExp(['^ *', k, ': .*$'].join(''), 'm').exec(y)
-      return `${k}=${hit ? hit[0].trim().split(': ')[1] : 'ABSENT'}`
-    })
-    .join(' ')
-  console.log(`[e2e] boot pins: port=${port} tape=${process.env.E2E_TAPE ?? 'default'} model=${process.env.E2E_MODEL ?? 'live'} ${rows}`)
+  // Per-boot row pins (thresholdRatio / enrichmentEnabled / auto / elicitedPlot /
+  // toolResultArtifactTokens, and the `[e2e] boot pins:` line that made them observable)
+  // patched the YAML this mechanism used to install. They come back re-expressed as CONFIG
+  // on the registered row with the host re-anchor — until then this chain must not run.
 
   // STRESS REGIME pin (user directive 2026-09-19): 32K window / 15K response.
   // E2E_MODEL=record|replay inserts the tape proxy (same directive's second

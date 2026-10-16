@@ -6,7 +6,7 @@ lastUpdated: true
 
 No hardcoded tunables anywhere the harness can configure them. The table below is the complete host-plane list (the `config` schema in `src/index.ts`); the comment header of the shipped `cordis.patch.yml` (inside `node_modules/@treeseed/dsh-chapters/`) mirrors the schema and is the in-repo reference, but this page is kept current with the code.
 
-**Two planes.** `config` (below) is the *host plane* — your profile's plugin entry. The compaction *engine* lives on the *realm plane*: the `chapters` agent-preset row (`presets/chapters/agent.cordis.yml`), which owns `thresholdRatio`, `retainRatio/retainTokens`, `maxTokens`, `compactionRetries/maxOverflowRetries`, `summarizationProvider/summarizationModel` (legacy override), `enrichmentTrigger` (`afterPush|idle|both|manual`), `elicitedPlot`, and `toolResultArtifactTokens`. Shared names behave per plane — design record §12.
+**Two planes.** `config` (below) is the *host plane* — your profile's plugin entry. The compaction *engine* lives on the *realm plane*: the `chapters` agent-preset row (registered at activation by `src/preset.ts`), which owns `thresholdRatio`, `retainRatio/retainTokens`, `maxTokens`, `compactionRetries/maxOverflowRetries`, `summarizationProvider/summarizationModel` (legacy override), `enrichmentTrigger` (`afterPush|idle|both|manual`), `elicitedPlot`, and `toolResultArtifactTokens`. Shared names behave per plane — design record §12.
 
 | Key | Default | Meaning |
 |---|---|---|
@@ -35,7 +35,8 @@ No hardcoded tunables anywhere the harness can configure them. The table below i
 | `callArgArtifactTokens` | 0 (off) | above this, a tool-call *argument* is artifact-backed and the inline text is a bounded head. Off by default on purpose: switching it on changes chapter bytes wherever a `write` carried a whole file, which means your model tapes need re-recording |
 | `toolResultDeferFloorTokens` | 200 | archive-time inline/defer floor (realm `toolResultArtifactTokens` is the *arrival* floor — keep it **above** your chunk size: below it, stubs hide compaction and thresholds silently stop firing — measured) |
 | `artifactStoreRoot` | `.dsh-chapters` | workspace store (must be `read`-reachable) |
-| `installChaptersPreset` | true | copy preset into `.agent-presets/` at boot (never clobbers your edits) |
+| `installChaptersPreset` | true | register the `chapters` preset declaration row at boot; `false` means you declare it yourself |
+| `compactionThresholdRatio` | 0.9 | the registered preset's engine row: share of the window that triggers a chapter checkpoint (was a preset YAML in the home) |
 | `fallbackPreset` | `chapters` | mounted for children when the caller's preset can't be resolved |
 | `searchDefaultMaxTokens` | 400 | `chapters_search` result-packing budget |
 

@@ -355,7 +355,7 @@ happened in these notes before it was caught.
 | `src/notice.ts` + `test/notice.test.ts` — TOC-notice builder, kernel-rejection reproduction, vocabulary pins + drift guard (Phase 0b check 5) | **done**, 10 tests |
 | `src/registry.ts` + `src/store.ts` — pure numbering/ancestry/plan state; zod domain spec, storage-domain + node-fs adapters | **done**, 13 + 7 tests; durability witness passed |
 | `src/engine-core.ts` + `src/engine.ts` — ChaptersCompactionEngine | **done & boot-proven** (r18/r19: realm subpath row mounts; real cascade finalizes; catch-path fix — FINDINGS § Phase 1) |
-| `presets/chapters/` + copy-on-boot install | **done & boot-proven** (r21; `!!js` has no `require`, so copying is the delivery mechanism — r20) |
+| preset delivery | **rewritten in 0.1.17**: the row is registered at activation (`src/preset.ts`). The `presets/chapters/` + copy-on-boot mechanism it replaced is deleted with the 0.2.0 support floor (docs/contract.md) |
 | `npm test` (unit + integration) | **188 passing, <2 s** — unit imports no harness services; integration runs the sync loop against a fake git driver AND a real git smart-HTTP server (git-http-backend on loopback; the git binary is test-only scaffolding, the product stays pure-JS) |
 | 20-check verify.md pass | **r26/26b**: 18 mechanical on `.dshdev2` (refusals with numbers, tamper marks, idempotent retry, cross-boot registry + resume); human rows per verify.md evidence map |
 | dsh-session-fork coexistence | **moot at this version** (r26a pair-boot): the example fails to boot the installed host ALONE (unguarded `webServer` read in the installed dsh-client-connection) — assumed-neutral until a version-matched pair-boot |
@@ -465,3 +465,30 @@ commands were *verified*.
 
 `docs/contract.md`'s file:line citations are from the `examples/` snapshot (rc.1-era), not the rc.2 fork —
 re-anchor them against whichever version a test actually boots.
+
+### Running the TS tests on this box (node 22, no native type stripping)
+
+Measured 2026-10-16: `npm test` (`node --test tests/unit/*.test.ts`) needs node ≥ 23 for type
+stripping, and this machine's `/usr/bin/node` is **v22.22.1 compiled WITHOUT TypeScript support**
+(`ERR_NO_TYPESCRIPT`, not merely a missing flag). The package's `engines` floor is node 24, and CI
+installs it; locally, run the same files through `tsx`:
+
+```bash
+npm install --no-save --no-audit --no-fund tsx unrun     # both, in ONE command
+node --import tsx --test tests/unit/*.test.ts tests/integration/*.test.ts
+npx c8 --check-coverage --statements 85 --branches 85 --functions 85 --lines 85 \
+  node --import tsx --test tests/unit/*.test.ts tests/integration/*.test.ts
+```
+
+Two traps measured while finding that:
+
+- **`npm install --no-save A` then `--no-save B` removes A.** npm prunes what is not in the manifest,
+  so unsaved helpers must be installed in a single command (`unrun` disappeared the moment `tsx` was
+  added, and `npm run build` — which bundles the client through `tsdown` — failed with
+  `Cannot find module "unrun"`).
+- `tsconfig.test.json` (committed) transpiles `src` + `tests` to `var/tsbuild` with `--noCheck` for
+  the rare case you want emitted JS instead of a loader. It is NOT how the suite is meant to run;
+  tests import `.ts` sources directly and are not typechecked by design (`npm run typecheck` covers
+  `src/` only).
+
+Never fix a missing test runner by editing the tests. The suite is the contract; the runner is local.

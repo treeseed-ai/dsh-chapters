@@ -6,6 +6,54 @@ lastUpdated: true
 
 Releases publish automatically from a bare-semver tag via **npm trusted publishing (OIDC)**. The publish itself is gated on the full deterministic suite under the coverage gate; the eight-segment tape-replay acceptance chain runs in CI on every push to `main`, so a release is always cut from a green acceptance run. Each CI-published version carries a provenance attestation tying it back to this repo, that workflow run, and that commit — 0.1.0, the one manual ship, predates attestation.
 
+### 0.1.17 — 2026-10 · the preset had to be *created*, not merely installed — and the old delivery broke the old host
+
+Reported by a user: the plugin is installed, enabled, and running, and the `chapters` preset is simply not
+there. Sessions that had chosen it refused to **open** (`agent-preset/not-found`) while their logs and
+chapters sat intact — so the archive looked corrupted when what was missing was composition. Nothing
+crashed to say so: the plugin boots, its tools register, Settings says "enabled and running".
+
+- **Why it happened.** Hosts from 0.1.7-alpha.1 stopped reading `$DSH_HOME/.agent-presets/` — a preset is
+  now an `@deepseek-ai/dsh-agent-preset` *declaration row*. Our boot-time copy kept "succeeding", writing
+  files no host reads, and reporting itself as installed. That is the defect this release closes.
+- **The obvious fix is a boot-breaking one, and it was measured before being refused.** Shipping that row
+  as a bundle patch layer means `dsh.bundle.patch` becomes an array, and on every host before 0.1.7 that
+  array throws `ERR_INVALID_ARG_TYPE` while the profile is being read — the harness never starts. Putting
+  the row in the layer a legacy host *does* read aborts that boot too (`Cannot find package
+  '@deepseek-ai/dsh-agent-preset'`), and it cannot be capability-gated with `disabled: !!js`, because the
+  Loader evaluates `disabled` before any service is mounted, so the row is disabled on the new host as
+  well. The pinned test host (`0.1.5-rc.1`, frozen for tape bytes) hit all three.
+- **What ships instead.** The plugin registers the `chapters` row itself at activation, through the host's
+  own `agentPresets.register()` — the same call the host's declaration-row plugin makes. A host with no
+  `register()` gets the legacy directory copy, unchanged. The mechanism is chosen by the service's shape,
+  never by a version string, so one artifact serves the current release and the upcoming one.
+- **Rows this host cannot import are dropped and named, not mounted.** One unresolvable row makes the
+  *whole* preset `broken` (`mountPreset` throws), which is the same user-visible failure as a missing
+  preset — and that is exactly what a static copy of the newer host's plugin list does on the current
+  stable release: `@deepseek-ai/dsh-tool-schedule` is not published at `0.2.0-rc.2` at all. The mount line
+  now says `delivery: registered the chapters preset (1 row(s) this host cannot resolve, dropped)`.
+- **A disposer that must not be an effect.** `register()` hands back an unregister function; wiring it
+  through `ctx.effect` un-registers the preset the instant our activation finishes — measured as
+  `register()` reporting success while the roster came back *without* `chapters`. The same apply-fiber trap
+  bit the storage domain in r35; it is held instead of called.
+- **Health is the roster, asked after activation, and now it is loud.** `present` / `DECLARED BUT BROKEN` /
+  `NOT in the host roster` (with the other ids) / `could not verify`, each in the warn channel, because a
+  warn nobody could read is what made the original hours-long. The dev witness additionally reports the
+  host's own `compositionInventory()` rows, which distinguish *declared* from *actually active*.
+- **Verified on both mechanisms with real boots**, not by reasoning: on `0.2.0-rc.2` the witness reports
+  `roster: present`, `inventoryRows: 28`, `unusableRows: []`; on `0.1.5-rc.1` it reports `registers:
+  false`, `roster: present` with `.agent-presets/chapters/` restored by the copy.
+- **The drift gate now RUNS here instead of skipping.** `tests/unit/preset-declaration.test.ts` is 13 rows
+  over `src/preset.ts` (100% coverage): the composition's shape; the id as durable state; that
+  `dsh.bundle.patch` is still a **string** (a pinned row against the boot-breaking array, because the next
+  person will be tempted by the declarative route); every module resolving against the installed host;
+  our list differing from the host's own standard list *only* by the four declared deltas; no
+  `{{variable}}` the installed host does not register; the persona suffix still matching the plot-echo
+  guard **by behaviour**; and every registration and roster arm classified.
+- Also documented: the **workspace directory-picker modal crash** — a host packaging bug this plugin cannot
+  fix, reproduced, named in the log (`slot entry crashed in 'sidebar.workspaces.directoryFlow'`, React
+  error #130), with the two steps that unblock a user ([§4](/operations/install/)).
+
 ### 0.1.8 — 2026-10 · a plan's heading stops being allowed to be unbounded
 
 Found by reading 0.1.7's own carriage for what a hostile input does to it: a plan whose `# heading` is a

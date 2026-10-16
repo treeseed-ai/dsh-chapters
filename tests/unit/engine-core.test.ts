@@ -334,7 +334,7 @@ test('planSummarize prepends the plot section when given one (and only then)', (
 })
 
 test('extractPlot: the persona instruction never becomes the plot (2026-09-25 corrupted-plot incident)', () => {
-  // Verbatim suffix from presets/chapters/agent.cordis.yml (the line that
+  // Verbatim suffix from the registered preset (src/preset.ts PLOT_SUFFIX; the line that
   // quotes the marker) — the first real-world run extracted this text as the
   // plot of ALL EIGHT checkpoints across four sessions, and because the
   // result was non-null it also suppressed the bounded elicited fallback.

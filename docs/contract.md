@@ -244,12 +244,13 @@ The subclass seam, with everything measured by rounds 12-17 (sources: the instal
   `resolveConfig` **rejects unknown keys at runtime** (`BasicCompactionConfig:
   unknown key "artifactStoreRoot"`, r18) — peel engine-specific keys in the
   subclass constructor before `super(ctx, baseConfig)`.
-- Preset delivery: profile `!!js` evaluates `new Function("ctx", …) with (ctx)` —
-  `dshHomePath`/`process` reachable, **`require` is not** (r20 boot-killer) — so a
-  patch cannot name a package-relative `agentPresets` roots path. The plugin
-  copies its `presets/chapters/` into `$DSH_HOME/.agent-presets/` at boot,
-  write-if-missing (`installChaptersPreset`, schemastery default import —
-  version line `@deepseek-ai/schemastery@3.x`, NOT host rc.x).
+- Preset delivery: the plugin registers the `chapters` declaration row at activation
+  (`src/preset.ts` -> `ctx.get('agentPresets').register(...)`). The old copy of
+  `presets/chapters/` into `$DSH_HOME/.agent-presets/` is GONE with the 0.2.0 support
+  floor; the section "Presets are declaration rows" records why the row is not a shipped
+  patch layer (`!!js` evaluates `disabled` before services mount, and an array
+  `dsh.bundle.patch` throws on a pre-0.1.7 host). Related: profile `!!js` reaches
+  `dshHomePath`/`process` but NOT `require` (r20 boot-killer).
 - `ctx.logger` output is invisible to headless `dsh web` (r19); engine failures
   mirror to `$DSH_CHAPTERS_ENGINE_ERRORS` when set. Engine finalization runs on
   BOTH the success and rejection paths of `compactIfNeeded`/`compactNow` — the
@@ -353,6 +354,98 @@ name (compare `examples/dsh-session-fork/cordis.patch.yml`). Its `name` must mat
 Entry `apply(ctx, config)`. Build with `tsc -p tsconfig.json` and **build before installing**. A client
 UI (later phase) additionally needs `dsh.client` and a `tsdown.client.config.ts` — see
 `dsh-session-fork/package.json` for the shape.
+
+### Presets are declaration rows now (host ≥ 0.1.7-alpha.1) — measured, with the incident
+
+A user preset used to be a directory `$DSH_HOME/.agent-presets/<id>/` holding `preset.yml` +
+`agent.cordis.yml`. The host's own migration note is blunt: *"Nothing reads that directory any more."*
+(`@deepseek-ai/dsh-agent-preset/skills/editing-cordis-compositions/SKILL.md`). A preset is now an
+`@deepseek-ai/dsh-agent-preset` **declaration row** (`config: {id, name?, description?, order, plugins}`;
+`dsh-agent-preset/lib/index.js:13-20`) carried by a patch layer, and `AgentPresetRegistry.register()` is
+fed only by such rows (`dsh-agent-preset-registry/lib/index.js:470`, installed 0.2.0-rc.2). Nothing
+crashes when a plugin misses this: the bundle boots, its tools register, Settings says "enabled and
+running", the preset is simply absent — and a session's preset id is **durable state** (`resumeObserved()`
+→ `presets.resolve(id)`, `dsh-api-session-controller/lib/index.js:404`, `:364`; `resolve()` throws
+`agent-preset/not-found`, `dsh-agent-preset-registry/lib/index.js:596`), so every chapters session refuses
+to OPEN while its log sits there intact.
+
+**This bundle does NOT ship the row as a patch layer.** It registers the row itself at activation,
+through the host's own `ctx.get('agentPresets').register(definition)` — the same call the host's
+declaration-row plugin makes (`dsh-agent-preset/lib/index.js`, `[Service.init]`). The reason is two
+boot-breaking failures measured on the pinned legacy closure (`@deepseek-ai/dsh 0.1.5-rc.1`, the host
+`dev/dsh-host-lock` freezes for tape bytes) against the installed 0.2.0-rc.2:
+
+- `dsh.bundle.patch` as an **array** (what a second layer requires) dies at profile load on a pre-0.1.7
+  host: `TypeError [ERR_INVALID_ARG_TYPE]: The "path" argument must be of type string. Received an
+  instance of Array` — legacy `dsh-app-boot/lib/index.js:853` does `join(packageDir, declared)`. Array
+  support (`bundlePatchFiles`) and declaration rows arrive in the SAME release, 0.1.7-alpha.1, verified
+  across the published `dsh-app-boot` tarballs. A two-layer manifest is therefore exactly as incompatible
+  with 0.1.5/0.1.6 as it looks, and the host does not warn — it just never comes up.
+- The **row itself** in any layer a legacy host reads is fatal the same way:
+  `dsh: plugin tree failed to load: … failed to import loader entry preset-chapters
+  (@deepseek-ai/dsh-agent-preset): Cannot find package` (measured; `@deepseek-ai/dsh-agent-preset` is
+  first published at 0.1.7-alpha.1, and 0.1.5-rc.1 ships `dsh-agent-presets`, plural, whose service has
+  no `register()` — `this.ctx.agentPresets.register is not a function`).
+- **`disabled: !!js` cannot gate the row either**, which is the tempting fix. The Loader evaluates a row's
+  `disabled` before services are mounted (`cordis-plugin-loader/lib/index.js:348` →
+  `evaluate(this.ctx, expr)` = `with (ctx) { eval(expr) }`), so `get('agentPresets')` is undefined *on the
+  modern host too* and the row is disabled everywhere — measured on 0.2.0-rc.2: `preset-v2 … failed to
+  import`, roster without it, while the same row with `disabled: !!js false` registered normally. Bare
+  `get(...)` also throws in that scope (`ctx` is bound, `get` is not).
+
+The registration path is verified on both mechanisms with real boots: on 0.2.0-rc.2 the witness reports
+`register: pruned, roster: present, inventoryRows: 28, unusableRows: []`; on 0.1.5-rc.1 it reports
+and the same build on 0.1.5-rc.1 logs
+`delivery: REFUSED — this host predates preset declaration rows (< 0.2.0)` — the tools work,
+the preset cannot exist there, and 0.2.0 is now the support floor.
+
+Three consequences of reading the registry rather than the filesystem:
+
+- **A row that does not resolve is dropped, never mounted.** `mountPreset` throws if ANY enabled row failed
+  (`dsh-agent-preset-registry/lib/index.js:272`), the registry stores it as `record.broken` (`:541`), and
+  `retain()` then refuses with `agent-preset/invalid` (`:651`) — so one stale row makes the whole preset
+  unusable, which is the same user-visible failure as a missing preset. Measured on 0.2.0-rc.2 with a row
+  for `@deepseek-ai/dsh-tool-schedule` (published only from 0.2.1-alpha.1):
+  `preset "chapters" is DECLARED BUT BROKEN — tool-schedule …: never started`. `pruneResolvableRows`
+  (`src/preset.ts`) drops such rows and NAMES them in the mount line; `resolvableFromThisPackage` is the
+  probe, asked with the row's full specifier so a lost subpath export is caught too.
+- **A held disposer, not an effect.** `register()` returns an unregister disposer, and wiring it through
+  `ctx.effect` un-registers the preset the moment our activation finishes — measured: `register()`
+  succeeded while the roster came back WITHOUT `chapters`. The same apply-fiber trap bit the storage
+  domain in r35. The disposer is held in a module array instead.
+- **The roster is the health check, and it must be asked after activation.** The registry re-audits a mount
+  by awaiting the settled loader tree (`:562`), and its doc says callers "must not run inside a Host row's
+  own activation, which the settlement would wait on". So `reportPresetRoster()` runs deferred, and
+  `compositionInventory()` rows say which mounted rows are actually `active` — `broken` alone hides a row
+  that resolved but never started.
+
+Rows are renamed and dropped between host versions, so re-anchor `src/preset.ts` against the installed
+host's own `@deepseek-ai/dsh-web-app/presets/standard.patch.yml` after an upgrade. Measured drift across
+the five published versions (rc.1, rc.2, alpha.1, alpha.2, alpha.4): alpha.1 ADDS `dsh-time-context` +
+`dsh-tool-schedule` + `toolFilter.deny[schedule_*]`; alpha.2 DROPS the persona `suffix` (with its
+`{{cwd}}`), `backgroundMode`, and the codex/claude-code/ralph rows; alpha.4 rewrites the plan-mode
+sentence, drops `toolFilter`, adds `dsh-plugin-market`. rc.1 and rc.2 are byte-identical.
+`tests/unit/preset-declaration.test.ts` is what turns the next rename into a red row instead of a broken
+user session — and it pins that `dsh.bundle.patch` is still a string.
+
+- **Prompt variables are a closed set, and violating them throws per turn, not at boot.** `dsh-agent-loop`
+  registers `provider`/`model`/`cwd` through 0.2.0-rc.2 (`lib/index.js:1564-1566`) and only `provider` and
+  `model` from 0.2.1-alpha.2 (`:1591-1592`); `interpolate()` rejects any other reference with `prompt
+  variable "{{x}}" has no value for this assembly` (`dsh-system-prompt/lib/index.js:171`). There is no
+  `{{cwd}}` worth writing: `dsh-working-directory` (host plane) already prints `Current working directory:
+  "…"` into the runtime context. This is what broke every new chapters session immediately AFTER the
+  delivery fix above — the preset composed fine, the legacy `persona.suffix` interpolated `{{cwd}}`, and
+  assembly threw on every turn. Pinned by the `{{variable}}` row of the test.
+- **Some host plugins reject unknown config keys**, so a preset row's config is not free-form:
+  `dsh-compaction-tool-result-pruner`, `dsh-compaction-basic` and `dsh-plan-mode` throw on any key they do
+  not know (`PlanModeConfig has unknown key(s) …`); `dsh-tool-subagent` and `dsh-tool-ralph` are plain zod
+  objects that strip them. Keep exactly `{thresholdChars, headChars, tailChars}` on the pruner and exactly
+  `{section}` on plan mode.
+- **Persona wording is load-bearing for the engine.** `src/engine-core.ts`'s `PLOT_TEMPLATE_ECHO` suppresses
+  a "plot" that is really our own instruction quoted back (the 2026-09-25 audit: eight checkpoints of a
+  real run inherited boilerplate, and because the result was non-null the bounded elicited fallback never
+  ran). It matches phrases inside the suffix, so reword the suffix and the guard in the same change — the
+  gate asserts that coupling by behaviour, not by copying the regex.
 
 ## Trigger Constraints
 

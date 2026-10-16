@@ -252,6 +252,19 @@ Details in [docs/architecture.md § Ancestry](docs/architecture.md#ancestry-a-da
 session log, and the registry; the readable surface stays token-dense. See
 [docs/contract.md](docs/contract.md) and [docs/architecture.md § Storage](docs/architecture.md#storage).
 
+**"Survives restart" is not "survives the workspace".** The store root is gitignored *inside a
+re-clonable directory*, so deleting or re-cloning a project destroys chapter bodies, artifacts, rules
+and the local pool mirror in one motion — and a host reinstall can hand back a fresh registry
+(`ctx.storageDomain` is per-home) in the same stroke, leaving every TOC citation pointing at nothing.
+Measured 2026-10-11 on this exact pair of causes: 29 of 40 surviving session logs cited
+`.dsh-chapters/` paths that no longer existed anywhere on the filesystem. What survives is the durable
+log (invariant 1 — the reason re-rendering the archive is possible at all) and, if the project was ever
+linked, the pool: `rehydrateStoreFromMirror` (`src/sync.ts:476`) copies **absent** files back only and
+counts them into the sync steps, because rehydration fills gaps and never arbitrates drift. So the
+correct description of such an event is "the archive was lost and rebuilt", never "the sessions were
+corrupted" — and a store with no pool remote and no logs is unrecoverable, which is a backup question,
+not a plugin bug.
+
 ## Hard Rules
 
 - **Never renumber, rewrite, or copy a chapter, and never add a second index.** The store is append-only
@@ -290,7 +303,7 @@ one plane fails boot loudly; and the Phase 1 mount is a shipped preset naming `d
 **Phase 1 stages 0-4 landed (rounds 18-22): the whole loop works with the real parts.** Registry/store/engine/
 preset-install/tools pass — a realm row names our subpath export (`dsh-chapters/engine`), the cascade
 finalizes post-commit, `presets/chapters/` installs itself into `.agent-presets` at boot (profile
-`!!js` has no `require`, copying is the delivery mechanism) — and since 0.1.16 that copy validates the
+`!!js` has no `require`, copying was the delivery mechanism) — and since 0.1.16 that copy validates the
 WHOLE shipped file set and repairs missing files additively: the guard once tested only for `preset.yml`
 while `agent.cordis.yml` is the file that mounts the engine, so a partial wipe was a permanent silent
 failure (never clobber a user's edits; DO restore what is absent), and r22 closed the MVP loop: parent →
@@ -298,6 +311,29 @@ failure (never clobber a user's edits; DO restore what is absent), and r22 close
 preset (15K head) → the CHILD `read` its chapter and echoed its title back. Two real bugs caught and
 fixed en route: finalization must run on the rejection path too (the retry loop can commit, then throw),
 and `validateRanges` refuses before any file is written.
+
+**Host 0.1.7-alpha.1 retired the preset mechanism that paragraph describes — do not carry it forward as
+current.** Nothing reads `$DSH_HOME/.agent-presets` any more; a preset is an `@deepseek-ai/dsh-agent-preset`
+*declaration row*. **This bundle does not ship that row as a patch layer — it registers the row at
+activation** through the host's own `ctx.get('agentPresets').register()`, because shipping it needs a
+`dsh.bundle.patch` ARRAY, and both the array and the row abort the boot of a pre-0.1.7 host (the closure
+`dev/dsh-host-lock` freezes for tape bytes), while `disabled: !!js` cannot gate the row (the Loader
+evaluates `disabled` before services mount, so it is disabled everywhere). **Support floor is 0.2.0**
+(user decision 2026-10-16): the legacy `.agent-presets` copy, the `presets/chapters/` tree, and
+`preset-install.test.ts` are DELETED, and the engine row's `thresholdRatio` became the host-plane config
+`compactionThresholdRatio`. A pre-0.2.0 host therefore gets `delivery: REFUSED` with its tools intact — and
+the tape acceptance chain needs `dev/dsh-host-lock` moved to 0.2.x plus a re-distill; `tests/e2e/boot.ts`
+refuses BY NAME until then, and the refusal lifts itself when the lock moves (silently skipping the pins
+would make every segment pass a run that never exercised the preset). Health is the host ROSTER's answer,
+asked AFTER activation, plus
+`compositionInventory()` rows — **file presence is not preset existence, and "declared" is not "usable"**:
+one unresolvable row makes the WHOLE preset `broken` (`mountPreset` throws), so rows the host cannot import
+are dropped and named in the mount line. The consequence of getting delivery wrong is severe and silent: a
+session's preset id is durable state (recorded as `agent-preset/selected`), so an unregistered id makes
+every session that chose it fail to *open* (`agent-preset/not-found`) while its log sits there intact —
+and meanwhile the plugin boots, registers its tools, and Settings says "enabled and running". Facts with
+file:line: `docs/contract.md` § Presets are declaration rows; the gate that turns the next host rename
+into a red row instead of a broken user session is `tests/unit/preset-declaration.test.ts`.
 Rounds 23-28 then: E3 measured (per-machine — see the Cache section, never cross the numbers),
 `chapters_fork` (r24), the durable title (r25), the 20-check mechanical pass (r26/26b: 18/20 proven
 on-scratch, the rest human-only), the target-hardware verdict (r28: zero-token compaction confirmed at

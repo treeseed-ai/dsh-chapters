@@ -4,7 +4,7 @@ Written 2026-10-09. **Read before writing code.** Human decisions for this featu
 § Decisions Taken and are binding; anything marked *deferred* is a human call, not ours.
 
 DSh ships plan mode (`@deepseek-ai/dsh-plan-mode`) and our own preset mounts it
-(`presets/chapters/agent.cordis.yml:109-133`). Today a session plan survives an archive only as the
+(the `plan-mode` row of the registered preset: `PLAN_MODE_SECTION` in `src/preset.ts`; before the 0.2.0 floor it lived in `presets/chapters/agent.cordis.yml`). Today a session plan survives an archive only as the
 first 400 characters of a tool-call line. That is the worst possible outcome for the one artifact in a
 conversation that is *deliberately* decision-complete — and the reason the plugin exists at all: a
 continuation that cannot see the approved plan either re-plans from recall (lossy) or implements

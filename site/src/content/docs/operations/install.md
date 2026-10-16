@@ -57,6 +57,58 @@ tools, the six `/chapters-*` commands, **both** archive buttons on assistant row
 *Continue with chapters* — one deterministic door, two intents), and the optional `chapters` preset that
 routes `/compact` through the zero-token engine.
 
+### The preset lines are the ones to read
+
+"Enabled and running" in Settings is **not** evidence that the preset exists, and a missing preset is the
+one failure a user feels as corruption: every chapters session refuses to open with
+`agent-preset/not-found`, while its log and chapters sit there intact. So the plugin prints its delivery
+and then asks the host's own roster:
+
+```
+dsh-chapters: mounted (tools registered; delivery: registered the chapters preset declaration row)
+dsh-chapters: preset "chapters" is in the host roster — chapter-form compaction and continuations will compose
+```
+
+Anything else is a named problem, and the line says which: `delivery: registered the chapters preset (N
+row(s) this host cannot resolve, dropped)` means the preset is healthy but the host is missing a package
+the composition asked for (it is dropped rather than mounted, because one unresolvable row would make the
+whole preset unusable); `DECLARED BUT BROKEN` means a row resolved and then refused to activate;
+`NOT in the host roster` means the preset was never created, with the roster's own ids listed. A host below **0.2.0** cannot register a preset row at all: the mount line says
+`delivery: REFUSED — this host predates preset declaration rows (< 0.2.0)`, the `chapters_*` tools and
+`/chapters-*` commands still work, and no `chapters` preset can exist there. 0.2.0 is the support floor.
+
+## If the new-workspace directory picker dies before you can choose a folder
+
+This is a host bug, not a plugin bug — no part of this plugin renders that dialog — but it blocks
+installation, so here is what was measured. The workspace directory picker is a *client* bundle that takes
+its icons from the shell's client module table, and the two must come from the same host generation: the
+0.1.x picker asks for `IconFolderOpen16`/`IconFolderClose16`, while a 0.2.0 shell exports only the
+`…Regular` spellings, with no compat alias either way. The slot boundary catches it, so you see the dialog
+render and then go blank, and the server log records `slot entry crashed in
+'sidebar.workspaces.directoryFlow'` with `Minified React error #130 … got: undefined`.
+
+Upgrading the host does not necessarily fix it, because a stale **profile-local** copy of the picker keeps
+shadowing the upgraded global install. Two steps, in order:
+
+1. look for stale copies and remove them, then restart:
+   `ls ~/.dsh/profiles/*/node_modules/@deepseek-ai | grep picker`
+2. if you want the in-browser browser-style picker regardless of what machine the harness runs on, pin it
+   deliberately in `~/.dsh/profiles/<profile>/cordis.patch.yml` (the same file the config editor writes):
+
+   ```yaml
+   - id: directory-picker
+     disabled: true
+   - insert:
+       - id: directory-picker-browse
+         name: '@deepseek-ai/dsh-host-directory-picker-browse'
+       - id: directory-picker-browse-surface
+         name: '@deepseek-ai/dsh-client-ui-directory-picker-browse'
+   ```
+
+   Without that pin, the host's auto resolver picks a *native* dialog (GTK/zenity) whenever the harness
+   process can see a display — which means the folder chooser opens on the server's desktop, not in your
+   browser.
+
 ## Supply chain, auditable
 
 - every CI-published version carries an **npm provenance attestation** (SLSA v1, via OIDC trusted publishing — no long-lived tokens) linking the tarball to the exact repo, workflow, commit, and CI run that built it;

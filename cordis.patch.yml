@@ -10,17 +10,40 @@
 # Two planes, two surfaces:
 #   HOST PLANE  — the `config:` block below (defaults shown commented; set any
 #                 under your profile's plugin entry).
-#   REALM PLANE — the compaction ENGINE row in the preset
-#                 (presets/chapters/agent.cordis.yml); shared names behave per
-#                 plane. Design record: docs/knowledge-repo.md §12.
+#   REALM PLANE — the compaction ENGINE row inside the preset's composition
+#                 (src/preset.ts for hosts that register rows; for pre-0.1.7
+#                 hosts, presets/chapters/agent.cordis.yml); shared names behave
+#                 per plane. Design record: docs/knowledge-repo.md §12.
+#
+# PRESET DELIVERY — one mechanism, and the host floor is 0.2.0:
+#   Hosts from 0.1.7-alpha.1 compose presets from '@deepseek-ai/dsh-agent-preset'
+#   DECLARATION ROWS and read nothing in $DSH_HOME/.agent-presets. This plugin registers
+#   the `chapters` row itself at activation, through the host's own agentPresets.register()
+#   — the same call the host's declaration-row plugin makes (src/preset.ts; why not a
+#   shipped patch layer is recorded there with the boot-breaking failures measured on
+#   0.1.5-rc.1). Rows this host cannot import are PRUNED and named in the mount line,
+#   because ONE unresolvable row makes the whole preset broken and every chapters
+#   session unopenable. Hosts below 0.2.0 have no register(): the mount line says
+#   `delivery: REFUSED`, the tools still work, and the preset cannot exist there.
+#   Either way the boot then ASKS THE ROSTER — file presence is not preset existence,
+#   and "declared" is not "usable". Read the `dsh-chapters:` lines at startup.
 #
 # config:
 #   # ---- identity & install --------------------------------------------
-#   installChaptersPreset: true    # copy presets/chapters into the home's
-#                                  # .agent-presets at boot; a user-edited
-#                                  # preset is never clobbered (write-once)
+#   installChaptersPreset: true    # register the chapters declaration row at
+#                                  # activation. Turning it off means a preset you
+#                                  # declare yourself (a patch layer in this or
+#                                  # another bundle); ours then stands down as
+#                                  # "already-declared" rather than throwing a
+#                                  # duplicate-preset error through our own row.
+#   compactionThresholdRatio: 0.9  # the registered preset's engine row: share of the
+#                                  # window that triggers a chapter checkpoint. This is
+#                                  # the knob a preset YAML used to carry in the home.
 #   fallbackPreset: 'chapters'     # preset mounted for children when the
-#                                  # caller's own preset cannot be resolved
+#                                  # caller's own preset cannot be resolved — and
+#                                  # the id the roster check looks for. This id is
+#                                  # DURABLE STATE: every child's log records it,
+#                                  # so renaming it orphans those sessions.
 #   harnessId: '<hostname>'        # per-machine identity: git commit author,
 #                                  # token scoping, edits/<harness>/ curation
 #                                  # partition, rule-approval authorship

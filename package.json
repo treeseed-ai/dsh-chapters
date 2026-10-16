@@ -1,6 +1,6 @@
 {
   "name": "@treeseed/dsh-chapters",
-  "version": "0.1.16",
+  "version": "0.1.17",
   "description": "dsh plugin: verbatim chapter archive + zero-token index for small-context models",
   "type": "module",
   "license": "Apache-2.0",
@@ -13,7 +13,6 @@
     "./cordis.patch.yml": "./cordis.patch.yml",
     "./package.json": "./package.json",
     "./engine": "./lib/engine.js",
-    "./presets/*": "./presets/*",
     "./tools": "./lib/tools.js",
     "./store": "./lib/store.js",
     "./registry": "./lib/registry.js",
@@ -21,7 +20,6 @@
   },
   "files": [
     "lib",
-    "presets",
     "cordis.patch.yml",
     "docs",
     "README.md"
