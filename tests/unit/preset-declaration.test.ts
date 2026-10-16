@@ -261,25 +261,37 @@ test('RUN — no row carries a config key a supported host throws on', () => {
     + 'removed a key, drop it here and say why in src/preset.ts')
 })
 
-test('RUN — every {{variable}} the preset references is one the installed host registers', () => {
-  // Measured the hard way: the legacy preset's suffix said "Your working directory is {{cwd}}",
-  // hosts from 0.2.1-alpha.2 register only `provider` and `model`, and interpolation THROWS —
-  // so every turn of every new chapters session died with `prompt variable "{{cwd}}" has no
-  // value for this assembly`. A preset that composes but cannot assemble is worse than one
-  // that is absent, because it looks installed. Read the kernel's OWN registrations; never
-  // reimplement its variable list.
+// The set every host in support has registered: `provider` and `model`. `cwd` is
+// DELIBERATELY EXCLUDED — it exists through 0.2.0-rc.2 and is gone from 0.2.1-alpha.2,
+// and an unregistered reference THROWS at prompt assembly, so a preset using `{{cwd}}`
+// works on one supported host and breaks every turn on the other. This assertion is
+// about OUR composition, so it runs on a runner with no harness installed at all.
+const UNIVERSALLY_REGISTERED_VARS = ['provider', 'model']
+
+test('RUN — the composition references only prompt variables every supported host registers', () => {
+  const refs = [...new Set([...JSON.stringify(chaptersPresetRows()).matchAll(/\{\{([A-Za-z_][A-Za-z0-9_]*)\}\}/g)].map((m) => m[1]!))]
+  const risky = refs.filter((r) => !UNIVERSALLY_REGISTERED_VARS.includes(r))
+  assert.deepEqual(risky, [],
+    `the preset references {{${risky.join('}} / {{')} }}, which at least one supported host does not register. `
+    + 'interpolate() THROWS on an unknown variable, so every turn of every chapters session dies — and the preset '
+    + 'still looks installed. (`dsh-working-directory` already prints the working directory into the runtime '
+    + 'context, which is why {{cwd}} was pure duplication.)')
+  assert.ok(refs.includes('model'), 'the persona prefix is the host wording; dropping it changes every session silently')
+})
+
+test(`${guard} — the installed host really does register what the composition references`, { skip }, () => {
+  // The drift half: read the kernel's OWN registrations rather than trusting the set above,
+  // so a host that drops `model` or `provider` fails here instead of in someone's session.
   const req = createRequire(import.meta.url)
   const loop = (() => { try { return req.resolve('@deepseek-ai/dsh-agent-loop') } catch { return undefined } })()
-  assert.ok(loop !== undefined, 'SKIP-FAIL: @deepseek-ai/dsh-agent-loop must be resolvable to check prompt variables')
+  assert.ok(loop !== undefined, 'the host loop package must resolve when this row runs')
   const registered = new Set([...readFileSync(loop, 'utf8').matchAll(/\.variable\(\s*["']([A-Za-z_][A-Za-z0-9_]*)["']/g)].map((m) => m[1]!))
   assert.ok(registered.size >= 2, `expected the host to register provider+model, saw: ${[...registered]}`)
   const refs = [...new Set([...JSON.stringify(chaptersPresetRows()).matchAll(/\{\{([A-Za-z_][A-Za-z0-9_]*)\}\}/g)].map((m) => m[1]!))]
   const unknown = refs.filter((r) => !registered.has(r))
   assert.deepEqual(unknown, [],
-    `the preset references prompt variables the host does not register: ${unknown.join(', ')} (registered: ${[...registered].join(', ')}). `
-    + 'Prompt assembly throws, so EVERY turn in a chapters session fails — remove the reference or state the fact some other way '
-    + '(`dsh-working-directory` already prints the working directory into the runtime context, which is why {{cwd}} was pure duplication).')
-  assert.ok(refs.includes('model'), 'the persona prefix should still carry {{model}}')
+    `this host does not register ${unknown.join(', ')} — prompt assembly throws, so EVERY turn in a chapters `
+    + `session on it fails (registered here: ${[...registered].join(', ')})`)
 })
 
 /** The persona suffix as the shipped composition carries it. */
@@ -459,11 +471,14 @@ test('RUN — the roster line says the true thing for every verdict, in the loud
 })
 
 test('RUN — resolvableFromThisPackage answers without throwing, both ways', () => {
-  assert.equal(resolvableFromThisPackage('@deepseek-ai/dsh-persona'), true, 'a real host package must resolve')
-  assert.equal(resolvableFromThisPackage('@deepseek-ai/cordis'), true, 'a bare package root must resolve')
-  assert.equal(resolvableFromThisPackage('@deepseek-ai/dsh-definitely-not-a-package'), false,
+  // Asked with packages THIS manifest depends on, so the row passes on a CI runner that has
+  // no harness installed — an assertion about the developer's machine would be a lie there,
+  // which is the mistake this row made on the first 0.1.17 release run.
+  assert.equal(resolvableFromThisPackage('isomorphic-git'), true, 'a declared dependency must resolve')
+  assert.equal(resolvableFromThisPackage('@deepseek-ai/schemastery'), true, 'a declared peer must resolve')
+  assert.equal(resolvableFromThisPackage('@treeseed/dsh-chapters-not-a-package'), false,
     'a missing package must be a false answer, never a thrown error — this runs inside apply()')
-  assert.equal(resolvableFromThisPackage('@deepseek-ai/cordis/definitely-not-an-export'), false,
+  assert.equal(resolvableFromThisPackage('@deepseek-ai/schemastery/definitely-not-an-export'), false,
     'a package that exists but no longer exports the subpath the row names must be a NO — that is the rename this probe is for')
   assert.equal(resolvableFromThisPackage('./nonsense-relative'), true,
     'a RELATIVE name is answered as resolvable: Node resolves the URL without touching the filesystem. '
