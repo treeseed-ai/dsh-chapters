@@ -161,6 +161,9 @@ export function renderChapter(
   config: RenderConfig,
   overrides: readonly ToolResultOverride[] = [],
   topics: readonly string[] = [],
+  /** Optional CodeGraph symbols verified against the project index. Written to
+   *  frontmatter when non-empty; absent → no field emitted (backward compatible). */
+  codegraphSymbols?: readonly string[],
 ): RenderedChapter {
   const inline = new Map(overrides.map((o) => [o.seq, o.inline]))
   // render → redact → write: the single chokepoint, so chapters AND the
@@ -389,6 +392,11 @@ export function renderChapter(
       ? [`plans: [${planFacts.map((p) => `${p.seq}:${p.status}:${p.sha256.slice(0, 8)}`).join(', ')}]`]
       : []),
     ...(chapterPlans.length > 0 || flipsInRange.length > 0 ? [`planMode: ${modeAtEnd}`] : []),
+    // CodeGraph symbols verified against the project index during this chapter's
+    // turns. Written ONLY when non-empty so existing chapters stay byte-identical.
+    ...(codegraphSymbols !== undefined && codegraphSymbols.length > 0
+      ? [`codegraphSymbols: [${[...new Set(codegraphSymbols)].map((s) => JSON.stringify(s)).join(', ')}]`]
+      : []),
     `unrenderedSeqs: [${unrenderedSeqs.join(', ')}]`,
     '---',
     '',

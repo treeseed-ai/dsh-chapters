@@ -72,6 +72,30 @@ export function scoreEntry(entry: IndexEntry, terms: readonly string[], now: num
   return base === 0 ? 0 : base + recencyBonus(entry.mtime, now)
 }
 
+/**
+ * CodeGraph symbol boost: when a search query contains tokens matching
+ * symbols stored in a chapter's frontmatter, add a bounded bonus. This
+ * breaks ties toward structurally-relevant chapters without ever ranking
+ * a non-matching entry above a matching one.
+ *
+ * @param bonusPerMatch — per-symbol bonus (default 0.2, capped at 1.0 total)
+ */
+export function codegraphBoost(entry: IndexEntry, terms: readonly string[], bonusPerMatch = 0.2): number {
+  if (entry.codegraphSymbols === undefined || entry.codegraphSymbols.length === 0) return 0
+  if (terms.length === 0) return 0
+  let matched = 0
+  for (const t of terms) {
+    for (const sym of entry.codegraphSymbols) {
+      // Case-insensitive substring match: query term "auth" matches symbol "authenticate".
+      if (sym.toLowerCase().includes(t) || t.includes(sym.toLowerCase())) {
+        matched++
+        break // one match per term
+      }
+    }
+  }
+  return Math.min(matched * bonusPerMatch, 1.0)
+}
+
 /** Load the corpus from a clone directory: chapters + rules, frontmatter-parsed. */
 export function loadCorpus(cloneDir: string): { entries: IndexEntry[]; summaries: Map<string, string> } {
   const entries: IndexEntry[] = []
@@ -158,7 +182,12 @@ export function rankEntries(
   maxTokens: number,
 ): { results: SearchResult[]; total: number; shown: number; budget: { requested: number; used: number; remaining: number }; line: string } {
   const scored = entries
-    .map((e) => ({ e, score: scoreEntry(e, terms, now, summaries.get(e.path) ?? '') + (coreRuleIds !== null && e.kind === 'rule' && coreRuleIds.has(e.path) ? rulesCoreBonus : 0) }))
+    .map((e) => ({
+      e,
+      score: scoreEntry(e, terms, now, summaries.get(e.path) ?? '')
+        + (coreRuleIds !== null && e.kind === 'rule' && coreRuleIds.has(e.path) ? rulesCoreBonus : 0)
+        + codegraphBoost(e, terms),
+    }))
     .filter((x) => x.score > 0)
     .sort((a, b) => b.score - a.score || (a.e.path < b.e.path ? -1 : 1))
   const results: SearchResult[] = scored.map((x) => ({

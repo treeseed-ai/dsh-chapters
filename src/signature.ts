@@ -27,6 +27,13 @@ export interface CollectionSignature {
   size: number
   /** Always `deterministic` today; P2 enrichment adds model-authored fields elsewhere. */
   by: 'deterministic'
+  /**
+   * CodeGraph symbols verified against the project index during this turn.
+   * Populated only when the codegraph CLI is available and the project is
+   * indexed; empty otherwise. Used by enrichment and search scoring — never
+   * by composition (merge decisions stay deterministic-text-only).
+   */
+  codegraphSymbols?: string[]
 }
 
 /** Stoplist: English function words + code scaffolding that carries no topic. */
@@ -141,7 +148,56 @@ export function extractSignature(events: readonly SessionEventLike[], topTerms =
     .slice(0, topTerms)
     .map(([t]) => t)
 
-  return { seqs, paths, commands, terms, size, by: 'deterministic' }
+  return { seqs, paths, commands, terms, size, by: 'deterministic', codegraphSymbols: [] }
+}
+
+/**
+ * Post-extraction CodeGraph symbol verification. Runs asynchronously after
+ * extractSignature — the turn/end listener fires this fire-and-forget.
+ * Verifies code-shaped tokens from the turn's text against the index;
+ * tokens that resolve to real symbols are added to codegraphSymbols.
+ *
+ * Budget: max 3 queries per turn, 5s timeout each. Every failure path
+ * returns the signature unchanged.
+ */
+export async function enrichSignatureWithCodegraph(
+  sig: CollectionSignature,
+  events: readonly SessionEventLike[],
+  subprocess: import('./codegraph.ts').SubprocessLike | undefined,
+  cwd: string,
+): Promise<void> {
+  // Lazy import to avoid pulling codegraph.ts into every test that imports signature.ts.
+  const cg = await import('./codegraph.ts')
+  const root = cg.findCodegraphRoot(cwd)
+  if (root === undefined) return
+  const exe = await cg.resolveCodegraph(subprocess)
+  if (exe === null) return
+
+  // Gather code-shaped tokens from human-authored messages in the turn.
+  const allText = events
+    .filter((e) => e.type === 'user/message' || e.type === 'assistant/message')
+    .map((e) => {
+      const data = (e.data ?? {}) as Record<string, unknown>
+      return textBlocks(data)
+    })
+    .join('\n')
+  const tokens = cg.extractCodeTokens(allText, 5)
+  if (tokens.length === 0) return
+
+  const verified: string[] = []
+  const seen = new Set<string>()
+  let queries = 0
+  for (const token of tokens) {
+    if (queries >= 3) break
+    queries++
+    try {
+      const symbols = await cg.querySymbols(subprocess, root, token, 5, 5000)
+      for (const s of symbols) {
+        if (!seen.has(s)) { seen.add(s); verified.push(s) }
+      }
+    } catch { /* skip failed token */ }
+  }
+  if (verified.length > 0) sig.codegraphSymbols = verified
 }
 
 /**

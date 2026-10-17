@@ -11,7 +11,7 @@
  * listeners already model.
  */
 import { BasicCompactionEngine } from '@deepseek-ai/dsh-compaction-basic'
-import { extractSignature, turnSpanOf } from './signature.ts'
+import { extractSignature, enrichSignatureWithCodegraph, turnSpanOf } from './signature.ts'
 import { appendCollection } from './registry.ts'
 import type { SessionEventLike } from './types.ts'
 import type { Session, SessionEvent } from '@deepseek-ai/dsh-session'
@@ -93,6 +93,8 @@ export function makeSignatureListener(deps: {
   store: () => Promise<{ store: import('./store.ts').RegistryStore }>
   warn: (error: unknown) => void
   onCollected?: (id: string, sig: { seqs: number[]; paths: string[]; terms: string[]; size: number }) => void
+  /** Optional subprocess service for CodeGraph symbol verification. */
+  subprocess?: import('./codegraph.ts').SubprocessLike | undefined
 }): (session: unknown, event: unknown) => void {
   // Per-session promise chain: the store write is a read-modify-append, so
   // two turn-ends landing the same tick must serialize or the second put
@@ -111,7 +113,13 @@ export function makeSignatureListener(deps: {
       if (span.length === 0) return
       const sig = extractSignature(span)
       deps.onCollected?.(id, sig)
-      const job = (): Promise<void> => deps.store().then(({ store }) => {
+      // CodeGraph symbol verification is async and fire-and-forget. The cwd
+      // comes from the session header; missing cwd or missing CLI → silent no-op.
+      const cwd = (session as { header?: { cwd?: string } } | undefined)?.header?.cwd
+      const enrichPromise = cwd !== undefined
+        ? enrichSignatureWithCodegraph(sig, span, deps.subprocess, cwd).catch(() => {})
+        : Promise.resolve()
+      const job = (): Promise<void> => enrichPromise.then(() => deps.store()).then(({ store }) => {
         const state = store.get(id)
         return state.then((st) => store.put(id, appendCollection(st, sig)))
       }).then(() => undefined).catch(deps.warn)
@@ -359,9 +367,14 @@ export class ChaptersCompactionEngine extends BasicCompactionEngine {
 
   #listenForSignatures(): void {
     try {
+      // Lazy subprocess resolution for CodeGraph integration — same pattern as
+      // dsh-codegraph. The service may mount after this engine; ctx.get returns
+      // undefined when absent, which enrichSignatureWithCodegraph handles as a no-op.
+      const subprocess = this.ctx.get?.('subprocess') as import('./codegraph.ts').SubprocessLike | undefined
       this.ctx.on('session/event', makeSignatureListener({
         store: () => this.store(),
         warn: (error) => { this.ctx.logger?.warn?.(`dsh-chapters: signature capture failed (${String(error)})`) },
+        subprocess,
         onCollected: (id, sig) => {
           this.ctx.logger?.info?.(`dsh-chapters: signature collected for ${id} (${sig.seqs.length} events, ${sig.paths.length} paths, ${sig.size} est tokens)`)
         },

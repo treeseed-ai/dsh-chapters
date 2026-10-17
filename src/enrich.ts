@@ -81,13 +81,24 @@ function defuseInjections(text: string): string {
  * Assemble the model input: capped slice, stable order, hard total budget.
  * Deterministic — same chapter material always produces the same prompt,
  * which is what makes the queue's chapter+model idempotency key sound.
+ *
+ * @param codegraphContext Optional structural context from CodeGraph (symbols,
+ *   call paths). When present, appended as a bounded block so the enricher can
+ *   produce more precise topics. Absent → identical output to before this feature.
  */
-export function buildEnrichInput(meta: { title: string }, slice: EnrichSlice, bodyHead: string): string {
+export function buildEnrichInput(meta: { title: string }, slice: EnrichSlice, bodyHead: string, codegraphContext?: string): string {
   const parts: string[] = [INSTRUCTION, '', `CURRENT TITLE: ${cap(meta.title, TITLE_CAP)}`]
   if (slice.firstAssistant !== undefined) parts.push(`FIRST ASSISTANT: ${cap(slice.firstAssistant, PART_CAP)}`)
   if (slice.lastAssistant !== undefined) parts.push(`LAST ASSISTANT: ${cap(slice.lastAssistant, PART_CAP)}`)
   for (const [i, r] of slice.requests.slice(-3).entries()) parts.push(`REQUEST ${i + 1}: ${cap(r, PART_CAP)}`)
   parts.push('', 'CHAPTER BODY (opening):', cap(bodyHead, BODY_HEAD_TOKENS * 4))
+  // CodeGraph structural context: symbols and their immediate relationships,
+  // verified against the project index. Helps the enricher produce structurally
+  // precise topics (e.g. "auth-middleware" instead of just "auth"). Capped at
+  // 800 chars to stay within TOTAL_IN_CAP; absent → zero bytes added.
+  if (codegraphContext !== undefined && codegraphContext.trim().length > 0) {
+    parts.push('', 'CODE STRUCTURE (from CodeGraph index):', cap(codegraphContext, 800))
+  }
   let text = parts.join('\n')
   if (text.length > TOTAL_IN_CAP) text = text.slice(0, TOTAL_IN_CAP) + '\n…[input truncated]'
   return text

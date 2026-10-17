@@ -138,6 +138,21 @@ export function createEnrichWiring(deps: EnrichWiringDeps): EnrichWiring {
       const body = doc.body
       const userChunks = body.split(/\*\*User[^*\n]*:\*\*/g).slice(1)
       const asstChunks = body.split(/\*\*Assistant[^*\n]*:\*\*/g).slice(1)
+      // Optional CodeGraph structural context: extract code-shaped tokens from
+      // the chapter body and explore them against the project index. Fire-and-forget;
+      // failure → undefined (buildEnrichInput treats it as zero bytes).
+      let codegraphContext: string | undefined
+      try {
+        const cg = await import('./codegraph.ts')
+        const root = cg.findCodegraphRoot(cwd)
+        if (root !== undefined) {
+          const tokens = cg.extractCodeTokens(body, 5)
+          if (tokens.length > 0) {
+            codegraphContext = await cg.exploreCodegraph(undefined, root, tokens.join(' '), 800, 15000)
+            if (codegraphContext === '') codegraphContext = undefined
+          }
+        }
+      } catch { /* CodeGraph unavailable or failed — enrichment proceeds without */ }
       const input = buildEnrichInput(
         { title: rec.title },
         {
@@ -146,6 +161,7 @@ export function createEnrichWiring(deps: EnrichWiringDeps): EnrichWiring {
           ...(asstChunks.length > 1 ? { lastAssistant: stripFence(asstChunks[asstChunks.length - 1]!) } : asstChunks.length === 1 && userChunks.length === 0 ? { lastAssistant: stripFence(asstChunks[0]!) } : {}),
         },
         body.slice(0, 8000),
+        codegraphContext,
       )
       const route = resolveRoute()
       const key2 = modelKey()

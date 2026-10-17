@@ -25,6 +25,10 @@ export interface IndexEntry {
   /** S5 stitch view: additional member paths (this entry's `path` is the
    * canonical first member). Single-file entries omit it. */
   paths?: string[]
+  /** CodeGraph symbols verified against the project index at archive time.
+   *  Absent on chapters archived before CodeGraph integration or when the
+   *  project was not indexed. Used by search scoring. */
+  codegraphSymbols?: string[]
 }
 
 /**
@@ -142,6 +146,7 @@ export function parseFrontmatter(text: string): Record<string, string | string[]
 export function entryFromChapter(path: string, text: string, mtime?: number): IndexEntry {
   const fm = parseFrontmatter(text)
   const topics = fm.topics
+  const codegraphSymbols = fm.codegraphSymbols
   return {
     path,
     title: typeof fm.title === 'string' ? fm.title : path,
@@ -152,6 +157,7 @@ export function entryFromChapter(path: string, text: string, mtime?: number): In
     kind: fm.kind === 'rule' ? 'rule' : fm.kind === 'plan' ? 'plan' : 'chapter',
     ...(typeof fm.category === 'string' && fm.category !== '' ? { category: fm.category } : {}),
     ...(mtime !== undefined ? { mtime } : {}),
+    ...(Array.isArray(codegraphSymbols) && codegraphSymbols.length > 0 ? { codegraphSymbols } : {}),
   }
 }
 

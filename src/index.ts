@@ -115,6 +115,16 @@ export interface Config {
   treedxWorkspaceTtlSeconds: number
   treedxLeaseRetries: number
   treedxLeaseRetryDelayMs: number
+  /** Optional CodeGraph integration: auto-detect the CLI on PATH and enrich
+   *  signatures, search scoring, and enrichment input with structural code
+   *  intelligence. The integration is invisible to the model — it makes
+   *  chapters_search return better results, not a competing tool surface.
+   *  false = hard off. */
+  codegraphEnabled: boolean
+  /** Add CodeGraph structural context to enrichment slices. */
+  codegraphEnrich: boolean
+  /** Per-symbol search score bonus for chapters with matching codegraphSymbols. */
+  codegraphSearchBonus: number
 }
 
 export const Config = Schema.object({
@@ -181,6 +191,11 @@ export const Config = Schema.object({
   treedxWorkspaceTtlSeconds: Schema.number().default(900),
   treedxLeaseRetries: Schema.number().default(3),
   treedxLeaseRetryDelayMs: Schema.number().default(1000),
+  // CodeGraph integration: auto-detect by default. The CLI is probed lazily
+  // at first use; if absent, every integration point is a silent no-op.
+  codegraphEnabled: Schema.boolean().default(true),
+  codegraphEnrich: Schema.boolean().default(true),
+  codegraphSearchBonus: Schema.number().default(0.2),
 }) as Schema<Config>
 
 export const name = '@treeseed/dsh-chapters'
@@ -323,6 +338,17 @@ export async function apply(ctx: HostCtx, config: Config): Promise<void> {
   // says what THIS plugin did, and the deferred roster check below says what the host has.
   const mountMsg = 'dsh-chapters: mounted (tools + commands registered; preset is the `preset-chapters` row)'
   ctx.logger?.info?.(mountMsg)
+
+  // Optional CodeGraph integration: lazy probe at activation. The subprocess
+  // service may not be mounted yet; resolveCodegraph caches the result so
+  // subsequent calls are free. Failure → silent no-op at every integration point.
+  if (config.codegraphEnabled !== false) {
+    const subprocess = ctx.get?.('subprocess') as import('./codegraph.ts').SubprocessLike | undefined
+    void import('./codegraph.ts').then(async (cg) => {
+      const exe = await cg.resolveCodegraph(subprocess)
+      ctx.logger?.info?.(`dsh-chapters: codegraph ${exe !== null ? 'found on PATH' : 'not found (integration inactive until installed)'}`)
+    }).catch(() => { /* module load failure — integration stays off */ })
+  }
 
   // File presence is NOT preset existence (§ Preset delivery): the roster is the only
   // evidence. It must be asked AFTER activation — the registry re-audits a mount by

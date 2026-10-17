@@ -187,6 +187,12 @@ export function assembleNotice(input: {
       "- Anything else on this project — other sessions' work, archived plans (`kind: plan`), curated rules: chapters_search.",
     )
   }
+  // NOTE: CodeGraph integration is INVISIBLE to the model. It enriches
+  // chapters_search results with structurally-aware scoring (codegraphBoost)
+  // and improves enrichment topics via structural context. The model never
+  // sees a separate "Code intelligence" section or references to codegraph_*
+  // tools — dsh-chapters owns search, and CodeGraph makes it better from
+  // behind the scenes. No notice bytes are added for CodeGraph.
   lines.push('', `Ancestry: root ${input.rootSession}; parent ${input.parentSession}; archive under ${input.storeRoot}/.`)
   return lines.join('\n')
 }

@@ -61,7 +61,7 @@ test('deterministic: same events → identical signatures, byte for byte', () =>
 test('empty turn (no text, no tools): valid signature with empty signals', () => {
   const empty: SessionEventLike[] = [turnEnd(0)]
   const sig = extractSignature(empty)
-  assert.deepEqual(sig, { seqs: [0], paths: [], commands: [], terms: [], size: 0, by: 'deterministic' })
+  assert.deepEqual(sig, { seqs: [0], paths: [], commands: [], terms: [], size: 0, by: 'deterministic', codegraphSymbols: [] })
 })
 
 // ---------------------------------------------------------------- r28 noise fixes (measured in a live boot)
