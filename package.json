@@ -1,6 +1,6 @@
 {
   "name": "@treeseed/dsh-chapters",
-  "version": "0.1.18",
+  "version": "0.1.19",
   "description": "dsh plugin: verbatim chapter archive + zero-token index for small-context models",
   "type": "module",
   "license": "Apache-2.0",
@@ -41,7 +41,7 @@
   "scripts": {
     "test": "node --test tests/unit/*.test.ts tests/integration/*.test.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "build": "tsc -p tsconfig.json && tsdown -c tsdown.client.config.ts",
+    "build": "tsc -p tsconfig.json && tsdown -c tsdown.client.config.ts --config-loader tsx",
     "build:client": "tsdown -c tsdown.client.config.ts",
     "test:unit": "node --test tests/unit/*.test.ts",
     "test:e2e": "PLAYWRIGHT_BROWSERS_PATH=$PWD/var/ms-playwright E2E_TAPE=suite playwright test -c tests/e2e/playwright.config.ts --project=suite && E2E_PORT=41733 E2E_THRESHOLD=0.5 E2E_FLOOR=1000000 PLAYWRIGHT_BROWSERS_PATH=$PWD/var/ms-playwright E2E_TAPE=heavy playwright test -c tests/e2e/playwright.config.ts --project=heavy && E2E_PORT=41732 E2E_THRESHOLD=0.9 E2E_FLOOR=500 PLAYWRIGHT_BROWSERS_PATH=$PWD/var/ms-playwright E2E_TAPE=arrival playwright test -c tests/e2e/playwright.config.ts --project=arrival && E2E_PORT=41734 E2E_THRESHOLD=0.9 E2E_ENRICH=1 PLAYWRIGHT_BROWSERS_PATH=$PWD/var/ms-playwright E2E_TAPE=enrich playwright test -c tests/e2e/playwright.config.ts --project=enrich && E2E_PORT=41736 E2E_THRESHOLD=0.75 PLAYWRIGHT_BROWSERS_PATH=$PWD/var/ms-playwright E2E_TAPE=fanout playwright test -c tests/e2e/playwright.config.ts --project=fanout && E2E_PORT=41735 PLAYWRIGHT_BROWSERS_PATH=$PWD/var/ms-playwright E2E_TAPE=rules playwright test -c tests/e2e/playwright.config.ts --project=rules && E2E_PORT=41737 PLAYWRIGHT_BROWSERS_PATH=$PWD/var/ms-playwright E2E_TAPE=fork playwright test -c tests/e2e/playwright.config.ts --project=fork && E2E_PORT=41738 E2E_THRESHOLD=0.99 E2E_NO_AUX_MODEL=1 PLAYWRIGHT_BROWSERS_PATH=$PWD/var/ms-playwright E2E_TAPE=plans playwright test -c tests/e2e/playwright.config.ts --project=plans",
@@ -60,13 +60,13 @@
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.0",
+    "@deepseek-ai/cordis-plugin-loader": "*",
     "@deepseek-ai/dsh-compaction": "*",
     "@deepseek-ai/dsh-compaction-basic": "*",
     "@deepseek-ai/dsh-home-paths": "*",
     "@deepseek-ai/dsh-storage-domain": "*",
     "@deepseek-ai/dsh-tools": "*",
-    "@deepseek-ai/schemastery": "*",
-    "@deepseek-ai/cordis-plugin-loader": "*"
+    "@deepseek-ai/schemastery": "*"
   },
   "peerDependenciesMeta": {
     "@deepseek-ai/cordis": {
@@ -96,6 +96,7 @@
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "^4.0.2",
+    "@deepseek-ai/cordis-plugin-loader": "^1.0.4",
     "@deepseek-ai/dsh-agent": "^0.1.5-rc.2",
     "@deepseek-ai/dsh-client-ui-primitives": "^0.1.2-rc.1",
     "@deepseek-ai/dsh-commands": "^0.1.5-rc.2",
@@ -109,15 +110,15 @@
     "@deepseek-ai/dsh-storage-domain": "^0.1.5-rc.2",
     "@deepseek-ai/dsh-tools": "^0.1.5-rc.2",
     "@deepseek-ai/schemastery": "3.18.2",
-    "@playwright/test": "^1.63.0",
+    "@playwright/test": "^1.64.1",
     "@types/node": "^22.20.3",
     "@types/react": "~18.3.1",
     "c8": "^12.0.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "tsdown": "^0.22.2",
-    "typescript": "^5.9.3",
-    "@deepseek-ai/cordis-plugin-loader": "^1.0.4"
+    "tsx": "^4.23.15",
+    "typescript": "^5.9.3"
   },
   "dependencies": {
     "isomorphic-git": "^1.42.2",

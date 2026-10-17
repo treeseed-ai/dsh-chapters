@@ -37,3 +37,8 @@ dev/dsh-host-lock/node_modules/
 # utilities
 /.codegraph/
 
+# Playwright
+node_modules/
+/blob-report/
+/playwright/.cache/
+/playwright/.auth/
