@@ -33,3 +33,7 @@ coverage/
 
 # hermetic host lock: lockfile tracked, materialized tree not
 dev/dsh-host-lock/node_modules/
+
+# utilities
+/.codegraph/
+
