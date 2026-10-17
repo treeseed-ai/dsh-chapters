@@ -2,6 +2,7 @@
 /node_modules/
 /lib/
 /.npmcache/
+/.npm-cache/
 /spikes/probe/node_modules/
 /test-results/
 
@@ -16,7 +17,6 @@ spikes/probe/created-ids.json
 .dsh-knowledge/
 .dsh-chapters*/
 /playwright-report/
-/.dsh/
 /var/
 /tests/e2e/var/
 
