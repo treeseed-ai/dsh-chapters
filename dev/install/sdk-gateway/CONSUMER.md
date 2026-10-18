@@ -11,12 +11,21 @@ cd dev/install
 docker compose -f compose.vllm.yml up -d                    # only if no model server runs yet
 GATEWAY_TOKEN=$(openssl rand -hex 16) \
 GATEWAY_API_KEYS=consumer-a,consumer-b \
-  docker compose -f compose.sdk.yml up -d                   # gateway on :8765
+  docker compose -f compose.sdk.yml up -d                   # gateway published on host :8765
 curl -fsS http://localhost:8765/healthz                     # {"ok":true}
 ```
 
 You need from whoever operates the stack: the **URL** (`ws://host:8765`) and one credential — a
 bearer key from `GATEWAY_API_KEYS` (preferred, per-consumer) or the shared `GATEWAY_TOKEN`.
+
+**Where can the port be reached from?** The listener binds loopback *inside* the container; Docker's
+published-port forwarder answers on the **host machine** (`localhost:8765`), including from other
+containers that reach the host. It is deliberately NOT reachable at the container's bridge IP
+(measured: ECONNREFUSED on `192.168.x.x:8765`) — the RCE-safety rule the Web UI follows ("bind one
+concrete address, never a wildcard") applies here too. Consumers therefore connect via:
+same machine → `ws://localhost:8765`; another machine → `ws://<host-lan-ip>:8765` through a TLS
+reverse proxy you control (never expose the raw port); same docker network as the HOST daemon is not
+a thing — containers of co-located stacks use `host.docker.internal` (compose already maps it).
 
 ## 1. Your project: two files, zero build steps
 
