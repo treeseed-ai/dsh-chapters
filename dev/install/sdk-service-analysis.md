@@ -52,16 +52,29 @@ marketplace, `agent-default-model`, `agent-presets.default: chapters`), `profile
 profile `package.json` bundles (`@treeseed/dsh-chapters`, codegraph, tinyfish), credentials seed at
 mode 600, peer-symlink resolution fix.
 
+**Correction (measured live, issue #25):** on host 0.2.x a profile-dir `settings.yaml` is read by
+NOTHING. The only reader is `importLegacyDocument` (`packages/settings/settings/src/index.ts:243`)
+at `$DSH_HOME/settings.yaml` — home level, one-time, renamed to `.imported` after import. The running
+container proves it: `profiles/web/settings.yaml` sits there un-renamed, and `--dump-config` shows no
+`baseURL` anywhere — the vLLM `local` provider the entrypoint generates has never taken effect; the UI
+works because the qwen marketplace rows ride `cordis.patch.yml`. So config delivery for BOTH profiles
+must be **patch rows, env-interpolated by the entrypoint into each profile's `cordis.patch.yml`** —
+which is also what makes the sdk profile carry the identical configuration.
+
 For an SDK profile this is **copy-and-retarget**, not redesign:
 
-- `$DSH_HOME/profiles/sdk/cordis.yml` declaring the bundles:
+- `$DSH_HOME/profiles/sdk/package.json` declaring the bundles:
   `["@deepseek-ai/dsh-base", "@deepseek-ai/dsh-sdk-app", "dsh-tinyfish-search", "@treeseed/dsh-chapters", "@jiangzhenguo/dsh-codegraph"]`
-  — plus the same `profile-cordis.patch.yml` and generated `settings.yaml`. Profiles are directories;
+  — plus the same generated `cordis.patch.yml` content (minus web-only rows). Profiles are directories;
   the entrypoint just writes two of them.
-- One trap: the `!!js` expressions in the patches (`maxTokensAsSuccess`, workspace-dependencies
-  gating) require the profile YAML loader to permit `!!js` — already proven working in this image
-  (AGENTS.md: profile `!!js` survives via the preset-copy mechanism; the dev patch itself uses none,
-  but `sdk-app`'s shipped patch does — boot-test will show it immediately).
+- Patch semantics that make this safe: `- id:` rows REPLACE whole config blocks (restating required —
+  base README §"Overrides replace whole settings blocks"), so the generated patch must carry the full
+  `llm-pi-ai.providers` map (qwen marketplace + local vLLM) in one row; `!!js` interpolates at boot
+  (proven: the shipped `sdk-app` patch uses it); a patch naming a nonexistent entry is a stderr warning,
+  not a boot failure (app-boot README) — so web-only rows degrade honestly in the sdk profile.
+- Admission check: plugins are version-gated against the runtime by `engines.dsh` or `@deepseek-ai/dsh*`
+  peer ranges (app-boot README §Profiles). Our package declares `*` peers → admits any 0.2.x; pinning
+  `DSH_HOST_VERSION` keeps client/server versions matched anyway (§3.A, exact-version rule).
 - Another trap inherited from #19: never put env-var interpolation inside exec-form JSON arrays
   (`dev-install-compose.test.ts` pins exactly this class of failure).
 
