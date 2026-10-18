@@ -157,7 +157,7 @@ test('contract: compose.sdk.yml runs the same image and shares the sessions volu
   const compose = read('compose.sdk.yml')
   assert.match(compose, /dockerfile: dev\/install\/Dockerfile/, 'sdk stack must reuse the one service image')
   assert.match(compose, /dsh-agent-api:/, 'service named dsh-agent-api must exist')
-  assert.match(compose, /DSH_ROLE:\s*"?gateway/, 'the sdk service must select the gateway role')
+  assert.match(compose, /DSH_ROLE:\s*(?:"?gateway"|\$\{DSH_ROLE:-gateway\})/, 'the sdk service must select the gateway role')
   assert.match(compose, /condition: service_healthy/, 'vllm health must gate the api service (boot-order trap)')
 })
 
@@ -238,6 +238,8 @@ test('unit: createRuntimeLink reports child death to the socket sink exactly onc
     onSocketLine() {},
     onRuntimeGone() { deaths += 1 },
   })
+  // lazy spawn: wire the death hook by sending one line first
+  link.handleSocketLine('{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}')
   const child = (link as unknown as { child: { _death?: () => void } }).child
   child._death!()
   child._death!()
@@ -248,10 +250,10 @@ test('unit: idle TTL reaps a quiet link and disarms on activity', async () => {
   const { createIdleTimer } = await import('../../dev/install/sdk-gateway/gateway.ts')
   let fired = 0
   const timer = createIdleTimer(50, () => { fired += 1 })
-  timer.touch()
-  await new Promise((r) => setTimeout(r, 80))
+  timer.touch()   // activity at t≈0 must push the deadline to t≈50
+  await new Promise((r) => setTimeout(r, 40))
   assert.equal(fired, 0, 'touch() within the window must postpone the reap')
-  await new Promise((r) => setTimeout(r, 80))
+  await new Promise((r) => setTimeout(r, 30))
   assert.equal(fired, 1, 'silence past the window reaps once')
   timer.dispose()
   await new Promise((r) => setTimeout(r, 80))
