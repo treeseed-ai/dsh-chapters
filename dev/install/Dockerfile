@@ -40,11 +40,13 @@ RUN test -f lib/index.js || (echo "Build failed: lib/index.js missing" && exit 1
 # manifest has no lockfile; a floating range would make image builds drift).
 FROM node:22-bookworm-slim AS gateway-builder
 WORKDIR /gw
-RUN printf '{"name":"dsh-sdk-gateway","private":true,"type":"module","dependencies":{"ws":"8.18.9"}}' > package.json
+RUN printf '{"name":"dsh-sdk-gateway","private":true,"type":"module","dependencies":{"ws":"8.18.0"}}' > package.json
 RUN npm install --omit=dev --no-audit --no-fund
 COPY dev/install/sdk-gateway/gateway.ts ./gateway.ts
+COPY dev/install/sdk-gateway/smoke.mts ./smoke.mts
 RUN npx --yes esbuild@0.25.5 gateway.ts --outfile=gateway.mjs --format=esm --platform=node --target=node22 --bundle --external:ws \
-    && test -s gateway.mjs
+    && npx --yes esbuild@0.25.5 smoke.mts --outfile=smoke.mjs --format=esm --platform=node --target=node22 --bundle --external:ws \
+    && test -s gateway.mjs && test -s smoke.mjs
 
 # ── Stage 3: Runtime ──────────────────────────────────────────────────────────
 FROM node:22-bookworm-slim AS runtime
@@ -135,9 +137,16 @@ WORKDIR /app
 COPY --from=gateway-builder /gw/gateway.mjs /gateway/gateway.mjs
 COPY --from=gateway-builder /gw/node_modules /gateway/node_modules
 # GPU-box smoke client (not a CI gate): docker compose -f compose.sdk.yml exec dsh-agent-api node /gateway/smoke.mjs
-COPY dev/install/sdk-gateway/smoke.mts /gateway/smoke.mjs
+COPY --from=gateway-builder /gw/smoke.mjs /gateway/smoke.mjs
 RUN printf '{"type":"module"}' > /gateway/package.json \
     && node --input-type=module -e "import('/gateway/gateway.mjs').catch(e=>{if(String(e).includes('GATEWAY_TOKEN'))process.exit(0);throw e})" 2>/dev/null || true
+
+# Agent working directory. The SDK server validates the initialize `cwd`
+# against the real filesystem ("working-directory: directory does not exist",
+# measured on 0.2.1-rc.2) — callers default to /workspace, and the web stack's
+# test container already uses this path. A bind mount may replace it; empty is
+# fine, missing is a failed turn.
+RUN mkdir -p /workspace
 
 # Entrypoint composes profile patches from env vars and starts the role service
 COPY dev/install/docker-entrypoint.sh /docker-entrypoint.sh

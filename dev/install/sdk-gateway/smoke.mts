@@ -48,8 +48,19 @@ ws.on('message', (data) => {
   }
   if (msg.method === 'session.event') {
     eventCount += 1
-    const params = msg.params as { event?: { type?: string } } | undefined
-    if (params?.event?.type === 'assistant/message') sawAssistant = true
+    // measured wire shape: the event envelope is FLAT — {seq, type, data}
+    // sits directly in params, NOT under params.event.
+    const ev = (msg.params as { event?: { type?: string }; type?: string } | undefined)?.event
+      ?? (msg.params as { type?: string; seq?: number } | undefined)
+    // measured: assistant/message data wraps the message as {turn, step,
+    // message:{role, content:[…]}}, and small local models emit  reasoning
+    // first — search the whole committed text for the marker.
+    if (ev?.type === 'assistant/message') {
+      const data = (msg.params as { event?: Record<string, unknown>; data?: Record<string, unknown> })?.event?.data
+        ?? (msg.params as { data?: Record<string, unknown> })?.data
+      const text = JSON.stringify(data ?? {})
+      if (text.includes('SMOKE_OK')) sawAssistant = true
+    }
   } else if (msg.method === 'session.status') {
     const params = msg.params as { status?: string } | undefined
     if (params?.status === 'idle' && !settled) { settled = true; finish() }

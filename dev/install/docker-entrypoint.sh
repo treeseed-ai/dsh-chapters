@@ -175,6 +175,36 @@ generate_profile_patch() {
     model: ${LLM_MODEL}
     reasoningEffort: medium
 DEFAULTROW
+    # The preset registry mounts `agentPresets`, which our bundle's
+    # `preset-chapters` declaration row injects. On host 0.2.x only the web-app
+    # bundle ships that mount (measured: base does NOT) — so in the sdk profile
+    # the row would sit pending forever ("1 entry did not activate:
+    # preset-chapters … waiting for service: agentPresets", seen live in the
+    # gateway child's stderr). The insert is UNCONDITIONAL: templates carry no
+    # registry rows, and in web this lands after the bundle's own mount where
+    # the same-id config replaces it with ours (selectedDefault: chapters).
+    cat <<REGROW
+- insert:
+    - id: agent-preset-registry
+      name: '@deepseek-ai/dsh-agent-preset-registry'
+      config:
+        default: standard
+        selectedDefault: chapters
+REGROW
+    # Same host-scope story for the subagent model-selection settings plugin:
+    # our preset's tool-subagent row sets `modelSelectionSettings: true`, and
+    # the tool throws "requires @deepseek-ai/dsh-tool-subagent/model-selection-settings
+    # in the Host scope" unless that plugin is mounted at root — web-app mounts
+    # it, base does not (measured live on the gateway child: preset "chapters"
+    # DECLARED BUT BROKEN). Insert only when the profile has no web-app bundle
+    # (the sdk/gateway profiles), so web never double-mounts.
+    if ! grep -q "dsh-web-app" "$profile_dir/package.json" 2>/dev/null; then
+      cat <<SETROW
+- insert:
+    - id: subagent-model-selection-settings
+      name: '@deepseek-ai/dsh-tool-subagent/model-selection-settings'
+SETROW
+    fi
     # strip the template's own llm-pi-ai top-level row (id line through the next
     # top-level '- id:' / '- insert:' line)
     awk '/^- id: llm-pi-ai$/ {skip=1; next} /^- (id|insert):/ {skip=0} !skip' "$template"

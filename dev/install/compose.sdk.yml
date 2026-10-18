@@ -41,7 +41,6 @@ services:
       context: .
       dockerfile: vllm.Dockerfile
     image: dsh-vllm:${IMAGE_TAG:-latest}
-    container_name: dsh-vllm
     restart: unless-stopped
     ports:
       - "${VLLM_PORT:-8080}:8080"
@@ -72,7 +71,6 @@ services:
       args:
         DSH_HOST_VERSION: ${DSH_HOST_VERSION:-latest}
     image: dsh-chapters-dev:${IMAGE_TAG:-latest}
-    container_name: dsh-agent-api
     restart: unless-stopped
     depends_on:
       vllm:
