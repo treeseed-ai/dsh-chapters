@@ -16,8 +16,9 @@ the first.
 
 ## What you see
 
-An idle session with an empty draft shows a dim line of text where the composer's own
-placeholder guidance lives — visually the placeholder, but ours:
+An idle session with an empty draft shows a dim suggestion line in the composer
+card — in the band where the slash/@ menu pops, in the placeholder's own caption
+palette — labeled with the model that wrote it (hover):
 
 - **Type, and it is gone.** The layer renders only while the draft is empty. Anything you
   type wins immediately, exactly as a placeholder behaves.
@@ -41,7 +42,10 @@ it, offline states swap it, and no config key, slot, or projection feeds a plugi
 value into that chain. So the plugin renders its own layer in the composer's **overlay
 slot** (`conversation.input.overlay` — the same hole the slash/@ trigger menu occupies) and
 behaves *like* a placeholder: shows when empty, hides when typed, accepts on a keystroke.
-This is a visible, replaceable surface, not a hijack of the host's text.
+It sits in the menu band above the typing line rather than on top of the host's placeholder
+text: a chip that replaces another plugin's pixels is a styling hostage; a chip that reads
+as the composer's own suggestion is not. This is a visible, replaceable surface, not a
+hijack of the host's text.
 
 ## What the model reads
 

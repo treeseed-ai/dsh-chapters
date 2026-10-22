@@ -28,6 +28,7 @@ jobs:
       # PUBLIC registry — no install secret and no private-registry config.
       - run: npm ci
       - run: npm run typecheck
+      - run: npm run typecheck:client
       - run: npm run build
       # The gate IS the contract: c8 --check-coverage fails the job below
       # 85% on statements, branches, functions (and lines). Current ledger:
