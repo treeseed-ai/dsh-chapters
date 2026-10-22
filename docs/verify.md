@@ -337,3 +337,41 @@ transport registry). The first push against a real remote is therefore a
 If isomorphic-git ever chokes on a specific forge's smart-HTTP, the documented
 fallback is a CLI driver (the `GitDriver` seam in `src/gitops.ts` exists for
 exactly this swap) — the loop's logic is driver-agnostic by design.
+
+## Prompt recommendations (#71) — SPEC + verification rows
+
+Interface: site §28 (`concepts/prompt-recommendations`); host facts in `docs/contract.md`
+§ Composer Ghost Layer. Off by default — **the effective model string non-empty IS the
+enable**; there is deliberately no second boolean.
+
+Deterministic rows (each must be proven to fail on the mutation it guards):
+
+| Row | Pins |
+|---|---|
+| enable derivation | `effectiveModel = setting('prompt.model') ?? config.promptModel`; empty or unset ⇒ OFF, and a stored empty override beats a non-empty config (`off` verb) |
+| input assembly | chapter summaries first, then the live tail; total ≤ `promptContextChars`; host-injected spans defused BEFORE the cap; deterministic order (same input ⇒ same bytes) |
+| answer validation | trim → reject empty → reject > `promptMaxChars` → ONE retry with the cap restated → refuse with the measured length. Never truncate |
+| cache & watermark | one entry per session keyed by the last completed `turn/end` seq; fresh hit ⇒ zero llm calls; new turn ⇒ recompute on next ask; in-flight dedup shares one promise |
+| command arms | `model` show/set/clear texts, `off`, `suggest` refusals (off / no route / not computable / model failure) each name their remedy |
+| status line | `/chapters-status` prints ON with the model + source, or OFF — both states, linked store or not |
+| client pure logic | `shouldShowGhost` matrix: enabled ∧ !running ∧ draft==='' ∧ hasText ∧ !suppressed/boundary; accept ⇒ setDraft; typing ⇒ hidden; Esc ⇒ suppressed until the boundary moves |
+| client anti-dup | `src/client/index.ts` contains no `commands.execute` for the ghost either — the wire body lives in `src/client/prompt-ghost.ts` ONE time, mirroring the door-runner rule (tests/unit/client-doors.test.ts pattern) |
+| honesty | a suggestion never reaches a chapter file, the notice, the pool, or any model request: an archived session that used the feature contains zero recommendation bytes |
+
+Manual browser procedure (browser-plane claim stays **gated by #56** — the corpus must be
+re-anchored before replay can vouch for it):
+
+1. `/chapters-prompt model local/qwen3.8-flash` (or a cloud route) ⇒ expect "…enables the feature".
+2. Finish a turn, idle with an empty draft ⇒ the ghost line appears dimmed inside the
+   composer card, labeled with the model; the host placeholder is HIDDEN beneath it (draft
+   empty ⇒ host placeholder visible — our layer renders over it; if both are readable at
+   once, that is a styling bug).
+3. Type one character ⇒ ghost gone instantly; delete it ⇒ ghost back (while not accepted).
+4. Click into the editor, press Right-arrow ⇒ suggestion lands as real draft text, cursor
+   at its end; nothing sends. Enter sends as a normal human message — then verify in the
+   log that the message is plain human-authored.
+5. Esc on a fresh ghost ⇒ hidden for this turn; send any turn ⇒ boundary moves, a new offer
+   may come.
+6. `/chapters-prompt off` ⇒ ghost never reappears in this or later sessions, `suggest`
+   refuses; `/chapters-status` says OFF.
+7. Kill the model route (wrong provider) ⇒ ghost hidden, refusal only in command output, no banner.
