@@ -15,7 +15,7 @@ Claims & verification procedures → `docs/verify.md`. Transport truth table →
 Prompt recommendations / composer ghost layer / `/chapters-prompt` → site §28 +
 `docs/contract.md` § Composer Ghost Layer (measured host facts; pull transport, push on 0.2.x).
 Session plans in chapters / the ACTIVE PLAN line / `kind: plan` documents / seeded plan mode / findability → `docs/plans-carriage.md` (+ the corpus amendments in `docs/knowledge-repo.md`).
-Open items / what a fresh session should pick up next → `docs/backlog.md` (NOTE: `tsconfig.json` excludes `src/client/`, so `npm run typecheck` never checks the client plane — run a strict `tsc` over `src/client/*.ts` when touching it) (scoped, with the traps already fixed on main).
+Open items / what a fresh session should pick up next → `docs/backlog.md` (NOTE: `tsconfig.json` excludes `src/client/` — the client plane is checked by `npm run typecheck:client` (`tsconfig.client.strict.json`), which CI runs beside `typecheck` (#71); keep both green) (scoped, with the traps already fixed on main).
 Numbers from real runs (compaction, cache, retrievals) → site Part V (field study §20, cache §21).
 Releases/incidents → site §26 + git log. Benchmarks → `benchmarks/README.md` + site §19.
 Dev/install platform (compose, containerized web) → `dev/install/README.md` + site §24. **SDK service /
@@ -451,7 +451,7 @@ host has no `local` provider and the browser opens on "Add an API key to get sta
 composer never reachable. Distillation no longer needs the GPU box: `E2E_UPSTREAM[_KEY|_MODEL]`
 makes the tape proxy translate on the way out while the fixture keeps its pinned model id and a
 key-free profile (the tape RECORDS the profile's name — a fixture of this rig, not of the
-service that distilled it). Remaining: re-distill all eight projects, then a strict replay and a
+service that distilled it). Remaining: re-distill all eight legacy projects (the ninth, `prompt`, was distilled ON 0.2.0-rc.2 in #71 and needs no re-record), then a strict replay and a
 fresh `coverage:e2e` ledger — until then no browser-plane claim is verified.** Health is still the host ROSTER's answer, asked AFTER activation, plus
 `compositionInventory()` rows — **file presence is not preset existence, and "declared" is not "usable"**.
 A session's preset id is durable state (`agent-preset/selected`), so an unregistered id makes every session
@@ -477,7 +477,7 @@ artifacting — tool results ≥ `toolResultArtifactTokens` never enter the surf
 content-addressed artifact, queried via `chapters_artifact` toc/search/read; measured: 373KB
 book, zero blob prefills, cacheRead monotone across the stub) — and plot carriage (persona
 `PLOT:` discipline carried through in-place checkpoints; bounded elicited fallback behind
-`elicitedPlot`). e2e is now ELEVEN specs in EIGHT replay projects, each with its own boot (suite = knowledge-loop +
+`elicitedPlot`). e2e is now TWELVE specs in NINE replay projects, each with its own boot (#71 adds the prompt-ghost journey, `prompt` @ 0.99 + NO_AUX_MODEL + E2E_PROMPT=1, scripted-distilled like plans — suite = knowledge-loop +
 discovery @ 0.75 of the pinned 32K/15K stress regime; heavy @ 0.5 with the arrival floor OFF —
 measured: a floor below the chunk size arrival-stubs the surface and silently prevents
 compaction from ever being needed; arrival @ production 0.9 + floor 500; fanout @ 0.75 — the

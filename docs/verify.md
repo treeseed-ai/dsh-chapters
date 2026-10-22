@@ -375,3 +375,13 @@ re-anchored before replay can vouch for it):
 6. `/chapters-prompt off` ⇒ ghost never reappears in this or later sessions, `suggest`
    refuses; `/chapters-status` says OFF.
 7. Kill the model route (wrong provider) ⇒ ghost hidden, refusal only in command output, no banner.
+
+**Distilled and observed 2026-10-22** (`prompt-suggestion.spec.ts`, project `prompt`, port 41739):
+the scripted-upstream record run PASSED in a real browser on host 0.2.0-rc.2 — chip visible with the
+suggestion, hidden by one typed character, re-shown on an emptied draft, ArrowRight accepted it into the
+draft via the host's own `InputActions.setDraft`, Enter sent it, and the log held the human message with
+zero persona bytes (`tests/fixtures/model-tape/prompt/PROVENANCE.md`). Replay of this project, like every
+other, waits for the #56 re-anchor. The distill ALSO caught a rig bug worth remembering: `localModelUp`
+answered "no upstream" while a healthy stub ran on the `E2E_UPSTREAM` port — the guard probed :8080 for
+any LOCAL base, the same silent-skip family #54 fixed for remotes (now probes the actual base; pinned in
+no row, because it is a guard that can only lie by refusing, never by passing).
