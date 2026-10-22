@@ -6,9 +6,10 @@ Read this before trusting what the tape proves.
 
 | | |
 |---|---|
-| Journey | `tests/e2e/prompt-suggestion.spec.ts` — a session takes one real turn; the composer ghost offers the second reader's line; typing hides it; an emptied draft re-shows it; ArrowRight accepts it into the draft; Enter sends it; the durable log holds the human message and NEVER the reader persona |
+| Journey | `tests/e2e/prompt-suggestion.spec.ts` — one real turn; the ghost offers; typing hides it; an emptied draft re-shows it; **Escape dismisses boundary 1**; a second turn re-arms the offer; **ArrowRight accepts** it into the draft; Enter sends; the durable log holds the human message and NEVER the reader persona |
 | Served by | `node tests/e2e/stub-model.ts` (OpenAI-compatible SSE on :8081), started with `E2E_UPSTREAM=http://127.0.0.1:8081` |
-| Entries | `0000` the session turn, `0001` the title call, `0002` the **second-reader suggest call** — the auxiliary call is a real `ctx.llm.stream` through the profile's `local` provider to the tape proxy, so the routing, the bound `enrichmentMaxTokens`, and the host-side cache watermark all ran for real |
+| Entries | 6: session turn, title call, **second-reader suggest #1**, turn 2, **suggest #2**, the accepted-prompt turn — the auxiliary calls are real `ctx.llm.stream` runs through the profile's `local` provider to the tape proxy, so the routing, the bound `enrichmentMaxTokens`, and the host-side cache watermark all ran for real |
+| Determinism | REPLAY-VERIFIED 2026-10-22: the journey ran green under `E2E_MODEL=replay` with the corpus gate lifted TEMPORARILY for this check alone (CORPUS_HOST backed up and restored byte-identical) — all six requests served from tape, zero misses journalled. The committed gate still refuses the chain until #56 re-anchors the OTHER eight projects; this one is already 0.2.0-rc.2 bytes |
 | `model` field | `qwen3.8-flash-next` — the proxy records the REQUEST's route name; what answered is this file |
 | Boot pins | `E2E_PROMPT=1` (writes `promptModel: local/qwen3.8-flash-next` into the plugin row — the ONLY project whose boot carries it), threshold 0.99, `E2E_NO_AUX_MODEL=1`, port 41739 |
 

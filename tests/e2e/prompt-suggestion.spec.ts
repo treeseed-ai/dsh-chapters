@@ -90,7 +90,20 @@ test('the ghost appears idle, hides on typing, accepts on ArrowRight, and reache
   await clearComposer(page)
   await expect(ghost(page), 'an emptied draft re-shows the unaccepted suggestion').toBeVisible({ timeout: 5_000 })
 
-  // The gesture: focus the editor, press ArrowRight, the draft IS the suggestion.
+  // Boundary 1's dismissal gesture: Escape closes the offer for THIS boundary —
+  // the chip stays gone even with the draft still empty (the reducer's `dismissed`
+  // phase, proven in the browser next to the unit row).
+  await page.click(composerSel)
+  await page.keyboard.press('Escape')
+  await expect(ghost(page), 'Escape dismisses for the boundary').toBeHidden({ timeout: 5_000 })
+  await expect(ghost(page), 'a dismissed offer does not come back this boundary').toBeHidden({ timeout: 3_000 })
+
+  // A real turn opens boundary 2 — and the next boundary RE-ARMS the offer.
+  await typeComposer(page, 'One more sentence, no tools.')
+  await expect(ghost(page), 'the next boundary re-offers').toBeVisible({ timeout: 300_000 })
+
+  // The acceptance gesture: ArrowRight moves the suggestion into the draft — the
+  // host's own InputActions.setDraft — and closes the offer. Nothing sent yet.
   await page.click(composerSel)
   await page.keyboard.press('ArrowRight')
   await expect.poll(() => editorText(page), { timeout: 5_000, message: 'ArrowRight accepted the draft' }).toBe(SUGGESTION)

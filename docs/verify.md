@@ -376,12 +376,17 @@ re-anchored before replay can vouch for it):
    refuses; `/chapters-status` says OFF.
 7. Kill the model route (wrong provider) ⇒ ghost hidden, refusal only in command output, no banner.
 
-**Distilled and observed 2026-10-22** (`prompt-suggestion.spec.ts`, project `prompt`, port 41739):
-the scripted-upstream record run PASSED in a real browser on host 0.2.0-rc.2 — chip visible with the
-suggestion, hidden by one typed character, re-shown on an emptied draft, ArrowRight accepted it into the
-draft via the host's own `InputActions.setDraft`, Enter sent it, and the log held the human message with
-zero persona bytes (`tests/fixtures/model-tape/prompt/PROVENANCE.md`). Replay of this project, like every
-other, waits for the #56 re-anchor. The distill ALSO caught a rig bug worth remembering: `localModelUp`
-answered "no upstream" while a healthy stub ran on the `E2E_UPSTREAM` port — the guard probed :8080 for
-any LOCAL base, the same silent-skip family #54 fixed for remotes (now probes the actual base; pinned in
-no row, because it is a guard that can only lie by refusing, never by passing).
+**Distilled, observed, AND replay-verified 2026-10-22** (`prompt-suggestion.spec.ts`, project `prompt`,
+port 41739): the scripted-upstream record run PASSED in a real browser on host 0.2.0-rc.2 — chip visible
+with the suggestion, hidden by one typed character, re-shown on an emptied draft, Escape dismissed
+boundary 1, the next boundary re-armed, ArrowRight accepted into the draft via the host's own
+`InputActions.setDraft`, Enter sent it, and the log held the human message with zero persona bytes.
+A true `E2E_MODEL=replay` run then passed with ALL SIX requests served from tape and zero misses
+(corpus gate lifted for that check ALONE and restored byte-identical — the committed gate still
+refuses the chain until #56 re-anchors the other eight; `tests/fixtures/model-tape/prompt/PROVENANCE.md`). The distill ALSO caught a rig bug worth remembering: `localModelUp` answered "no upstream" while a
+healthy stub ran on the `E2E_UPSTREAM` port — the guard probed :8080 for any LOCAL base, the same
+silent-skip family #54 fixed for remotes. A ROW had pinned that behavior ("loopback is answered on
+:8080, not by E2E_UPSTREAM") — and the row was measured WRONG in use, twice, by this very journey
+refusing to run against a live stub. Per the house rule (change obsolete behavior with its tests):
+the row now pins probe-the-actual-base for local upstreams, plus a dead-local-port NO arm, with the
+reason in its comment. The guard lying by REFUSING is the same disease as lying by nodding.
