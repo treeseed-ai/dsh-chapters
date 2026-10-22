@@ -65,8 +65,9 @@ this project does not truncate to fit.
 This is the **one place the plugin spends model tokens at human cadence**. Everything else
 in dsh-chapters is zero-inference (rendered from the log, indexed without a model). Here:
 
-- at most **one auxiliary completion per turn boundary per session**, computed **on
-  demand** — a suggestion is generated when a human is looking at an idle composer with an
+- at most **one recommendation per turn boundary per session** — one auxiliary completion,
+  or two when the first answer fails validation and gets its single restated retry — computed
+  **on demand**: a suggestion is generated when a human is looking at an idle composer with an
   empty draft, never eagerly for sessions you abandoned;
 - concurrent requests for the same session share one in-flight call;
 - the completion runs under the existing `enrichmentMaxTokens` budget (the one auxiliary
